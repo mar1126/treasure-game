@@ -1,1 +1,271 @@
+export async function onRequestGet(context) {
+  const { results } = await context.env.DB.prepare(
+    "SELECT name, score FROM scores ORDER BY score DESC LIMIT 5"
+  ).all();
+  return Response.json(results);
+}
 
+export async function onRequestPost(context) {
+  const { name, score } = await context.request.json();
+  await context.env.DB.prepare(
+    "INSERT INTO scores (name, score) VALUES (?, ?)"
+  ).bind(name, score).run();
+  return Response.json({ success: true });
+}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>オーシャン＆ランド・トレジャー</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    /* 上部：海バトル画面 */
+    .battle-area {
+      background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%);
+      color: white; padding: 12px; height: 215px; display: flex; flex-direction: column; justify-content: space-between;
+      position: relative; user-select: none; cursor: pointer;
+    }
+    .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+    .area-badge { background: rgba(255,255,255,0.25); backdrop-filter: blur(4px); padding: 4px 12px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); }
+    .units-row { display: flex; justify-content: space-around; align-items: center; margin: 4px 0; }
+    .unit { text-align: center; width: 85px; }
+    .unit-sprite { font-size: 38px; filter: drop-shadow(0 3px 5px rgba(0,0,0,0.3)); transition: transform 0.1s; }
+    .unit:active .unit-sprite { transform: scale(1.25); }
+    .hp-text { font-size: 11px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
+    .bar-bg { background: rgba(0,0,0,0.4); height: 6px; border-radius: 3px; overflow: hidden; margin-top: 2px; }
+    .hp-fill { background: #ff7043; height: 100%; width: 100%; transition: width 0.15s; }
+    .tap-hint { position: absolute; bottom: 6px; right: 12px; font-size: 11px; background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 10px; }
+
+    /* ステータスバー */
+    .status-bar {
+      background: #ffffff; border-bottom: 1px solid #d0e8f2; padding: 8px 12px;
+      display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: bold;
+    }
+    .currency { display: flex; gap: 8px; }
+    .gold-box { background: #fff8e7; border: 1px solid #ffe082; padding: 3px 10px; border-radius: 12px; color: #d98200; }
+    .gem-box { background: #e1f5fe; border: 1px solid #81d4fa; padding: 3px 10px; border-radius: 12px; color: #0277bd; }
+
+    /* 中央：コンテンツエリア */
+    .main-content { flex: 1; overflow-y: auto; padding: 12px; padding-bottom: 75px; }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* カードUI（白＆サンゴ色アクセント） */
+    .card { background: #ffffff; border: 1px solid #dceef5; border-radius: 14px; padding: 14px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(2,136,209,0.06); }
+    .card-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; color: #0277bd; display: flex; justify-content: space-between; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .slot-box {
+      border: 1px solid #e0f2f1; border-radius: 10px; padding: 8px; text-align: center; background: #f8fdff;
+    }
+    .slot-box .lvl { font-size: 10px; color: #ff7043; font-weight: bold; text-align: left; }
+    .slot-box .icon { font-size: 32px; margin: 4px 0; }
+    .btn-coral {
+      background: #ff7043; color: white; border: none; padding: 10px 14px; border-radius: 10px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%;
+      box-shadow: 0 3px 0 #d84315;
+    }
+    .btn-coral:active { transform: translateY(2px); box-shadow: 0 1px 0 #d84315; }
+
+    /* 下部：固定ナビゲーション */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: #ffffff;
+      border-top: 1px solid #d0e8f2; display: grid; grid-template-columns: repeat(4, 1fr);
+    }
+    .nav-item {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-size: 11px; color: #78909c; border: none; background: none; cursor: pointer;
+    }
+    .nav-item.active { color: #ff7043; font-weight: bold; background: #fff5f2; border-top: 3px solid #ff7043; }
+    .nav-icon { font-size: 20px; margin-bottom: 2px; }
+  </style>
+</head>
+<body>
+
+  <!-- 上部バトル画面 -->
+  <div class="battle-area" onclick="tapAttack()">
+    <div class="battle-header">
+      <span class="area-badge" id="floor-text">🌊 浅瀬エリア 1-1</span>
+      <span>🔱 タップでソナー攻撃！</span>
+    </div>
+
+    <div class="units-row">
+      <div class="unit">
+        <div class="hp-text" id="enemy-hp-text">100</div>
+        <div class="bar-bg"><div class="hp-fill" id="enemy-hp-bar"></div></div>
+        <div class="unit-sprite" id="enemy-sprite">🐙</div>
+      </div>
+    </div>
+
+    <div class="units-row">
+      <div class="unit"><div class="unit-sprite">🐬</div><div class="hp-text">相棒 Lv.<span id="ally-lv">1</span></div></div>
+      <div class="unit"><div class="unit-sprite">🚤</div><div class="hp-text">攻撃 <span id="atk-power">10</span></div></div>
+      <div class="unit"><div class="unit-sprite">🐢</div><div class="hp-text">自動探索中</div></div>
+    </div>
+    <div class="tap-hint">画面タップで追撃！</div>
+  </div>
+
+  <!-- ステータスバー -->
+  <div class="status-bar">
+    <span>⚓ トレジャーハンター</span>
+    <div class="currency">
+      <div class="gold-box">🪙 <span id="gold">0</span> G</div>
+      <div class="gem-box">💎 <span id="gem">100</span></div>
+    </div>
+  </div>
+
+  <!-- 中央メインエリア -->
+  <div class="main-content">
+
+    <!-- タブ1：船＆仲間強化 -->
+    <div id="tab-ship" class="tab-pane active">
+      <div class="card">
+        <div class="card-title"><span>🚤 探索パーティ・船の改造</span><span>戦力: <span id="power-disp">10</span></span></div>
+        <div class="grid-3">
+          <div class="slot-box"><div class="lvl">Lv.<span class="lv-sync">1</span></div><div class="icon">🐬</div><div>イルカ</div></div>
+          <div class="slot-box"><div class="lvl">Lv.<span class="lv-sync">1</span></div><div class="icon">🚤</div><div>潜水艇</div></div>
+          <div class="slot-box"><div class="lvl">Lv.<span class="lv-sync">1</span></div><div class="icon">🐢</div><div>ウミガメ</div></div>
+        </div>
+        <div style="margin-top: 12px;">
+          <button class="btn-coral" onclick="upgradeUnit()">船と仲間を強化（費用: <span id="up-cost">50</span> G）</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- タブ2：お宝鑑定 -->
+    <div id="tab-treasure" class="tab-pane">
+      <div class="card">
+        <div class="card-title">🏺 発見したお宝・コレクション</div>
+        <div class="grid-3">
+          <div class="slot-box"><div class="lvl">SSR</div><div class="icon">👑</div><div>海底の王冠</div></div>
+          <div class="slot-box"><div class="lvl">SR</div><div class="icon">🐚</div><div>真珠の貝殻</div></div>
+          <div class="slot-box"><div class="lvl">素材</div><div class="icon">🪸</div><div>サンゴ石</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- タブ3：カフェ＆箱庭（準備中） -->
+    <div id="tab-cafe" class="tab-pane">
+      <div class="card">
+        <div class="card-title">🍰 海辺のカフェ＆箱庭</div>
+        <p style="font-size: 13px; color: #546e7a; line-height: 1.5;">次のアップデートで、捕まえたモンスターを店員にしたり、AI着せ替え＆カスタムアイコン編集ができるようになります！</p>
+      </div>
+    </div>
+
+    <!-- タブ4：D1ランキング -->
+    <div id="tab-rank" class="tab-pane">
+      <div class="card">
+        <div class="card-title">🏆 ハンター資産ランキング（D1保存）</div>
+        <input type="text" id="player-name" placeholder="ハンター名を入力" style="width: 100%; padding: 9px; margin-bottom: 8px; border: 1px solid #b0bec5; border-radius: 8px;">
+        <button class="btn-coral" onclick="saveToD1()">現在のゴールドをD1に記録する</button>
+        <p id="save-msg" style="font-size: 12px; color: #0277bd; margin-top: 6px;"></p>
+        <ul id="ranking-list" style="list-style: none; margin-top: 10px; font-size: 13px;"></ul>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 下部ナビゲーション -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="switchTab('ship', this)"><span class="nav-icon">⚓</span>船・育成</button>
+    <button class="nav-item" onclick="switchTab('treasure', this)"><span class="nav-icon">🏺</span>お宝鑑定</button>
+    <button class="nav-item" onclick="switchTab('cafe', this)"><span class="nav-icon">🍰</span>カフェ箱庭</button>
+    <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">🏆</span>ランキング</button>
+  </nav>
+
+  <script>
+    let gold = 0, area = 1, wave = 1, enemyMaxHp = 100, enemyHp = 100, atk = 10, level = 1, upCost = 50;
+    const enemies = ['🐙', '🦈', '🦀', '🐡', '🦑', '🐳'];
+
+    function updateUI() {
+      document.getElementById('gold').textContent = gold.toLocaleString();
+      document.getElementById('floor-text').textContent = `🌊 海域 ${area}-${wave}`;
+      document.getElementById('enemy-hp-text').textContent = Math.max(0, enemyHp);
+      document.getElementById('enemy-hp-bar').style.width = `${(enemyHp / enemyMaxHp) * 100}%`;
+      document.getElementById('ally-lv').textContent = level;
+      document.getElementById('atk-power').textContent = atk;
+      document.getElementById('power-disp').textContent = atk;
+      document.getElementById('up-cost').textContent = upCost.toLocaleString();
+      document.querySelectorAll('.lv-sync').forEach(el => el.textContent = level);
+    }
+
+    function damageEnemy(dmg) {
+      enemyHp -= dmg;
+      if (enemyHp <= 0) {
+        gold += area * 25;
+        wave++;
+        if (wave > 5) { wave = 1; area++; }
+        enemyMaxHp = Math.floor(100 * Math.pow(1.3, area - 1));
+        enemyHp = enemyMaxHp;
+        document.getElementById('enemy-sprite').textContent = enemies[floor % enemies.length];
+      }
+      updateUI();
+    }
+
+    function tapAttack() { damageEnemy(atk); }
+    setInterval(() => { damageEnemy(Math.floor(atk / 2) || 1); }, 1000);
+
+    function upgradeUnit() {
+      if (gold >= upCost) {
+        gold -= upCost; level++; atk += 8; upCost = Math.floor(upCost * 1.4);
+        updateUI();
+      } else {
+        alert('ゴールドが足りません！');
+      }
+    }
+
+    function switchTab(tabName, btn) {
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+document.getElementById('tab-' + tabName).classList.add('active');
+btn.classList.add('active');
+if (tabName === 'rank') loadRanking();
+}
+async function saveToD1() {
+const name = document.getElementById('player-name').value || 'ハンター';
+document.getElementById('save-msg').textContent = 'D1に送信中...';
+try {
+await fetch('/api/scores', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ name, score: gold })
+});
+document.getElementById('save-msg').textContent = 'D1に保存しました！';
+loadRanking();
+} catch (e) {
+document.getElementById('save-msg').textContent = '※D1接続後に保存できます';
+}
+}
+async function loadRanking() {
+try {
+const res = await fetch('/api/scores');
+const data = await res.json();
+document.getElementById('ranking-list').innerHTML = data.map((r, i) =>
+<li style="padding:6px 0; border-bottom:1px solid #e0f2f1;">${i+1}位: <b>${r.name}</b> - ${r.score.toLocaleString()} G</li>
+).join('');
+} catch (e) {}
+}
+updateUI();
+
+
+
+---
+
+### ② `functions/api/scores.js` に貼り付けるコード（D1通信）
+
+```javascript
+export async function onRequestGet(context) {
+  const { results } = await context.env.DB.prepare(
+    "SELECT name, score FROM scores ORDER BY score DESC LIMIT 5"
+  ).all();
+  return Response.json(results);
+}
+
+export async function onRequestPost(context) {
+  const { name, score } = await context.request.json();
+  await context.env.DB.prepare(
+    "INSERT INTO scores (name, score) VALUES (?, ?)"
+  ).bind(name, score).run();
+  return Response.json({ success: true });
+    }
