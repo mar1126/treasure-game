@@ -1,26 +1,48 @@
 export async function onRequestPost(context) {
+  const { request, env } = context;
   try {
-    const { prompt, type, stampText } = await context.request.json();
-    let fullPrompt = "";
+    const body = await request.json();
+    const rawPrompt = String(body.prompt || '').trim().slice(0, 500);
+    const type = String(body.type || 'monster');
+    const stampText = String(body.stampText || '').trim().slice(0, 12);
 
-    if (type === 'monster') {
-      fullPrompt = `cute game character sprite, ${prompt}, isolated on clean simple white background, vibrant colors, 2d game art`;
-    } else if (type === 'bg') {
-      fullPrompt = `bright resort ocean and beach game background, ${prompt}, anime style scenic art, no characters`;
-    } else if (type === 'stamp') {
-      const textPart = stampText ? `, with bold cute speech bubble text saying "${stampText}"` : "";
-      fullPrompt = `cute chibi game chat sticker emote, ${prompt}${textPart}, thick white sticker outline, expressive, vibrant 2d art`;
+    if (!rawPrompt) {
+      return Response.json({ error: 'プロンプトが空です' }, { status: 400 });
+    }
+    if (!env.AI) {
+      return Response.json({ error: 'AIバインディング(env.AI)が未設定です' }, { status: 500 });
     }
 
-    const response = await context.env.AI.run(
-      '@cf/stabilityai/stable-diffusion-xl-base-1.0',
-      { prompt: fullPrompt }
-    );
+    let finalPrompt = `cute vibrant 2d game character illustration, ${rawPrompt}, clean background, high quality`;
+    if (type === 'bg') {
+      finalPrompt = `beautiful 2d fantasy game background art, ${rawPrompt}, vibrant colors, no text`;
+    } else if (type === 'stamp') {
+      finalPrompt = `cute chibi sticker illustration, expressive pose, ${rawPrompt}${stampText ? `, text "${stampText}"` : ''}, white outline, clean background`;
+    }
 
-    const arrayBuffer = await new Response(response).arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-    return Response.json({ image: `data:image/png;base64,${base64}` });
+    const aiRes = await env.AI.run('@cf/bytedance/stable-diffusion-xl-lightning', {
+      prompt: finalPrompt
+    });
+
+    // バイナリ(ReadableStream / Uint8Array)とJSON({ image })の両方に対応
+    let base64Str = '';
+    if (aiRes && typeof aiRes.image === 'string') {
+      base64Str = aiRes.image;
+    } else {
+      const buf = aiRes instanceof ReadableStream
+        ? await new Response(aiRes).arrayBuffer()
+        : aiRes;
+      const bytes = new Uint8Array(buf);
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+      }
+      base64Str = btoa(binary);
+    }
+
+    return Response.json({ image: `data:image/png;base64,${base64Str}` });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ error: 'AI生成エラー: ' + e.message }, { status: 500 });
   }
 }
