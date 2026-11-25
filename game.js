@@ -5,6 +5,8 @@ let gold = 200, gem = 1000, baseAtk = 10, level = 1, upCost = 50, mode = 'sea';
 let cafeLv = 1, cafeCost = 80, staff = new Array(3).fill(null), gardenItems = [];
 let party = new Array(3).fill(null);
 let selectedMonIdx = -1;
+let autoUnlocked = false;
+let autoActive = false;
 
 const MAX_STAMINA = 30;
 const STAMINA_RECOVERY_MS = 60 * 1000;
@@ -67,7 +69,8 @@ let saveTimer = null, lastCloudSyncAt = 0;
 function triggerAutoSave(immediate = false) {
   const payload = {
     savedAt: Date.now(), playerName, gold, gem, baseAtk, level, upCost, mode,
-    stamina, staminaUpdatedAt, cafeLv, cafeCost, staff, gardenItems, party, state,
+    stamina, staminaUpdatedAt, autoUnlocked,
+    cafeLv, cafeCost, staff, gardenItems, party, state,
     captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig
   };
   const jsonStr = JSON.stringify(payload);
@@ -93,6 +96,7 @@ function applySaveData(data) {
   playerName = data.playerName || 'ハンター';
   gold = data.gold ?? 200; gem = data.gem ?? 1000; baseAtk = data.baseAtk ?? 10; level = data.level ?? 1; upCost = data.upCost ?? 50; mode = data.mode || 'sea';
   stamina = data.stamina ?? MAX_STAMINA; staminaUpdatedAt = data.staminaUpdatedAt || Date.now(); syncStamina();
+  autoUnlocked = Boolean(data.autoUnlocked);
   cafeLv = data.cafeLv ?? 1; cafeCost = data.cafeCost ?? 80;
   staff = Array.isArray(data.staff) ? data.staff.slice(0, 3) : new Array(3).fill(null);
   while (staff.length < 3) staff.push(null);
@@ -160,7 +164,7 @@ async function initCloudLoad() {
 }
 
 window.addEventListener('beforeunload', () => {
-  const payload = { savedAt: Date.now(), playerName, gold, gem, baseAtk, level, upCost, mode, stamina, staminaUpdatedAt, cafeLv, cafeCost, staff, gardenItems, party, state, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
+  const payload = { savedAt: Date.now(), playerName, gold, gem, baseAtk, level, upCost, mode, stamina, staminaUpdatedAt, autoUnlocked, cafeLv, cafeCost, staff, gardenItems, party, state, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
   localStorage.setItem('treasure_save_' + userId, JSON.stringify(payload));
 });
 
@@ -207,6 +211,20 @@ function updateUI() {
       stTimer.textContent = `(${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')})`;
     }
   }
+  const autoBtn = document.getElementById('auto-battle-btn');
+  if (autoBtn) {
+    if (!autoUnlocked) {
+      autoBtn.textContent = '🤖 オート(1500💎)';
+      autoBtn.className = 'auto-btn';
+    } else if (autoActive) {
+      autoBtn.textContent = '🤖 オート: ON';
+      autoBtn.className = 'auto-btn unlocked active';
+    } else {
+      autoBtn.textContent = '🤖 オート: OFF';
+      autoBtn.className = 'auto-btn unlocked';
+    }
+  }
+
   const cur = state[mode], eStats = getEnemyStats();
   document.getElementById('gold').textContent = gold.toLocaleString();
   document.getElementById('gem').textContent = gem.toLocaleString();
@@ -282,11 +300,31 @@ function showToast(text) {
   if (!el) return;
   el.textContent = text; el.style.display = 'block'; setTimeout(() => { el.style.display = 'none'; }, 1800);
 }
+function toggleAutoBattle(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  if (!autoUnlocked) {
+    if (gem < 1500) return alert('ジェムが足りません！（1,500💎必要）');
+    if (!confirm('1,500💎を消費して「オート連戦モード」を永久解放しますか？')) return;
+    gem -= 1500; autoUnlocked = true; autoActive = true;
+    showToast('🤖 オート連戦モードを解放しました！');
+    triggerAutoSave(true); updateUI();
+    if (!state[mode].inBattle && stamina >= 1) startBattle();
+    return;
+  }
+  autoActive = !autoActive;
+  showToast(autoActive ? '🤖 オート連戦: ON' : '⏸️ オート連戦: OFF');
+  updateUI();
+  if (autoActive && !state[mode].inBattle && stamina >= 1) startBattle();
+}
 function startBattle(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
   const cur = state[mode]; if (cur.inBattle) return;
   syncStamina();
-  if (stamina < 1) { showToast('⚡ スタミナ不足！（1分で1回復）'); updateUI(); return; }
+  if (stamina < 1) {
+    if (autoActive) { autoActive = false; showToast('⚡ スタミナ切れのためオート停止'); }
+    else showToast('⚡ スタミナ不足！（1分で1回復）');
+    updateUI(); return;
+  }
   if (stamina === MAX_STAMINA) staminaUpdatedAt = Date.now();
   stamina -= 1;
   if (typeof resetBattleAllies === 'function') resetBattleAllies();
@@ -306,15 +344,16 @@ function handleEnemyDefeat(cur, eStats) {
   cur.hp = cur.maxHp; cur.enemyCt = 0; cur.shipCt = 0;
   if (typeof resetBattleAllies === 'function') resetBattleAllies();
   triggerAutoSave(); updateUI();
+  if (autoActive) setTimeout(() => { if (autoActive && !state[mode].inBattle) startBattle(); }, 700);
 }
 
 let tickCount = 0;
 setInterval(() => {
   tickCount++;
-  if (tickCount % 5 === 0 && typeof getCafeIncome === 'function') gold += getCafeIncome();
+  if (tickCount % 20 === 0 && typeof getCafeIncome === 'function') gold += getCafeIncome();
   const cur = state[mode];
-  if (!cur.inBattle) { if (tickCount % 5 === 0) updateUI(); return; }
-  const dt = 0.2;
+  if (!cur.inBattle) { if (tickCount % 20 === 0) updateUI(); return; }
+  const dt = 0.05;
   if ((!battleAllies || battleAllies.every(u => !u)) && typeof resetBattleAllies === 'function') resetBattleAllies();
   const eStats = getEnemyStats();
 
@@ -352,10 +391,11 @@ setInterval(() => {
       showDamagePopup(`ally-slot-${targetIdx}`, `-${dmg}`, 'ally-dmg');
       if (!Array.of(0, 1, 2).some(idx => { const u = battleAllies.slice(idx, idx + 1).pop(); return u && u.hp > 0; })) {
         cur.hp = cur.maxHp; cur.enemyCt = 0; cur.shipCt = 0; cur.inBattle = false;
+        if (autoActive) autoActive = false;
         if (typeof resetBattleAllies === 'function') resetBattleAllies();
         showToast('💀 全滅…仲間を強化しよう！'); triggerAutoSave();
       }
     }
   }
   updateUI();
-}, 200);
+}, 50);
