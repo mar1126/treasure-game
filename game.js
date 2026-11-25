@@ -41,7 +41,8 @@ let iconConfig = { species: 'デフォルト', bgIdx: -1, scale: 1.0, x: 0, y: 0
 function getEnemyStats() {
   const cur = state[mode];
   const list = mode === 'sea' ? seaMonsters : landMonsters;
-  const baseMon = list.at(cur.idx % list.length);
+  const pickIdx = cur.idx % list.length;
+  const baseMon = list.slice(pickIdx, pickIdx + 1).pop() || { icon: '🐙', name: 'オクトパス', ct: 2.2 };
   const baseAtkVal = mode === 'sea' ? 8 : 10;
   return {
     name: baseMon.name,
@@ -124,7 +125,11 @@ function applySaveData(data) {
   gardenItems = data.gardenItems || [];
 
   const rawParty = Array.isArray(data.party) ? data.party : [];
-  party = [rawParty.at(0) ?? null, rawParty.at(1) ?? null, rawParty.at(2) ?? null];
+  party = [
+    rawParty.slice(0, 1).pop() ?? null,
+    rawParty.slice(1, 2).pop() ?? null,
+    rawParty.slice(2, 3).pop() ?? null
+  ];
 
   if (data.state) {
     state = data.state;
@@ -208,7 +213,9 @@ window.addEventListener('beforeunload', () => {
 
 function getSpeciesDisplay(name, defaultIcon) {
   const data = speciesSkins[name];
-  return (data && data.activeIdx >= 0 && data.list.at(data.activeIdx)) ? data.list.at(data.activeIdx) : defaultIcon;
+  if (!data || data.activeIdx < 0) return defaultIcon;
+  const img = data.list.slice(data.activeIdx, data.activeIdx + 1).pop();
+  return img || defaultIcon;
 }
 function renderSprite(displayVal, size = 32, round = '8px') {
   return (displayVal && displayVal.startsWith('data:image')) ? `<img src="${displayVal}" style="width:${size}px;height:${size}px;border-radius:${round};object-fit:cover;vertical-align:middle;">` : displayVal;
@@ -292,7 +299,7 @@ function updateUI() {
   for (let i = 0; i < 3; i++) {
     const el = document.getElementById(`ally-slot-${i}`);
     if (!el) continue;
-    const unit = battleAllies.at(i);
+    const unit = battleAllies.slice(i, i + 1).pop();
     if (unit) {
       el.classList.toggle('dead', unit.hp <= 0);
       const disp = getSpeciesDisplay(unit.name, unit.icon);
@@ -400,21 +407,21 @@ setInterval(() => {
   }
 
   const dt = 0.2;
-  if (battleAllies.every(u => u === null)) {
+  if (!battleAllies || battleAllies.every(u => !u)) {
     resetBattleAllies();
   }
   const eStats = getEnemyStats();
 
   for (let i = 0; i < 3; i++) {
-    const u = battleAllies.at(i);
+    const u = battleAllies.slice(i, i + 1).pop();
     if (!u || u.hp <= 0) continue;
-    u.ct += dt;
-    if (u.ct >= u.maxCt) {
+    u.ct = (u.ct || 0) + dt;
+    if (u.ct >= (u.maxCt || 2.0)) {
       u.ct = 0;
-      let rawAtk = u.atk;
+      let rawAtk = u.atk || 10;
       let isCrit = false;
 
-      if (u.monRef) {
+      if (u.monRef && typeof getMonsterSkill === 'function') {
         const sk = getMonsterSkill(u.name);
         const bonusRate = u.monRef.traitId === 'crit_master' ? 0.1 : 0;
         if (Math.random() < (sk.rate + bonusRate)) {
@@ -441,13 +448,17 @@ setInterval(() => {
     return;
   }
 
-  cur.enemyCt += dt;
+  cur.enemyCt = (cur.enemyCt || 0) + dt;
   if (cur.enemyCt >= eStats.ct) {
     cur.enemyCt = 0;
-    const aliveIndices = Array.from({ length: 3 }, (_, idx) => idx).filter(idx => battleAllies.at(idx) && battleAllies.at(idx).hp > 0);
+    const aliveIndices = [0, 1, 2].filter(idx => {
+      const unit = battleAllies.slice(idx, idx + 1).pop();
+      return unit && unit.hp > 0;
+    });
     if (aliveIndices.length > 0) {
-      const targetIdx = aliveIndices.at(Math.floor(Math.random() * aliveIndices.length));
-      const targetUnit = battleAllies.at(targetIdx);
+      const randPos = Math.floor(Math.random() * aliveIndices.length);
+      const targetIdx = aliveIndices.slice(randPos, randPos + 1).pop();
+      const targetUnit = battleAllies.slice(targetIdx, targetIdx + 1).pop();
       const dmg = Math.max(1, eStats.atk - Math.floor(targetUnit.def / 2));
       targetUnit.hp -= dmg;
 
@@ -455,7 +466,10 @@ setInterval(() => {
       triggerMotion(`ally-slot-${targetIdx}`, 'hit-motion');
       showDamagePopup(`ally-slot-${targetIdx}`, `-${dmg}`, 'ally-dmg');
 
-      const stillAlive = Array.from({ length: 3 }, (_, idx) => idx).some(idx => battleAllies.at(idx) && battleAllies.at(idx).hp > 0);
+      const stillAlive = [0, 1, 2].some(idx => {
+        const unit = battleAllies.slice(idx, idx + 1).pop();
+        return unit && unit.hp > 0;
+      });
       if (!stillAlive) {
         cur.hp = cur.maxHp;
         cur.enemyCt = 0;
