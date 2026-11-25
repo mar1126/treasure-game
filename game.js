@@ -5,11 +5,12 @@ let gold = 200, gem = 1000, baseAtk = 10, level = 1, upCost = 50, mode = 'sea';
 let cafeLv = 1, cafeCost = 80, staff = new Array(3).fill(null), gardenItems = [];
 let party = new Array(3).fill(null);
 let selectedMonIdx = -1;
-let autoUnlocked = false;
-let autoActive = false;
+
+let autoUnlocked = false, autoActive = false;
+let speed2xUnlocked = false, speed2xActive = false;
+let staminaFastUnlocked = false;
 
 const MAX_STAMINA = 30;
-const STAMINA_RECOVERY_MS = 60 * 1000;
 let stamina = MAX_STAMINA;
 let staminaUpdatedAt = Date.now();
 
@@ -56,12 +57,13 @@ function getEnemyStats() {
 }
 
 function syncStamina() {
+  const intervalMs = typeof getStaminaIntervalMs === 'function' ? getStaminaIntervalMs() : 60000;
   if (stamina >= MAX_STAMINA) { stamina = MAX_STAMINA; staminaUpdatedAt = Date.now(); return; }
   const now = Date.now(), elapsed = now - staminaUpdatedAt;
-  const recovered = Math.floor(elapsed / STAMINA_RECOVERY_MS);
+  const recovered = Math.floor(elapsed / intervalMs);
   if (recovered > 0) {
     stamina = Math.min(MAX_STAMINA, stamina + recovered);
-    staminaUpdatedAt = (stamina >= MAX_STAMINA) ? now : staminaUpdatedAt + (recovered * STAMINA_RECOVERY_MS);
+    staminaUpdatedAt = (stamina >= MAX_STAMINA) ? now : staminaUpdatedAt + (recovered * intervalMs);
   }
 }
 
@@ -69,7 +71,7 @@ let saveTimer = null, lastCloudSyncAt = 0;
 function triggerAutoSave(immediate = false) {
   const payload = {
     savedAt: Date.now(), playerName, gold, gem, baseAtk, level, upCost, mode,
-    stamina, staminaUpdatedAt, autoUnlocked,
+    stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked,
     cafeLv, cafeCost, staff, gardenItems, party, state,
     captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig
   };
@@ -95,8 +97,10 @@ function applySaveData(data) {
   if (!data) return;
   playerName = data.playerName || 'ハンター';
   gold = data.gold ?? 200; gem = data.gem ?? 1000; baseAtk = data.baseAtk ?? 10; level = data.level ?? 1; upCost = data.upCost ?? 50; mode = data.mode || 'sea';
-  stamina = data.stamina ?? MAX_STAMINA; staminaUpdatedAt = data.staminaUpdatedAt || Date.now(); syncStamina();
   autoUnlocked = Boolean(data.autoUnlocked);
+  speed2xUnlocked = Boolean(data.speed2xUnlocked);
+  staminaFastUnlocked = Boolean(data.staminaFastUnlocked);
+  stamina = data.stamina ?? MAX_STAMINA; staminaUpdatedAt = data.staminaUpdatedAt || Date.now(); syncStamina();
   cafeLv = data.cafeLv ?? 1; cafeCost = data.cafeCost ?? 80;
   staff = Array.isArray(data.staff) ? data.staff.slice(0, 3) : new Array(3).fill(null);
   while (staff.length < 3) staff.push(null);
@@ -128,6 +132,7 @@ function applySaveData(data) {
   if (typeof renderParty === 'function') renderParty();
   if (typeof renderCaptured === 'function') renderCaptured();
   if (typeof renderCafe === 'function') renderCafe();
+  if (typeof renderShop === 'function') renderShop();
   if (typeof updateSelectOptions === 'function') updateSelectOptions();
   if (document.getElementById('icon-char-sel')) { document.getElementById('icon-char-sel').value = iconConfig.species; document.getElementById('icon-bg-sel').value = iconConfig.bgIdx; }
   if (typeof renderSpeciesGallery === 'function') renderSpeciesGallery();
@@ -147,6 +152,7 @@ async function initCloudLoad() {
     if (typeof renderParty === 'function') renderParty();
     if (typeof renderCaptured === 'function') renderCaptured();
     if (typeof renderCafe === 'function') renderCafe();
+    if (typeof renderShop === 'function') renderShop();
     if (typeof updateSelectOptions === 'function') updateSelectOptions();
     if (typeof renderSpeciesGallery === 'function') renderSpeciesGallery();
     if (typeof renderStamps === 'function') renderStamps();
@@ -164,7 +170,7 @@ async function initCloudLoad() {
 }
 
 window.addEventListener('beforeunload', () => {
-  const payload = { savedAt: Date.now(), playerName, gold, gem, baseAtk, level, upCost, mode, stamina, staminaUpdatedAt, autoUnlocked, cafeLv, cafeCost, staff, gardenItems, party, state, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
+  const payload = { savedAt: Date.now(), playerName, gold, gem, baseAtk, level, upCost, mode, stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, cafeLv, cafeCost, staff, gardenItems, party, state, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
   localStorage.setItem('treasure_save_' + userId, JSON.stringify(payload));
 });
 
@@ -202,27 +208,27 @@ function showDamagePopup(targetId, text, typeClass = '') {
 
 function updateUI() {
   syncStamina();
+  const intervalMs = typeof getStaminaIntervalMs === 'function' ? getStaminaIntervalMs() : 60000;
   const stDisp = document.getElementById('stamina-disp'), stTimer = document.getElementById('stamina-timer');
   if (stDisp) stDisp.textContent = stamina;
   if (stTimer) {
     if (stamina >= MAX_STAMINA) stTimer.textContent = 'MAX';
     else {
-      const sec = Math.max(1, Math.ceil((STAMINA_RECOVERY_MS - (Date.now() - staminaUpdatedAt)) / 1000));
+      const sec = Math.max(1, Math.ceil((intervalMs - (Date.now() - staminaUpdatedAt)) / 1000));
       stTimer.textContent = `(${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')})`;
     }
   }
-  const autoBtn = document.getElementById('auto-battle-btn');
+  const autoBtn = document.getElementById('hud-auto-btn');
   if (autoBtn) {
-    if (!autoUnlocked) {
-      autoBtn.textContent = '🤖 オート(1500💎)';
-      autoBtn.className = 'auto-btn';
-    } else if (autoActive) {
-      autoBtn.textContent = '🤖 オート: ON';
-      autoBtn.className = 'auto-btn unlocked active';
-    } else {
-      autoBtn.textContent = '🤖 オート: OFF';
-      autoBtn.className = 'auto-btn unlocked';
-    }
+    autoBtn.style.display = autoUnlocked ? 'inline-block' : 'none';
+    autoBtn.textContent = autoActive ? '🔄 自動ON' : '🔄 自動OFF';
+    autoBtn.classList.toggle('active', autoActive);
+  }
+  const speedBtn = document.getElementById('hud-speed-btn');
+  if (speedBtn) {
+    speedBtn.style.display = speed2xUnlocked ? 'inline-block' : 'none';
+    speedBtn.textContent = speed2xActive ? '▷▷ 2x' : '▷ 1x';
+    speedBtn.classList.toggle('active', speed2xActive);
   }
 
   const cur = state[mode], eStats = getEnemyStats();
@@ -235,8 +241,6 @@ function updateUI() {
   document.getElementById('enemy-sprite').textContent = eStats.icon;
   document.getElementById('enemy-hp-text').textContent = Math.max(0, cur.hp);
   document.getElementById('enemy-hp-bar').style.width = `${Math.max(0, (cur.hp / cur.maxHp) * 100)}%`;
-  const enemyCtBar = document.getElementById('enemy-ct-bar');
-  if (enemyCtBar) enemyCtBar.style.width = `${Math.min(100, (cur.enemyCt / eStats.ct) * 100)}%`;
 
   for (let i = 0; i < 3; i++) {
     const el = document.getElementById(`ally-slot-${i}`);
@@ -250,7 +254,6 @@ function updateUI() {
     const spriteEl = el.querySelector('.unit-sprite');
     const textEl = el.querySelector('.hp-text');
     const hpBarEl = el.querySelector('.ally-hp-fill');
-    const ctBarEl = el.querySelector('.ally-ct-bar');
 
     if (unit) {
       el.classList.toggle('dead', unit.hp <= 0);
@@ -260,14 +263,7 @@ function updateUI() {
       spriteEl.style.opacity = '1';
       textEl.style.opacity = '1';
       textEl.textContent = `${unit.name} ${Math.max(0, unit.hp)}/${unit.maxHp}`;
-
-      const hpPct = Math.max(0, Math.min(100, (unit.hp / (unit.maxHp || 100)) * 100));
-      const limitCt = Number(unit.maxCt) || Number(unit.ct) || 2.0;
-      const nowCt = Number(unit.ct) || 0;
-      const ctPct = unit.hp > 0 ? Math.max(0, Math.min(100, (nowCt / limitCt) * 100)) : 0;
-
-      hpBarEl.style.width = `${hpPct}%`;
-      ctBarEl.style.width = `${ctPct}%`;
+      hpBarEl.style.width = `${Math.max(0, Math.min(100, (unit.hp / (unit.maxHp || 100)) * 100))}%`;
     } else {
       el.classList.remove('dead');
       if (spriteEl.textContent !== '＋') spriteEl.textContent = '＋';
@@ -275,7 +271,6 @@ function updateUI() {
       textEl.style.opacity = '0.7';
       textEl.textContent = '空き枠';
       hpBarEl.style.width = '0%';
-      ctBarEl.style.width = '0%';
     }
   }
   if (document.getElementById('ally-lv')) document.getElementById('ally-lv').textContent = level;
@@ -300,29 +295,28 @@ function showToast(text) {
   if (!el) return;
   el.textContent = text; el.style.display = 'block'; setTimeout(() => { el.style.display = 'none'; }, 1800);
 }
-function toggleAutoBattle(e) {
+function toggleAutoMode(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
-  if (!autoUnlocked) {
-    if (gem < 1500) return alert('ジェムが足りません！（1,500💎必要）');
-    if (!confirm('1,500💎を消費して「オート連戦モード」を永久解放しますか？')) return;
-    gem -= 1500; autoUnlocked = true; autoActive = true;
-    showToast('🤖 オート連戦モードを解放しました！');
-    triggerAutoSave(true); updateUI();
-    if (!state[mode].inBattle && stamina >= 1) startBattle();
-    return;
-  }
+  if (!autoUnlocked) return;
   autoActive = !autoActive;
-  showToast(autoActive ? '🤖 オート連戦: ON' : '⏸️ オート連戦: OFF');
+  showToast(autoActive ? '🔄 自動戦闘: ON' : '⏸️ 自動戦闘: OFF');
   updateUI();
   if (autoActive && !state[mode].inBattle && stamina >= 1) startBattle();
+}
+function toggleSpeedMode(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  if (!speed2xUnlocked) return;
+  speed2xActive = !speed2xActive;
+  showToast(speed2xActive ? '▷▷ 戦闘速度: 2倍速' : '▷ 戦闘速度: 通常(1x)');
+  updateUI();
 }
 function startBattle(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
   const cur = state[mode]; if (cur.inBattle) return;
   syncStamina();
   if (stamina < 1) {
-    if (autoActive) { autoActive = false; showToast('⚡ スタミナ切れのためオート停止'); }
-    else showToast('⚡ スタミナ不足！（1分で1回復）');
+    if (autoActive) { autoActive = false; showToast('⚡ スタミナ切れのため自動戦闘停止'); }
+    else showToast('⚡ スタミナ不足！ショップで回復できます');
     updateUI(); return;
   }
   if (stamina === MAX_STAMINA) staminaUpdatedAt = Date.now();
@@ -344,17 +338,20 @@ function handleEnemyDefeat(cur, eStats) {
   cur.hp = cur.maxHp; cur.enemyCt = 0; cur.shipCt = 0;
   if (typeof resetBattleAllies === 'function') resetBattleAllies();
   triggerAutoSave(); updateUI();
-  if (autoActive) setTimeout(() => { if (autoActive && !state[mode].inBattle) startBattle(); }, 700);
+  if (autoActive) {
+    const delay = speed2xActive ? 350 : 700;
+    setTimeout(() => { if (autoActive && !state[mode].inBattle) startBattle(); }, delay);
+  }
 }
 
 let lastFrameTime = performance.now();
 let cafeSecTimer = 0;
 
 function battleFrameLoop(now) {
-  const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
+  const rawDt = Math.min(0.1, (now - lastFrameTime) / 1000);
   lastFrameTime = now;
 
-  cafeSecTimer += dt;
+  cafeSecTimer += rawDt;
   if (cafeSecTimer >= 1.0) {
     cafeSecTimer -= 1.0;
     if (typeof getCafeIncome === 'function') gold += getCafeIncome();
@@ -363,6 +360,7 @@ function battleFrameLoop(now) {
 
   const cur = state[mode];
   if (cur.inBattle) {
+    const dt = (speed2xUnlocked && speed2xActive) ? rawDt * 2.0 : rawDt;
     if ((!battleAllies || battleAllies.every(u => !u)) && typeof resetBattleAllies === 'function') resetBattleAllies();
     const eStats = getEnemyStats();
     let needsUiSync = false;
