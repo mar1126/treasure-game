@@ -7,31 +7,25 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 10px 12px; height: 268px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; transition: background 0.6s; overflow: hidden; }
-    .battle-area.theme-sunset { background: linear-gradient(180deg, #ff8a65 0%, #f4511e 55%, #4e342e 100%); }
-    .battle-area.theme-night { background: linear-gradient(180deg, #1a237e 0%, #0d47a1 60%, #001021 100%); }
-    .battle-area.land-mode { background: linear-gradient(180deg, #81d4fa 0%, #4fc3f7 48%, #388e3c 100%); }
-    .battle-area.land-mode.theme-sunset { background: linear-gradient(180deg, #ffcc80 0%, #ff7043 50%, #3e2723 100%); }
-    .battle-area.land-mode.theme-night { background: linear-gradient(180deg, #0d1b2a 0%, #1b263b 55%, #0b1912 100%); }
+    .battle-area { background: linear-gradient(180deg, #0288d1 0%, #01579b 100%); color: white; padding: 10px 12px; height: 268px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; transition: background 0.6s; overflow: hidden; }
+    .battle-area.theme-sunset { background: linear-gradient(180deg, #ff7043 0%, #311b92 100%); }
+    .battle-area.theme-night { background: linear-gradient(180deg, #0d47a1 0%, #001021 100%); }
+    .battle-area.land-mode { background: linear-gradient(180deg, #4fc3f7 0%, #2e7d32 100%); }
+    .battle-area.land-mode.theme-sunset { background: linear-gradient(180deg, #ff8a65 0%, #3e2723 100%); }
+    .battle-area.land-mode.theme-night { background: linear-gradient(180deg, #1b263b 0%, #0b1912 100%); }
 
     .stage-art-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
     .stage-svg { width: 100%; height: 100%; display: block; }
-    .stage-custom-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.92; }
-    .stage-cloud { position: absolute; font-size: 28px; opacity: 0.65; animation: cloudDrift 28s linear infinite; }
-    .stage-cloud.c1 { top: 28px; left: -40px; }
-    .stage-cloud.c2 { top: 52px; left: -120px; font-size: 22px; animation-duration: 38s; animation-delay: 8s; }
-    @keyframes cloudDrift { 0% { transform: translateX(0); } 100% { transform: translateX(480px); } }
-    .stage-tree { position: absolute; bottom: 68px; font-size: 28px; opacity: 0.85; filter: drop-shadow(0 3px 3px rgba(0,0,0,0.35)); }
-    .stage-tree.t1 { left: 10px; }
-    .stage-tree.t2 { right: 12px; font-size: 24px; }
-    .stage-bubble { position: absolute; bottom: 60px; font-size: 16px; opacity: 0.55; animation: bubbleRise 6s ease-in infinite; }
-    .stage-bubble.b1 { left: 18%; }
-    .stage-bubble.b2 { left: 78%; animation-delay: 2.2s; font-size: 13px; }
-    .stage-bubble.b3 { left: 48%; animation-delay: 4.1s; font-size: 19px; }
-    @keyframes bubbleRise { 0% { transform: translateY(0); opacity: 0.1; } 50% { opacity: 0.65; } 100% { transform: translateY(-150px); opacity: 0; } }
+    .stage-custom-img { width: 100%; height: 100%; object-fit: cover; }
+    .stage-vignette { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.32) 0%, rgba(0,0,0,0.08) 45%, rgba(0,0,0,0.45) 100%); pointer-events: none; }
+    .stage-particle { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,0.8); box-shadow: 0 0 6px #fff; animation: floatParticle 5s ease-in-out infinite; }
+    .stage-particle.p1 { left: 22%; top: 45%; }
+    .stage-particle.p2 { left: 74%; top: 38%; animation-delay: 1.8s; width: 3px; height: 3px; }
+    .stage-particle.p3 { left: 52%; top: 55%; animation-delay: 3.2s; }
+    @keyframes floatParticle { 0%, 100% { transform: translateY(0) scale(0.8); opacity: 0.2; } 50% { transform: translateY(-18px) scale(1.2); opacity: 0.9; } }
 
     .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 11px; z-index: 4; gap: 4px; position: relative; }
-    .area-badge { background: rgba(0,0,0,0.28); padding: 4px 10px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); white-space: nowrap; }
+    .area-badge { background: rgba(0,0,0,0.32); padding: 4px 10px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); white-space: nowrap; }
     .mode-btn { background: #ff7043; color: white; border: 2px solid #fff; padding: 4px 10px; border-radius: 15px; font-weight: bold; font-size: 11px; cursor: pointer; white-space: nowrap; }
     .hud-toggle-btn { background: rgba(0,0,0,0.45); color: #fff; border: 1.5px solid rgba(255,255,255,0.8); padding: 3px 8px; border-radius: 12px; font-weight: bold; font-size: 11px; cursor: pointer; white-space: nowrap; display: none; }
     .hud-toggle-btn.active { background: #ffca28; color: #263238; border-color: #fff; box-shadow: 0 0 8px #ffea00; }
@@ -303,10 +297,14 @@
         </div>
 
         <div class="ai-sub-pane" id="ai-sub-bg">
-          <textarea class="inp" id="ai-bg-prompt" maxlength="200" oninput="updateCharCount('bg')" placeholder="例：夕焼けのトロピカルビーチ、神秘的な深海神殿"></textarea>
+          <textarea class="inp" id="ai-bg-prompt" maxlength="200" oninput="updateCharCount('bg')" placeholder="例：青い海と白い砂浜、南国のリゾートビーチ／緑の草原とファンタジーの城"></textarea>
           <div class="char-count"><span id="bg-count">0</span> / <span id="bg-max">200</span>文字</div>
           <label class="extend-box"><input type="checkbox" id="bg-ext" onchange="toggleExtend('bg')"> 長文プロンプト拡張（500文字 / 250💎）</label>
-          <button class="btn-blue" onclick="generateAI('bg')">🖼️ アイコン背景を生成（<span id="bg-cost">200</span> 💎）</button>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <button class="btn-coral" onclick="generateAI('stage_land')">🌲 陸ステージ背景を生成して適用（<span id="bg-cost">200</span> 💎）</button>
+            <button class="btn-blue" onclick="generateAI('stage_sea')">🌊 海ステージ背景を生成して適用（200 💎）</button>
+            <button class="btn-gray" onclick="generateAI('bg')">🖼️ プロフィールアイコン背景を生成（200 💎）</button>
+          </div>
         </div>
         <div class="ai-sub-pane" id="ai-sub-stamp">
           <select class="inp" id="stamp-species-sel"><option value="🦊 フォックス">🦊 フォックス(相棒)</option></select>
@@ -396,7 +394,7 @@
     <button class="nav-item" onclick="switchTab('chat', this)"><span class="nav-icon">💬</span>チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">👤</span>マイページ</button>
   </nav>
-    <script src="/monsters.js?v=16"></script>
+  <script src="/monsters.js?v=16"></script>
   <script src="/traits.js?v=16"></script>
   <script src="/skills.js?v=16"></script>
   <script src="/vehicle.js?v=16"></script>
