@@ -21,9 +21,10 @@
     .hp-fill { background: #ff7043; height: 100%; width: 100%; transition: width 0.15s; }
     .capture-btn { position: absolute; bottom: 8px; right: 10px; background: #ffd54f; color: #3e2723; border: 2px solid #fff; padding: 4px 10px; border-radius: 14px; font-size: 11px; font-weight: bold; cursor: pointer; z-index: 2; }
     .capture-msg { position: absolute; top: 45px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #ffd54f; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; display: none; white-space: nowrap; z-index: 10; }
-    .status-bar { background: #ffffff; border-bottom: 1px solid #d0e8f2; padding: 7px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: bold; }
+    .status-bar { background: #ffffff; border-bottom: 1px solid #d0e8f2; padding: 7px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: bold; }
     .profile-mini { display: flex; align-items: center; gap: 6px; }
     .mini-avatar { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 2px solid #ff7043; overflow: hidden; }
+    .save-badge { font-size: 10px; color: #00897b; background: #e0f2f1; padding: 2px 6px; border-radius: 8px; }
     .currency { display: flex; gap: 6px; }
     .gold-box { background: #fff8e7; border: 1px solid #ffe082; padding: 3px 8px; border-radius: 12px; color: #d98200; }
     .gem-box { background: #e1f5fe; border: 1px solid #81d4fa; padding: 3px 8px; border-radius: 12px; color: #0277bd; }
@@ -86,7 +87,11 @@
   </div>
 
   <div class="status-bar">
-    <div class="profile-mini"><div class="mini-avatar" id="hud-my-icon">🐬</div><span>ハンター</span></div>
+    <div class="profile-mini">
+      <div class="mini-avatar" id="hud-my-icon">🐬</div>
+      <span id="hud-name">ハンター</span>
+      <span class="save-badge" id="save-indicator">☁️ 自動保存済</span>
+    </div>
     <div class="currency">
       <div class="gold-box">🪙 <span id="gold">200</span> G</div>
       <div class="gem-box">💎 <span id="gem">1000</span></div>
@@ -134,34 +139,31 @@
           <button class="sub-tab-btn" onclick="switchAiSub('stamp', this)">💬 スタンプ</button>
         </div>
         <p id="ai-status" style="font-size: 12px; color: #ff7043; font-weight: bold; margin-bottom: 8px;"></p>
-
         <div id="ai-sub-costume" class="ai-sub-pane active">
           <label style="font-size:12px; font-weight:bold;">1. 着せ替えるモンスター種族を選択</label>
           <select id="ai-species-sel" class="inp" onchange="renderSpeciesGallery()"></select>
           <label style="font-size:12px; font-weight:bold;">2. 着せ替えデザイン選択（タップで切り替え）</label>
           <div class="grid-3" id="species-skin-gallery" style="margin-bottom:10px;"></div>
           <label style="font-size:12px; font-weight:bold;">3. 新しい着せ替えをAI作成</label>
-          <textarea id="ai-mon-prompt" class="inp" maxlength="200" placeholder="どんな姿にする？（例：金色の海賊帽と眼帯をつけたかっこいい姿）" oninput="updateCharCount('mon')"></textarea>
+          <textarea id="ai-mon-prompt" class="inp" maxlength="200" placeholder="どんな姿にする？" oninput="updateCharCount('mon')"></textarea>
           <div class="char-count"><span id="mon-count">0</span> / <span id="mon-max">200</span> 文字</div>
           <label class="extend-box"><input type="checkbox" id="mon-ext" onchange="toggleExtend('mon')"> +50💎追加で500文字まで入力する</label>
           <button class="btn-coral" onclick="generateAI('monster')">✨ この種族の着せ替えを生成 (<span id="mon-cost">200</span>💎)</button>
         </div>
-
         <div id="ai-sub-bg" class="ai-sub-pane">
           <label style="font-size:12px; font-weight:bold;">自分専用の背景プロンプト</label>
-          <textarea id="ai-bg-prompt" class="inp" maxlength="200" placeholder="どんな背景にする？（例：キラキラ光るサンゴ礁の海底宮殿、南国の夕焼けビーチ）" oninput="updateCharCount('bg')"></textarea>
+          <textarea id="ai-bg-prompt" class="inp" maxlength="200" placeholder="どんな背景にする？" oninput="updateCharCount('bg')"></textarea>
           <div class="char-count"><span id="bg-count">0</span> / <span id="bg-max">200</span> 文字</div>
           <label class="extend-box"><input type="checkbox" id="bg-ext" onchange="toggleExtend('bg')"> +50💎追加で500文字まで入力する</label>
           <button class="btn-blue" onclick="generateAI('bg')">🖼️ 専用AI背景を生成 (<span id="bg-cost">200</span>💎)</button>
         </div>
-
         <div id="ai-sub-stamp" class="ai-sub-pane">
           <label style="font-size:12px; font-weight:bold;">1. 元にする種族・着せ替え</label>
           <select id="stamp-species-sel" class="inp"></select>
           <label style="font-size:12px; font-weight:bold;">2. スタンプに入れる文字（20文字まで）</label>
-          <input type="text" id="stamp-text" class="inp" maxlength="20" placeholder="例：やったー！、おつかれさま！、神引き！">
+          <input type="text" id="stamp-text" class="inp" maxlength="20" placeholder="例：やったー！、おつかれさま！">
           <label style="font-size:12px; font-weight:bold;">3. スタンプのポーズ・雰囲気プロンプト</label>
-          <textarea id="ai-stamp-prompt" class="inp" maxlength="200" placeholder="どんな表情やポーズにする？（例：キラキラの目でガッツポーズをして喜んでいる）" oninput="updateCharCount('stamp')"></textarea>
+          <textarea id="ai-stamp-prompt" class="inp" maxlength="200" placeholder="どんな表情やポーズにする？" oninput="updateCharCount('stamp')"></textarea>
           <div class="char-count"><span id="stamp-count">0</span> / <span id="stamp-max">200</span> 文字</div>
           <label class="extend-box"><input type="checkbox" id="stamp-ext" onchange="toggleExtend('stamp')"> +50💎追加で500文字まで入力する</label>
           <button class="btn-coral" onclick="generateAI('stamp')">💬 オリジナルスタンプを生成 (<span id="stamp-cost">200</span>💎)</button>
@@ -184,7 +186,6 @@
     <div id="tab-chat" class="tab-pane">
       <div class="card">
         <div class="card-title">💬 冒険者全体チャット（スタンプ対応）</div>
-        <input type="text" id="chat-name" class="inp" placeholder="あなたの名前">
         <div style="display:flex; gap:6px; margin-bottom:8px;">
           <input type="text" id="chat-input" class="inp" placeholder="メッセージを入力..." style="margin:0;">
           <button class="btn-coral" style="width:75px;" onclick="sendChat()">送信</button>
@@ -197,9 +198,21 @@
 
     <div id="tab-rank" class="tab-pane">
       <div class="card">
-        <div class="card-title">🏆 ハンター資産ランキング（D1保存）</div>
-        <input type="text" id="player-name" class="inp" placeholder="ハンター名を入力">
-        <button class="btn-coral" onclick="saveToD1()">現在のゴールドをD1に記録する</button>
+        <div class="card-title"><span>👤 マイデータ＆自動クラウド保存</span><span style="font-size:11px;color:#00897b;">D1自動同期中</span></div>
+        <label style="font-size:11px;font-weight:bold;">ハンター名（変更すると自動保存）</label>
+        <input type="text" id="player-name" class="inp" placeholder="ハンター名を入力" onchange="changePlayerName()">
+        <div style="background:#f1f8e9;padding:8px;border-radius:8px;font-size:11px;margin-bottom:8px;">
+          <div>🔑 引き継ぎID：<b id="my-user-id" style="user-select:all;"></b></div>
+          <div style="color:#558b2f;margin-top:2px;">※操作のたびに全データが自動でD1に保存されます</div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="import-id-input" class="inp" placeholder="別端末の引き継ぎIDを入力" style="margin:0;">
+          <button class="btn-blue" style="width:90px;" onclick="loadFromCloudById()">復元</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🏆 ハンター資産ランキング</div>
+        <button class="btn-coral" onclick="submitRanking()">ランキングに現在のスコアを登録</button>
         <p id="save-msg" style="font-size: 12px; color: #0277bd; margin-top: 6px;"></p>
         <ul id="ranking-list" style="list-style: none; margin-top: 10px; font-size: 13px;"></ul>
       </div>
@@ -211,7 +224,7 @@
     <button class="nav-item" onclick="switchTab('cafe', this)"><span class="nav-icon">🍰</span>カフェ箱庭</button>
     <button class="nav-item" onclick="switchTab('ai', this)"><span class="nav-icon">🎨</span>AIアトリエ</button>
     <button class="nav-item" onclick="switchTab('chat', this)"><span class="nav-icon">💬</span>チャット</button>
-    <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">🏆</span>ランキング</button>
+    <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">👤</span>マイページ</button>
   </nav>
   <script src="/game.js"></script>
 </body>
