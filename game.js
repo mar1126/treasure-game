@@ -11,7 +11,6 @@ const STAMINA_RECOVERY_MS = 60 * 1000;
 let stamina = MAX_STAMINA;
 let staminaUpdatedAt = Date.now();
 
-// shipCt: 海域限定の探索船援護射撃クールタイム（3.0秒ごと）
 let state = {
   sea: { area: 1, wave: 1, maxHp: 100, hp: 100, idx: 0, inBattle: false, enemyCt: 0, shipCt: 0 },
   land: { area: 1, wave: 1, maxHp: 120, hp: 120, idx: 0, inBattle: false, enemyCt: 0, shipCt: 0 }
@@ -82,6 +81,15 @@ function getMonStats(m) {
 
 function resetBattleAllies() {
   ensureStarterMonster();
+
+  const validIds = party.filter(id => id && captured.some(m => m.id === id));
+  if (validIds.length === 0 && captured.length > 0) {
+    party = new Array(3).fill(null);
+    for (let i = 0; i < Math.min(3, captured.length); i++) {
+      party.splice(i, 1, captured.at(i).id);
+    }
+  }
+
   battleAllies = new Array(3).fill(null);
   for (let i = 0; i < 3; i++) {
     const monId = party.at(i);
@@ -295,11 +303,11 @@ function triggerMotion(elementId, className) {
 
 function showDamagePopup(targetId, text, typeClass = '') {
   const targetEl = document.getElementById(targetId);
-  const battleBg = document.getElementById('battle-bg');
-  if (!targetEl || !battleBg) return;
+  const fxLayer = document.getElementById('fx-layer') || document.getElementById('battle-bg');
+  if (!targetEl || !fxLayer) return;
 
   const rect = targetEl.getBoundingClientRect();
-  const bgRect = battleBg.getBoundingClientRect();
+  const bgRect = fxLayer.getBoundingClientRect();
   const popup = document.createElement('div');
   popup.className = `dmg-popup ${typeClass}`;
   popup.textContent = text;
@@ -308,19 +316,8 @@ function showDamagePopup(targetId, text, typeClass = '') {
   popup.style.left = `${(rect.left - bgRect.left) + (rect.width / 2) + offsetX}px`;
   popup.style.top = `${(rect.top - bgRect.top) + 8}px`;
 
-  battleBg.appendChild(popup);
+  fxLayer.appendChild(popup);
   setTimeout(() => popup.remove(), 800);
-}
-
-// 海域限定の探索船援護砲撃エフェクト
-function fireShipCannon() {
-  const battleBg = document.getElementById('battle-bg');
-  if (!battleBg) return;
-  const shot = document.createElement('div');
-  shot.className = 'ship-shot';
-  shot.textContent = '⛵💥';
-  battleBg.appendChild(shot);
-  setTimeout(() => shot.remove(), 420);
 }
 
 function updateUI() {
@@ -586,7 +583,6 @@ setInterval(() => {
   const dt = 0.2;
   const eStats = getEnemyStats();
 
-  // 1. 仲間モンスター3枠の個別CT攻撃
   for (let i = 0; i < 3; i++) {
     const u = battleAllies.at(i);
     if (!u || u.hp <= 0) continue;
@@ -619,28 +615,10 @@ setInterval(() => {
     }
   }
 
-  // 2. 海域限定：探索船からの援護射撃（3.0秒ごと）
-  if (mode === 'sea') {
-    cur.shipCt = (cur.shipCt || 0) + dt;
-    if (cur.shipCt >= 3.0) {
-      cur.shipCt = 0;
-      const shipDmg = Math.max(1, baseAtk - Math.floor(eStats.def / 2));
-      cur.hp -= shipDmg;
-
-      fireShipCannon();
-      setTimeout(() => {
-        triggerMotion('enemy-unit-box', 'hit-motion');
-        showDamagePopup('enemy-unit-box', `⛵-${shipDmg}`, 'ship-dmg');
-      }, 250);
-
-      if (cur.hp <= 0) {
-        handleEnemyDefeat(cur, eStats);
-        return;
-      }
-    }
+  if (typeof processShipSupport === 'function' && processShipSupport(cur, eStats, dt)) {
+    return;
   }
 
-  // 3. 敵のCT攻撃（配列リテラルを使わない安全な書き方）
   cur.enemyCt += dt;
   if (cur.enemyCt >= eStats.ct) {
     cur.enemyCt = 0;
@@ -670,10 +648,3 @@ setInterval(() => {
 
   updateUI();
 }, 200);
-
-function upgradeUnit() {
-  if (gold >= upCost) {
-    gold -= upCost; level++; baseAtk += 8; upCost = Math.floor(upCost * 1.4);
-    updateUI(); triggerAutoSave();
-  } else alert('ゴールド不足');
-}
