@@ -4,16 +4,14 @@ let state = { sea: { area: 1, wave: 1, maxHp: 100, hp: 100, idx: 0 }, land: { ar
 const seaMonsters = [{ icon: '🐙', name: 'オクトパス' }, { icon: '🦈', name: 'シャーク' }, { icon: '🦀', name: 'クラブ' }, { icon: '🐡', name: 'ハリセンボン' }, { icon: '🦑', name: 'ダイオウイカ' }, { icon: '🐳', name: 'ホエール' }];
 const landMonsters = [{ icon: '🦊', name: 'フォックス' }, { icon: '🐗', name: 'ボア' }, { icon: '🦎', name: 'リザード' }, { icon: '🦉', name: 'オウル' }, { icon: '🐻', name: 'グリズリー' }, { icon: '🐉', name: 'ワイバーン' }];
 let captured = [];
-let speciesSkins = {}; // 種族名: { list: [imgUrl...], activeIdx: -1 } (-1はデフォルト)
+let speciesSkins = {};
 let aiBackgrounds = [];
 let aiStamps = [];
 let iconConfig = { species: 'デフォルト', bgIdx: -1, scale: 1.0, x: 0, y: 0, rotate: 0 };
 
 function getSpeciesDisplay(name, defaultIcon) {
   const data = speciesSkins[name];
-  if (data && data.activeIdx >= 0 && data.list[data.activeIdx]) {
-    return data.list[data.activeIdx];
-  }
+  if (data && data.activeIdx >= 0 && data.list[data.activeIdx]) return data.list[data.activeIdx];
   return defaultIcon;
 }
 
@@ -160,8 +158,7 @@ async function generateAI(type) {
   const promptInput = document.getElementById(`ai-${prefix}-prompt`).value;
   if (!promptInput) { alert('プロンプトを入力してください'); return; }
 
-  let spName = '';
-  let stampText = '';
+  let spName = '', stampText = '';
   if (type === 'monster') {
     spName = document.getElementById('ai-species-sel').value;
     if (!spName) { alert('先にモンスターを1体捕獲してください！'); return; }
@@ -223,11 +220,11 @@ function updateIconPreview() {
   preview.style.backgroundImage = (iconConfig.bgIdx >= 0 && aiBackgrounds[iconConfig.bgIdx]) ? `url(${aiBackgrounds[iconConfig.bgIdx].img})` : 'linear-gradient(135deg, #4fc3f7, #0288d1)';
   const sp = speciesSkins[iconConfig.species];
   const disp = sp ? getSpeciesDisplay(iconConfig.species, sp.defaultIcon) : '🐬';
-  charLayer.innerHTML = disp.startsWith('data:image') ? renderSprite(disp, 72, '12px') : `<span style="font-size:52px;">${disp}</span>`;
+  charLayer.innerHTML = disp.startsWith('data:image') ? renderSprite(disp, 76, '10px') : `<span style="font-size:52px;">${disp}</span>`;
   charLayer.style.transform = `translate(${iconConfig.x}px, ${iconConfig.y}px) scale(${iconConfig.scale}) rotate(${iconConfig.rotate}deg)`;
   const mini = document.getElementById('hud-my-icon');
   mini.style.backgroundImage = preview.style.backgroundImage;
-  mini.innerHTML = disp.startsWith('data:image') ? renderSprite(disp, 24, '50%') : disp;
+  mini.innerHTML = disp.startsWith('data:image') ? renderSprite(disp, 26, '6px') : disp;
 }
 
 function damageEnemy(dmg) {
@@ -270,7 +267,7 @@ async function loadChat() {
     document.getElementById('chat-list').innerHTML = data.map(c => {
       const ic = JSON.parse(c.icon_json || '{"emoji":"🐬","rotate":0}');
       const content = c.message.startsWith('[STAMP]') ? renderSprite(c.message.replace('[STAMP]', ''), 72, '10px') : c.message;
-      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee;"><div style="width:32px;height:32px;border-radius:50%;background:#e1f5fe;display:flex;align-items:center;justify-content:center;font-size:18px;transform:rotate(${ic.rotate}deg);">${ic.emoji}</div><div><div style="font-size:11px;font-weight:bold;color:#0277bd;">${c.name}</div><div style="font-size:13px;">${content}</div></div></div>`;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee;"><div style="width:36px;height:36px;border-radius:8px;background:#e1f5fe;display:flex;align-items:center;justify-content:center;font-size:20px;transform:rotate(${ic.rotate}deg);">${ic.emoji}</div><div><div style="font-size:11px;font-weight:bold;color:#0277bd;">${c.name}</div><div style="font-size:13px;">${content}</div></div></div>`;
     }).join('');
   } catch (e) {}
 }
