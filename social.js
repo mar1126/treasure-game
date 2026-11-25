@@ -13,7 +13,8 @@ function renderSpeciesGallery() {
   const spName = document.getElementById('ai-species-sel').value, box = document.getElementById('species-skin-gallery');
   if (!spName || !speciesSkins[spName]) { box.innerHTML = '<p style="grid-column:span 3;font-size:11px;color:#78909c;">先にモンスターを捕獲してください</p>'; return; }
   const data = speciesSkins[spName];
-  let html = `<div class="slot-box ${data.activeIdx === -1 ? 'selected' : ''}" onclick="selectSkin('${spName}', -1)"><div class="lvl">標準</div><div class="icon">${data.defaultIcon}</div><div class="name">デフォルト</div></div>`;
+  const defVisual = typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual(spName, data.defaultIcon) : data.defaultIcon;
+  let html = `<div class="slot-box ${data.activeIdx === -1 ? 'selected' : ''}" onclick="selectSkin('${spName}', -1)"><div class="lvl">標準</div><div class="icon">${renderSprite(defVisual, 36)}</div><div class="name">デフォルト</div></div>`;
   html += data.list.map((img, i) => `<div class="slot-box ${data.activeIdx === i ? 'selected' : ''}" onclick="selectSkin('${spName}', ${i})"><div class="lvl">限定#${i + 1}</div><div class="icon">${renderSprite(img, 36)}</div><div class="name">着せ替え${i + 1}</div></div>`).join('');
   box.innerHTML = html;
 }
@@ -48,8 +49,8 @@ function renderStamps() {
 function updateSelectOptions() {
   const names = Object.keys(speciesSkins), spOpts = names.map(n => `<option value="${n}">${speciesSkins[n].defaultIcon} ${n}</option>`).join('');
   document.getElementById('ai-species-sel').innerHTML = spOpts || '<option value="">未捕獲</option>';
-  document.getElementById('stamp-species-sel').innerHTML = '<option value="🐬 イルカ">🐬 イルカ(相棒)</option>' + spOpts;
-  document.getElementById('icon-char-sel').innerHTML = '<option value="デフォルト">🐬 デフォルト</option>' + spOpts;
+  document.getElementById('stamp-species-sel').innerHTML = '<option value="🦊 フォックス">🦊 フォックス(相棒)</option>' + spOpts;
+  document.getElementById('icon-char-sel').innerHTML = '<option value="デフォルト">🦊 デフォルト</option>' + spOpts;
   document.getElementById('icon-bg-sel').innerHTML = '<option value="-1">デフォルト(水色グラデ)</option>' + aiBackgrounds.map((b, i) => `<option value="${i}">AI背景: ${b.name}</option>`).join('');
 }
 function updateIconPreview(save = true) {
@@ -61,18 +62,19 @@ function updateIconPreview(save = true) {
   iconConfig.rotate = parseInt(document.getElementById('icon-rot').value);
   const preview = document.getElementById('icon-preview-box'), charLayer = document.getElementById('icon-char-layer');
   preview.style.backgroundImage = (iconConfig.bgIdx >= 0 && aiBackgrounds[iconConfig.bgIdx]) ? `url(${aiBackgrounds[iconConfig.bgIdx].img})` : 'linear-gradient(135deg, #4fc3f7, #0288d1)';
-  const sp = speciesSkins[iconConfig.species], disp = sp ? getSpeciesDisplay(iconConfig.species, sp.defaultIcon) : '🐬';
-  charLayer.innerHTML = disp.startsWith('data:image') ? renderSprite(disp, 76, '10px') : `<span style="font-size:52px;">${disp}</span>`;
+  const sp = speciesSkins[iconConfig.species], disp = sp ? getSpeciesDisplay(iconConfig.species, sp.defaultIcon) : (typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual('フォックス', '🦊') : '🦊');
+  charLayer.innerHTML = (disp.startsWith('data:image') || disp.startsWith('/')) ? renderSprite(disp, 76, '10px') : `<span style="font-size:52px;">${disp}</span>`;
   charLayer.style.transform = `translate(${iconConfig.x}px, ${iconConfig.y}px) scale(${iconConfig.scale}) rotate(${iconConfig.rotate}deg)`;
   const mini = document.getElementById('hud-my-icon');
   mini.style.backgroundImage = preview.style.backgroundImage;
-  mini.innerHTML = disp.startsWith('data:image') ? renderSprite(disp, 26, '6px') : disp;
+  mini.innerHTML = (disp.startsWith('data:image') || disp.startsWith('/')) ? renderSprite(disp, 26, '6px') : disp;
   if (save) triggerAutoSave();
 }
 function switchTab(tabName, btn) {
   document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + tabName).classList.add('active'); btn.classList.add('active');
+  if (tabName === 'breed' && typeof renderBreedUI === 'function') renderBreedUI();
   if (tabName === 'rank') loadRanking();
   if (tabName === 'cafe') renderCafe();
   if (tabName === 'shop' && typeof renderShop === 'function') renderShop();
@@ -112,6 +114,10 @@ async function loadChat() {
 async function loadRanking() {
   try {
     const res = await fetch('/api/ranking'); const list = await res.json();
-    document.getElementById('ranking-list').innerHTML = list.map((r, i) => `<div style="padding:6px 0;border-bottom:1px solid #eceff1;"><b>#${i + 1} ${r.user_name}</b> - 🌲陸${r.land_area} / 🌊海域${r.sea_area}</div>`).join('');
+    document.getElementById('ranking-list').innerHTML = list.map((r, i) => {
+      const lText = r.land_stage ? `S${r.land_stage}-${r.land_area}` : `${r.land_area}F`;
+      const sText = r.sea_stage ? `S${r.sea_stage}-${r.sea_area}` : `${r.sea_area}F`;
+      return `<div style="padding:6px 0;border-bottom:1px solid #eceff1;"><b>#${i + 1} ${r.user_name}</b> - 🌲陸 ${lText} / 🌊海 ${sText}</div>`;
+    }).join('');
   } catch (e) {}
 }
