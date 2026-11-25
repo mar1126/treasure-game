@@ -7,16 +7,15 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 10px 12px; height: 225px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; cursor: pointer; transition: background 0.4s; }
+    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 10px 12px; height: 235px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; transition: background 0.4s; }
     .battle-area.land-mode { background: linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%); }
     .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; z-index: 2; }
     .area-badge { background: rgba(255,255,255,0.25); padding: 4px 12px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); }
     .mode-btn { background: #ff7043; color: white; border: 2px solid #fff; padding: 4px 12px; border-radius: 15px; font-weight: bold; font-size: 12px; cursor: pointer; }
     .units-row { display: flex; justify-content: space-around; align-items: center; margin: 2px 0; }
     .unit { text-align: center; width: 92px; background: rgba(255,255,255,0.2); border-radius: 10px; padding: 4px; border: 1px solid rgba(255,255,255,0.4); }
-    .enemy-unit { text-align: center; width: 125px; }
+    .enemy-unit { text-align: center; width: 145px; }
     .unit-sprite { font-size: 32px; height: 38px; display: flex; align-items: center; justify-content: center; transition: transform 0.1s; }
-    .unit:active .unit-sprite { transform: scale(1.25); }
     .hp-text { font-size: 10px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
     .bar-bg { background: rgba(0,0,0,0.4); height: 6px; border-radius: 3px; overflow: hidden; margin-top: 2px; }
     .hp-fill { background: #ff7043; height: 100%; width: 100%; transition: width 0.15s; }
@@ -78,7 +77,7 @@
   </style>
 </head>
 <body>
-  <div class="battle-area" id="battle-bg" onclick="tapAttack()">
+  <div class="battle-area" id="battle-bg" onclick="startBattle()">
     <div class="battle-header">
       <div class="area-badge" id="floor-text">🌊 海域 1-1</div>
       <div>🍰 +<span id="cafe-income-hud">0</span>G/秒</div>
@@ -92,6 +91,7 @@
         <div class="hp-text"><span id="enemy-name">オクトパス</span> (<span id="enemy-hp-text">100</span>)</div>
         <div class="bar-bg"><div class="hp-fill" id="enemy-hp-bar"></div></div>
         <div class="unit-sprite" id="enemy-sprite" style="font-size:44px;height:48px;margin-top:4px;">🐙</div>
+        <button id="start-battle-btn" onclick="startBattle(event)" style="margin-top:4px;background:#ff7043;color:#fff;border:2px solid #fff;padding:3px 12px;border-radius:12px;font-size:11px;font-weight:bold;cursor:pointer;">⚔️ バトル開始 (⚡1)</button>
       </div>
     </div>
 
