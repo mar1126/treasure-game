@@ -12,7 +12,10 @@ const STAMINA_RECOVERY_MS = 60 * 1000;
 let stamina = MAX_STAMINA;
 let staminaUpdatedAt = Date.now();
 
-// バトル状態（inBattle: 現在の敵と戦闘中かどうか）
+// 味方HP（船のレベル＋編成モンスターで増加）
+let allyHp = 100;
+
+// バトル状態
 let state = {
   sea: { area: 1, wave: 1, maxHp: 100, hp: 100, idx: 0, inBattle: false },
   land: { area: 1, wave: 1, maxHp: 120, hp: 120, idx: 0, inBattle: false }
@@ -22,6 +25,23 @@ const seaMonsters = [{ icon: '🐙', name: 'オクトパス' }, { icon: '🦈', 
 const landMonsters = [{ icon: '🦊', name: 'フォックス' }, { icon: '🐗', name: 'ボア' }, { icon: '🦎', name: 'リザード' }, { icon: '🦉', name: 'オウル' }, { icon: '🐻', name: 'グリズリー' }, { icon: '🐉', name: 'ワイバーン' }];
 let captured = [], speciesSkins = {}, aiBackgrounds = [], aiStamps = [];
 let iconConfig = { species: 'デフォルト', bgIdx: -1, scale: 1.0, x: 0, y: 0, rotate: 0 };
+
+// 味方の最大HP計算
+function getMaxAllyHp() {
+  let bonus = 0;
+  party.forEach(monId => {
+    const m = captured.find(x => x.id === monId);
+    if (m) bonus += m.lv * 25;
+  });
+  return 80 + level * 20 + bonus;
+}
+
+// 敵の攻撃力計算
+function getEnemyAtk() {
+  const cur = state[mode];
+  const base = mode === 'sea' ? 6 : 8;
+  return Math.floor(base * Math.pow(1.22, cur.area - 1) + (cur.wave - 1) * 1.5);
+}
 
 // 1分ごとに1回復する計算
 function syncStamina() {
@@ -39,7 +59,7 @@ function syncStamina() {
   }
 }
 
-// セーブ処理（D1書き込み負荷軽減＆巻き戻り防止）
+// セーブ処理
 let saveTimer = null;
 let lastCloudSyncAt = 0;
 const CLOUD_SYNC_INTERVAL_MS = 15000;
@@ -48,7 +68,7 @@ function triggerAutoSave(immediate = false) {
   const savedAt = Date.now();
   const payload = {
     savedAt, playerName, gold, gem, baseAtk, level, upCost, mode,
-    stamina, staminaUpdatedAt,
+    stamina, staminaUpdatedAt, allyHp,
     cafeLv, cafeCost, staff, gardenItems, party, state,
     captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig
   };
@@ -102,6 +122,7 @@ function applySaveData(data) {
     id: m.id || ('M' + idx), icon: m.icon, name: m.name, type: m.type,
     lv: m.lv || 1, rarity: m.rarity || 'N', atk: m.atk || 8, traitId: m.traitId || 'gold_up'
   }));
+  allyHp = data.allyHp ?? getMaxAllyHp();
   speciesSkins = data.speciesSkins || {}; aiBackgrounds = data.aiBackgrounds || []; aiStamps = data.aiStamps || [];
   if (data.iconConfig) iconConfig = data.iconConfig;
 
@@ -129,7 +150,6 @@ function applySaveData(data) {
   }
   renderSpeciesGallery(); renderStamps(); updateIconPreview(false); updateUI();
 }
-
 async function initCloudLoad() {
   const idEl = document.getElementById('my-user-id');
   if (idEl) idEl.textContent = userId;
@@ -151,10 +171,11 @@ async function initCloudLoad() {
     }
   } catch (e) {}
 }
+
 window.addEventListener('beforeunload', () => {
   const payload = {
     savedAt: Date.now(), playerName, gold, gem, baseAtk, level, upCost, mode,
-    stamina, staminaUpdatedAt, cafeLv, cafeCost, staff, gardenItems, party, state,
+    stamina, staminaUpdatedAt, allyHp, cafeLv, cafeCost, staff, gardenItems, party, state,
     captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig
   };
   localStorage.setItem('treasure_save_' + userId, JSON.stringify(payload));
@@ -186,6 +207,26 @@ function getCafeIncome() {
   if (active.length === 0) return 0;
   const cafeTraitBonus = active.filter(s => s.traitId === 'cafe_star').length * 0.35;
   return Math.floor(active.length * 6 * cafeLv * (1 + gardenItems.length * 0.15 + cafeTraitBonus));
+}
+
+// ダメージ数字ポップアップ表示（敵または味方の近くに浮かび上がる）
+function showDamagePopup(targetId, text, typeClass = '') {
+  const targetEl = document.getElementById(targetId);
+  const battleBg = document.getElementById('battle-bg');
+  if (!targetEl || !battleBg) return;
+
+  const rect = targetEl.getBoundingClientRect();
+  const bgRect = battleBg.getBoundingClientRect();
+  const popup = document.createElement('div');
+  popup.className = `dmg-popup ${typeClass}`;
+  popup.textContent = text;
+
+  const offsetX = (Math.random() - 0.5) * 36;
+  popup.style.left = `${(rect.left - bgRect.left) + (rect.width / 2) + offsetX}px`;
+  popup.style.top = `${(rect.top - bgRect.top) + 12}px`;
+
+  battleBg.appendChild(popup);
+  setTimeout(() => popup.remove(), 850);
 }
 
 function updateUI() {
@@ -220,7 +261,17 @@ function updateUI() {
 
   document.getElementById('enemy-sprite').textContent = mon.icon;
   document.getElementById('enemy-hp-text').textContent = Math.max(0, cur.hp);
-  document.getElementById('enemy-hp-bar').style.width = `${(cur.hp / cur.maxHp) * 100}%`;
+  document.getElementById('enemy-hp-bar').style.width = `${Math.max(0, (cur.hp / cur.maxHp) * 100)}%`;
+
+  // 味方HPバー更新
+  const maxAlly = getMaxAllyHp();
+  if (allyHp > maxAlly) allyHp = maxAlly;
+  const allyHpText = document.getElementById('ally-hp-text');
+  const allyMaxHpText = document.getElementById('ally-max-hp-text');
+  const allyHpBar = document.getElementById('ally-hp-bar');
+  if (allyHpText) allyHpText.textContent = Math.max(0, allyHp);
+  if (allyMaxHpText) allyMaxHpText.textContent = maxAlly;
+  if (allyHpBar) allyHpBar.style.width = `${Math.max(0, (allyHp / maxAlly) * 100)}%`;
 
   const allyLvEl = document.getElementById('ally-lv');
   if (allyLvEl) allyLvEl.textContent = level;
@@ -244,13 +295,12 @@ function updateUI() {
     const m = captured.find(x => x.id === party[i]);
     if (m) {
       const disp = getSpeciesDisplay(m.name, m.icon);
-      el.innerHTML = `<div class="unit-sprite">${renderSprite(disp, 36, '8px')}</div><div class="hp-text">${m.name} Lv.${m.lv}</div>`;
+      el.innerHTML = `<div class="unit-sprite">${renderSprite(disp, 32, '8px')}</div><div class="hp-text">${m.name} Lv.${m.lv}</div>`;
     } else {
       el.innerHTML = `<div class="unit-sprite">${i === 0 ? '⛵' : '⬜'}</div><div class="hp-text">${i === 0 ? '船 ATK:' + baseAtk : '空き枠'}</div>`;
     }
   }
 }
-
 function toggleMode(e) {
   e.stopPropagation(); mode = mode === 'sea' ? 'land' : 'sea';
   const bg = document.getElementById('battle-bg'), btn = document.getElementById('mode-switch-btn');
@@ -263,25 +313,28 @@ function showToast(text) {
   el.textContent = text; el.style.display = 'block';
   setTimeout(() => { el.style.display = 'none'; }, 1800);
 }
-function tryCapture(e) {
-  e.stopPropagation();
-  if (gold < 20) return showToast('ゴールド不足(20G)');
-  gold -= 20;
-  const cur = state[mode], list = mode === 'sea' ? seaMonsters : landMonsters, mon = list[cur.idx % list.length];
-  if (Math.random() < ((cur.hp / cur.maxHp) < 0.4 ? 0.85 : 0.5)) {
-    const rRoll = Math.random();
-    const rarity = rRoll < 0.08 ? 'SSR' : (rRoll < 0.28 ? 'SR' : (rRoll < 0.6 ? 'R' : 'N'));
-    const mult = { N: 1, R: 1.4, SR: 2.0, SSR: 3.0 }[rarity];
-    const trait = getRandomTrait();
-    const newMon = { id: 'M' + Date.now() + Math.floor(Math.random()*99), icon: mon.icon, name: mon.name, type: mode, lv: 1, rarity, atk: Math.floor((6 + cur.area * 3) * mult), traitId: trait.id };
-    captured.push(newMon);
-    if (!speciesSkins[mon.name]) speciesSkins[mon.name] = { list: [], activeIdx: -1, defaultIcon: mon.icon };
-    const emptySlot = party.findIndex(x => x === null);
-    if (emptySlot !== -1) party[emptySlot] = newMon.id;
-    renderParty(); renderCaptured(); updateSelectOptions(); renderSpeciesGallery(); showToast(`✨ [${rarity}] ${mon.name}を捕獲！`);
-  } else showToast(`💨 逃げられた！`);
-  updateUI(); triggerAutoSave();
+
+// 敵を倒した時に確率（35%）で自動仲間加入
+function tryAutoRecruit(mon, curArea) {
+  if (Math.random() >= 0.35) return false;
+  const rRoll = Math.random();
+  const rarity = rRoll < 0.08 ? 'SSR' : (rRoll < 0.28 ? 'SR' : (rRoll < 0.6 ? 'R' : 'N'));
+  const mult = { N: 1, R: 1.4, SR: 2.0, SSR: 3.0 }[rarity];
+  const trait = getRandomTrait();
+  const newMon = {
+    id: 'M' + Date.now() + Math.floor(Math.random() * 99),
+    icon: mon.icon, name: mon.name, type: mode, lv: 1, rarity,
+    atk: Math.floor((6 + curArea * 3) * mult), traitId: trait.id
+  };
+  captured.push(newMon);
+  if (!speciesSkins[mon.name]) speciesSkins[mon.name] = { list: [], activeIdx: -1, defaultIcon: mon.icon };
+  const emptySlot = party.findIndex(x => x === null);
+  if (emptySlot !== -1) party[emptySlot] = newMon.id;
+  renderParty(); renderCaptured(); updateSelectOptions(); renderSpeciesGallery();
+  showToast(`✨ [${rarity}] ${mon.name}が起き上がり仲間になった！`);
+  return true;
 }
+
 function renderParty() {
   const el = document.getElementById('party-slots');
   if (!el) return;
@@ -358,7 +411,7 @@ function renderCafe() {
 function upgradeCafe() { if (gold >= cafeCost) { gold -= cafeCost; cafeLv++; cafeCost = Math.floor(cafeCost * 1.6); updateUI(); triggerAutoSave(); } else alert('ゴールド不足'); }
 function buyDecor(icon, cost) { if (gardenItems.length >= 8) return alert('満杯です'); if (gold >= cost) { gold -= cost; gardenItems.push(icon); renderCafe(); updateUI(); triggerAutoSave(); } else alert('ゴールド不足'); }
 
-// バトル開始処理（タップ攻撃の代わり：スタミナを1消費してオート戦闘開始）
+// バトル開始処理（スタミナ1消費＋味方HP全回復して戦闘開始）
 function startBattle(e) {
   if (e) e.stopPropagation();
   const cur = state[mode];
@@ -375,17 +428,24 @@ function startBattle(e) {
     staminaUpdatedAt = Date.now();
   }
   stamina -= 1;
+  allyHp = getMaxAllyHp();
+  cur.hp = cur.maxHp;
   cur.inBattle = true;
-  showToast('⚔️ バトル開始！（スタミナ -1）');
   triggerAutoSave();
   updateUI();
 }
 
-function damageEnemy(dmg) {
+// 1ターン分の相互バトル（味方の攻撃 → 敵の反撃）
+function battleTurn() {
   const cur = state[mode];
   if (!cur.inBattle) return;
 
-  let finalDmg = dmg;
+  const list = mode === 'sea' ? seaMonsters : landMonsters;
+  const mon = list[cur.idx % list.length];
+
+  // 1. 味方の攻撃（スキル判定あり）
+  let finalDmg = getTotalAtk();
+  let isCrit = false;
   for (const monId of party) {
     const m = captured.find(x => x.id === monId);
     if (!m) continue;
@@ -393,30 +453,60 @@ function damageEnemy(dmg) {
     const bonusRate = m.traitId === 'crit_master' ? 0.1 : 0;
     if (Math.random() < (sk.rate + bonusRate)) {
       finalDmg = Math.floor(finalDmg * sk.mult);
-      showToast(`⚡ ${m.name}の【${sk.name}】発動！(${finalDmg}ダメージ)`);
+      isCrit = true;
       break;
     }
   }
 
   cur.hp -= finalDmg;
+  showDamagePopup('enemy-unit-box', isCrit ? `💥-${finalDmg}` : `-${finalDmg}`, isCrit ? 'crit' : '');
+
+  // 2. 敵の撃破判定
   if (cur.hp <= 0) {
     const goldTraitCount = party.map(id => captured.find(x => x.id === id)).filter(m => m && m.traitId === 'gold_up').length;
-    gold += Math.floor(cur.area * 25 * (1 + goldTraitCount * 0.3));
+    const rewardGold = Math.floor(cur.area * 25 * (1 + goldTraitCount * 0.3));
+    gold += rewardGold;
+
+    const recruited = tryAutoRecruit(mon, cur.area);
+    if (!recruited) {
+      showToast(`🎉 討伐完了！+${rewardGold}G`);
+    }
+
     cur.wave++; cur.idx++;
     if (cur.wave > 5) { cur.wave = 1; cur.area++; }
     cur.maxHp = Math.floor((mode === 'sea' ? 100 : 120) * Math.pow(1.3, cur.area - 1));
     cur.hp = cur.maxHp;
+    allyHp = getMaxAllyHp();
     cur.inBattle = false;
-    showToast('🎉 討伐完了！ゴールド獲得！');
     triggerAutoSave();
+    updateUI();
+    return;
   }
+
+  // 3. 敵の反撃（少し遅らせて数字ポップアップ）
+  setTimeout(() => {
+    if (!state[mode].inBattle) return;
+    const eDmg = getEnemyAtk();
+    allyHp -= eDmg;
+    showDamagePopup('ally-unit-box', `-${eDmg}`, 'ally-dmg');
+
+    if (allyHp <= 0) {
+      allyHp = getMaxAllyHp();
+      cur.hp = cur.maxHp;
+      cur.inBattle = false;
+      showToast('💀 敗北…船と仲間を強化しよう！');
+      triggerAutoSave();
+    }
+    updateUI();
+  }, 350);
+
   updateUI();
 }
 
 setInterval(() => {
-  damageEnemy(getTotalAtk());
+  battleTurn();
   gold += getCafeIncome();
   updateUI();
 }, 1000);
 
-function upgradeUnit() { if (gold >= upCost) { gold -= upCost; level++; baseAtk += 8; upCost = Math.floor(upCost * 1.4); updateUI(); triggerAutoSave(); } else alert('ゴールド不足'); }
+function upgradeUnit() { if (gold >= upCost) { gold -= upCost; level++; baseAtk += 8; upCost = Math.floor(upCost * 1.4); allyHp = getMaxAllyHp(); updateUI(); triggerAutoSave(); } else alert('ゴールド不足'); }
