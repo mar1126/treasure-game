@@ -94,7 +94,7 @@ async function sendChat(stampImg = null) {
   const msg = stampImg ? `[STAMP]${stampImg}` : document.getElementById('chat-input').value;
   if (!msg) return; if (!stampImg) document.getElementById('chat-input').value = '';
   const sp = speciesSkins[iconConfig.species];
-  const iconData = JSON.stringify({ emoji: sp ? sp.defaultIcon : '🐬', rotate: iconConfig.rotate });
+  const iconData = JSON.stringify({ emoji: sp ? sp.defaultIcon : '🦊', rotate: iconConfig.rotate });
   await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: playerName, icon_json: iconData, message: msg }) });
   loadChat();
 }
@@ -103,7 +103,7 @@ async function loadChat() {
   try {
     const res = await fetch('/api/chat'); const list = await res.json();
     document.getElementById('chat-messages').innerHTML = list.map(c => {
-      const ic = JSON.parse(c.icon_json || '{"emoji":"🐬","rotate":0}');
+      const ic = JSON.parse(c.icon_json || '{"emoji":"🦊","rotate":0}');
       const body = c.message.startsWith('[STAMP]') ? `<img src="${c.message.replace('[STAMP]', '')}" style="width:72px;height:72px;border-radius:10px;display:block;margin-top:4px;">` : c.message;
       return `<div class="chat-msg"><span style="display:inline-block;transform:rotate(${ic.rotate}deg)">${ic.emoji}</span> <b>${c.user_name}</b>: ${body}</div>`;
     }).join('') || 'まだメッセージがありません';
@@ -112,6 +112,6 @@ async function loadChat() {
 async function loadRanking() {
   try {
     const res = await fetch('/api/ranking'); const list = await res.json();
-    document.getElementById('ranking-list').innerHTML = list.map((r, i) => `<div style="padding:6px 0;border-bottom:1px solid #eceff1;"><b>#${i + 1} ${r.user_name}</b> - 🌊海域${r.sea_area} / 🌲陸${r.land_area}</div>`).join('');
+    document.getElementById('ranking-list').innerHTML = list.map((r, i) => `<div style="padding:6px 0;border-bottom:1px solid #eceff1;"><b>#${i + 1} ${r.user_name}</b> - 🌲陸${r.land_area} / 🌊海域${r.sea_area}</div>`).join('');
   } catch (e) {}
 }
