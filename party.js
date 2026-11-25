@@ -1,5 +1,6 @@
 // パーティ編成・モンスター育成・スカウトシステム (party.js)
 function ensureStarterMonster() {
+  if (!Array.isArray(captured)) captured = [];
   if (captured.length === 0) {
     const starter = {
       id: 'M_STARTER',
@@ -15,6 +16,7 @@ function ensureStarterMonster() {
       traitId: 'sea_lord'
     };
     captured.push(starter);
+    party = new Array(3).fill(null);
     party.splice(0, 1, starter.id);
     if (!speciesSkins['イルカ']) {
       speciesSkins['イルカ'] = { list: [], activeIdx: -1, defaultIcon: '🐬' };
@@ -39,22 +41,23 @@ function getMonStats(m) {
 
 function resetBattleAllies() {
   ensureStarterMonster();
-  const validIds = party.filter(id => id && captured.some(m => m.id === id));
-  if (validIds.length === 0 && captured.length > 0) {
-    party = new Array(3).fill(null);
-    for (let i = 0; i < Math.min(3, captured.length); i++) {
-      party.splice(i, 1, captured.at(i).id);
-    }
+  if (!Array.isArray(party)) party = new Array(3).fill(null);
+  while (party.length < 3) party.push(null);
+
+  // 有効なモンスターが1体も編成されていなければ、手持ちの先頭を自動セット
+  const validCount = party.filter(id => id && captured.some(m => m.id === id)).length;
+  if (validCount === 0 && captured.length > 0) {
+    const firstMon = captured.slice(0, 1).pop();
+    if (firstMon) party.splice(0, 1, firstMon.id);
   }
-  battleAllies = new Array(3).fill(null);
-  for (let i = 0; i < 3; i++) {
-    const monId = party.at(i);
+
+  battleAllies = party.slice(0, 3).map(monId => {
+    if (!monId) return null;
     const m = captured.find(x => x.id === monId);
-    if (m) {
-      const st = getMonStats(m);
-      battleAllies.splice(i, 1, { ...st, monRef: m, hp: st.maxHp, ct: 0 });
-    }
-  }
+    if (!m) return null;
+    const st = getMonStats(m);
+    return { ...st, monRef: m, hp: st.maxHp, ct: 0 };
+  });
 }
 
 function tryAutoRecruit(baseMon, curArea) {
@@ -85,7 +88,7 @@ function tryAutoRecruit(baseMon, curArea) {
 function renderParty() {
   const el = document.getElementById('party-slots');
   if (!el) return;
-  el.innerHTML = party.map((monId, slotIdx) => {
+  el.innerHTML = party.slice(0, 3).map((monId, slotIdx) => {
     const m = captured.find(x => x.id === monId);
     if (!m) return `<div class="slot-box"><div class="lvl">枠${slotIdx + 1}</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>`;
     const disp = getSpeciesDisplay(m.name, m.icon), idx = captured.findIndex(x => x.id === monId), st = getMonStats(m);
@@ -104,7 +107,7 @@ function renderCaptured() {
 
 function openMonModal(idx) {
   selectedMonIdx = idx;
-  const m = captured.at(idx); if (!m) return;
+  const m = captured.slice(idx, idx + 1).pop(); if (!m) return;
   const disp = getSpeciesDisplay(m.name, m.icon), sk = getMonsterSkill(m.name), tr = getMonsterTrait(m.traitId), st = getMonStats(m);
   document.getElementById('modal-mon-sprite').innerHTML = renderSprite(disp, 64, '12px');
   document.getElementById('modal-mon-name').textContent = m.name;
@@ -121,7 +124,7 @@ function openMonModal(idx) {
 function closeMonModal() { document.getElementById('mon-modal').style.display = 'none'; }
 
 function togglePartyFromModal() {
-  const m = captured.at(selectedMonIdx); if (!m) return;
+  const m = captured.slice(selectedMonIdx, selectedMonIdx + 1).pop(); if (!m) return;
   const pIdx = party.indexOf(m.id);
   if (pIdx !== -1) {
     if (party.filter(x => x !== null).length <= 1) return alert('パーティには最低1体必要です！');
@@ -136,7 +139,7 @@ function togglePartyFromModal() {
 }
 
 function levelUpMonFromModal() {
-  const m = captured.at(selectedMonIdx); if (!m) return;
+  const m = captured.slice(selectedMonIdx, selectedMonIdx + 1).pop(); if (!m) return;
   const cost = m.lv * 30;
   if (gold < cost) return alert('ゴールド不足！');
   gold -= cost;
