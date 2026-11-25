@@ -347,55 +347,91 @@ function handleEnemyDefeat(cur, eStats) {
   if (autoActive) setTimeout(() => { if (autoActive && !state[mode].inBattle) startBattle(); }, 700);
 }
 
-let tickCount = 0;
-setInterval(() => {
-  tickCount++;
-  if (tickCount % 20 === 0 && typeof getCafeIncome === 'function') gold += getCafeIncome();
+let lastFrameTime = performance.now();
+let cafeSecTimer = 0;
+
+function battleFrameLoop(now) {
+  const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
+  lastFrameTime = now;
+
+  cafeSecTimer += dt;
+  if (cafeSecTimer >= 1.0) {
+    cafeSecTimer -= 1.0;
+    if (typeof getCafeIncome === 'function') gold += getCafeIncome();
+    if (!state[mode].inBattle) updateUI();
+  }
+
   const cur = state[mode];
-  if (!cur.inBattle) { if (tickCount % 20 === 0) updateUI(); return; }
-  const dt = 0.05;
-  if ((!battleAllies || battleAllies.every(u => !u)) && typeof resetBattleAllies === 'function') resetBattleAllies();
-  const eStats = getEnemyStats();
+  if (cur.inBattle) {
+    if ((!battleAllies || battleAllies.every(u => !u)) && typeof resetBattleAllies === 'function') resetBattleAllies();
+    const eStats = getEnemyStats();
+    let needsUiSync = false;
 
-  for (let i = 0; i < 3; i++) {
-    const u = battleAllies.slice(i, i + 1).pop();
-    if (!u || u.hp <= 0) continue;
-    u.ct = (Number(u.ct) || 0) + dt;
-    const limitCt = Number(u.maxCt) || 2.0;
-    if (u.ct >= limitCt) {
-      u.ct = 0;
-      let rawAtk = u.atk || 10, isCrit = false;
-      if (u.monRef && typeof getMonsterSkill === 'function') {
-        const sk = getMonsterSkill(u.name), bonusRate = u.monRef.traitId === 'crit_master' ? 0.1 : 0;
-        if (Math.random() < (sk.rate + bonusRate)) { rawAtk = Math.floor(rawAtk * sk.mult); isCrit = true; }
+    for (let i = 0; i < 3; i++) {
+      const u = battleAllies.slice(i, i + 1).pop();
+      const ctBar = document.querySelector(`#ally-slot-${i} .ally-ct-bar`);
+      if (!u || u.hp <= 0) {
+        if (ctBar) ctBar.style.width = '0%';
+        continue;
       }
-      const dmg = Math.max(1, rawAtk - Math.floor(eStats.def / 2));
-      cur.hp -= dmg;
-      triggerMotion(`ally-slot-${i}`, 'atk-motion'); triggerMotion('enemy-unit-box', 'hit-motion');
-      showDamagePopup('enemy-unit-box', isCrit ? `💥-${dmg}` : `-${dmg}`, isCrit ? 'crit' : '');
-      if (cur.hp <= 0) { handleEnemyDefeat(cur, eStats); return; }
-    }
-  }
-  if (typeof processShipSupport === 'function' && processShipSupport(cur, eStats, dt)) return;
+      u.ct = (Number(u.ct) || 0) + dt;
+      const limitCt = Number(u.maxCt) || 2.0;
 
-  cur.enemyCt = (Number(cur.enemyCt) || 0) + dt;
-  if (cur.enemyCt >= eStats.ct) {
-    cur.enemyCt = 0;
-    const aliveIndices = Array.of(0, 1, 2).filter(idx => { const u = battleAllies.slice(idx, idx + 1).pop(); return u && u.hp > 0; });
-    if (aliveIndices.length > 0) {
-      const targetIdx = aliveIndices.slice(Math.floor(Math.random() * aliveIndices.length)).shift();
-      const targetUnit = battleAllies.slice(targetIdx, targetIdx + 1).pop();
-      const dmg = Math.max(1, eStats.atk - Math.floor(targetUnit.def / 2));
-      targetUnit.hp -= dmg;
-      triggerMotion('enemy-unit-box', 'atk-motion'); triggerMotion(`ally-slot-${targetIdx}`, 'hit-motion');
-      showDamagePopup(`ally-slot-${targetIdx}`, `-${dmg}`, 'ally-dmg');
-      if (!Array.of(0, 1, 2).some(idx => { const u = battleAllies.slice(idx, idx + 1).pop(); return u && u.hp > 0; })) {
-        cur.hp = cur.maxHp; cur.enemyCt = 0; cur.shipCt = 0; cur.inBattle = false;
-        if (autoActive) autoActive = false;
-        if (typeof resetBattleAllies === 'function') resetBattleAllies();
-        showToast('💀 全滅…仲間を強化しよう！'); triggerAutoSave();
+      if (u.ct >= limitCt) {
+        u.ct = 0;
+        let rawAtk = u.atk || 10, isCrit = false;
+        if (u.monRef && typeof getMonsterSkill === 'function') {
+          const sk = getMonsterSkill(u.name), bonusRate = u.monRef.traitId === 'crit_master' ? 0.1 : 0;
+          if (Math.random() < (sk.rate + bonusRate)) { rawAtk = Math.floor(rawAtk * sk.mult); isCrit = true; }
+        }
+        const dmg = Math.max(1, rawAtk - Math.floor(eStats.def / 2));
+        cur.hp -= dmg;
+        triggerMotion(`ally-slot-${i}`, 'atk-motion'); triggerMotion('enemy-unit-box', 'hit-motion');
+        showDamagePopup('enemy-unit-box', isCrit ? `💥-${dmg}` : `-${dmg}`, isCrit ? 'crit' : '');
+        needsUiSync = true;
+
+        if (cur.hp <= 0) {
+          handleEnemyDefeat(cur, eStats);
+          requestAnimationFrame(battleFrameLoop);
+          return;
+        }
+      }
+      if (ctBar) ctBar.style.width = `${Math.min(100, (u.ct / limitCt) * 100)}%`;
+    }
+
+    if (typeof processShipSupport === 'function' && processShipSupport(cur, eStats, dt)) {
+      requestAnimationFrame(battleFrameLoop);
+      return;
+    }
+
+    cur.enemyCt = (Number(cur.enemyCt) || 0) + dt;
+    const enemyCtBar = document.getElementById('enemy-ct-bar');
+    if (cur.enemyCt >= eStats.ct) {
+      cur.enemyCt = 0;
+      const aliveIndices = Array.of(0, 1, 2).filter(idx => { const u = battleAllies.slice(idx, idx + 1).pop(); return u && u.hp > 0; });
+      if (aliveIndices.length > 0) {
+        const targetIdx = aliveIndices.slice(Math.floor(Math.random() * aliveIndices.length)).shift();
+        const targetUnit = battleAllies.slice(targetIdx, targetIdx + 1).pop();
+        const dmg = Math.max(1, eStats.atk - Math.floor(targetUnit.def / 2));
+        targetUnit.hp -= dmg;
+        triggerMotion('enemy-unit-box', 'atk-motion'); triggerMotion(`ally-slot-${targetIdx}`, 'hit-motion');
+        showDamagePopup(`ally-slot-${targetIdx}`, `-${dmg}`, 'ally-dmg');
+        needsUiSync = true;
+
+        if (!Array.of(0, 1, 2).some(idx => { const u = battleAllies.slice(idx, idx + 1).pop(); return u && u.hp > 0; })) {
+          cur.hp = cur.maxHp; cur.enemyCt = 0; cur.shipCt = 0; cur.inBattle = false;
+          if (autoActive) autoActive = false;
+          if (typeof resetBattleAllies === 'function') resetBattleAllies();
+          showToast('💀 全滅…仲間を強化しよう！'); triggerAutoSave();
+          needsUiSync = true;
+        }
       }
     }
+    if (enemyCtBar) enemyCtBar.style.width = `${Math.min(100, (cur.enemyCt / eStats.ct) * 100)}%`;
+
+    if (needsUiSync) updateUI();
   }
-  updateUI();
-}, 50);
+
+  requestAnimationFrame(battleFrameLoop);
+}
+requestAnimationFrame(battleFrameLoop);
