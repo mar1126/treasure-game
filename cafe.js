@@ -12,8 +12,9 @@ function assignStaffFromModal() {
 }
 
 function assignStaff(idx) {
-  const mon = captured.at(idx), emptyIdx = staff.findIndex(s => s === null);
-  if (emptyIdx !== -1) {
+  const mon = captured.slice(idx, idx + 1).pop();
+  const emptyIdx = staff.findIndex(s => s === null);
+  if (mon && emptyIdx !== -1) {
     staff.splice(emptyIdx, 1, mon);
     showToast(`🍰 ${mon.name}を店員に配属！`);
     renderCafe(); updateUI(); triggerAutoSave();
@@ -23,7 +24,8 @@ function assignStaff(idx) {
 }
 
 function removeStaff(slotIdx) {
-  if (staff.at(slotIdx)) {
+  const target = staff.slice(slotIdx, slotIdx + 1).pop();
+  if (target) {
     staff.splice(slotIdx, 1, null);
     renderCafe(); updateUI(); triggerAutoSave();
   }
@@ -33,13 +35,20 @@ function renderCafe() {
   const roles = ['店長', 'ホール', 'キッチン'];
   const staffEl = document.getElementById('staff-slots');
   if (staffEl) {
-    staffEl.innerHTML = staff.map((s, i) => !s
-      ? `<div class="slot-box staff"><div class="lvl">${roles.at(i)}</div><div class="icon">➕</div><div class="name">空き枠</div></div>`
-      : `<div class="slot-box staff" onclick="removeStaff(${i})"><div class="lvl">${roles.at(i)}</div><div class="icon">${renderSprite(getSpeciesDisplay(s.name, s.icon), 36)}</div><div class="name">${s.name}</div></div>`).join('');
+    staffEl.innerHTML = staff.slice(0, 3).map((s, i) => {
+      const roleName = roles.slice(i, i + 1).pop() || '店員';
+      return !s
+        ? `<div class="slot-box staff"><div class="lvl">${roleName}</div><div class="icon">➕</div><div class="name">空き枠</div></div>`
+        : `<div class="slot-box staff" onclick="removeStaff(${i})"><div class="lvl">${roleName}</div><div class="icon">${renderSprite(getSpeciesDisplay(s.name, s.icon), 36)}</div><div class="name">${s.name}</div></div>`;
+    }).join('');
   }
   const gardenEl = document.getElementById('garden-grid');
   if (gardenEl) {
-    gardenEl.innerHTML = Array(8).fill('').map((_, i) => `<div class="garden-cell">${gardenItems.at(i) || (staff.at(i) ? renderSprite(getSpeciesDisplay(staff.at(i).name, staff.at(i).icon), 28) : '')}</div>`).join('');
+    gardenEl.innerHTML = Array(8).fill('').map((_, i) => {
+      const decor = gardenItems.slice(i, i + 1).pop();
+      const st = staff.slice(i, i + 1).pop();
+      return `<div class="garden-cell">${decor || (st ? renderSprite(getSpeciesDisplay(st.name, st.icon), 28) : '')}</div>`;
+    }).join('');
   }
 }
 
