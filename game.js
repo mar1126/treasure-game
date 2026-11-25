@@ -1,7 +1,11 @@
 let userId = localStorage.getItem('treasure_uid') || ('H-' + Math.random().toString(36).substring(2, 10).toUpperCase());
 localStorage.setItem('treasure_uid', userId);
 let playerName = 'ハンター';
-let gold = 200, gem = 1000, baseAtk = 10, level = 1, upCost = 50, mode = 'sea';
+let gold = 200, gem = 1000, level = 1, upCost = 50, mode = 'land';
+let landTankTier = 0; // 0: 未所持, 1〜6: 陸戦車ランク
+let seaShipTier = 0;  // 0: 未所持, 1〜6: 海探索船ランク
+let vehicleParts = { land: { cannon: null, engine: null }, sea: { cannon: null, engine: null } };
+
 let cafeLv = 1, cafeCost = 80, staff = new Array(3).fill(null), gardenItems = [];
 let party = new Array(3).fill(null);
 let selectedMonIdx = -1;
@@ -21,23 +25,6 @@ let state = {
 
 let battleAllies = new Array(3).fill(null);
 
-const seaMonsters = [
-  { icon: '🐙', name: 'オクトパス', ct: 2.2 },
-  { icon: '🦈', name: 'シャーク', ct: 1.8 },
-  { icon: '🦀', name: 'クラブ', ct: 2.6 },
-  { icon: '🐡', name: 'ハリセンボン', ct: 2.0 },
-  { icon: '🦑', name: 'ダイオウイカ', ct: 1.9 },
-  { icon: '🐳', name: 'ホエール', ct: 2.8 }
-];
-const landMonsters = [
-  { icon: '🦊', name: 'フォックス', ct: 1.7 },
-  { icon: '🐗', name: 'ボア', ct: 2.1 },
-  { icon: '🦎', name: 'リザード', ct: 1.9 },
-  { icon: '🦉', name: 'オウル', ct: 1.6 },
-  { icon: '🐻', name: 'グリズリー', ct: 2.7 },
-  { icon: '🐉', name: 'ワイバーン', ct: 2.3 }
-];
-
 let captured = [], speciesSkins = {}, aiBackgrounds = [], aiStamps = [];
 let iconConfig = { species: 'デフォルト', bgIdx: -1, scale: 1.0, x: 0, y: 0, rotate: 0 };
 
@@ -45,7 +32,7 @@ function getEnemyStats() {
   const cur = state[mode];
   const list = mode === 'sea' ? seaMonsters : landMonsters;
   const pickIdx = cur.idx % list.length;
-  const baseMon = list.slice(pickIdx, pickIdx + 1).pop() || { icon: '🐙', name: 'オクトパス', ct: 2.2 };
+  const baseMon = list.slice(pickIdx, pickIdx + 1).pop() || { icon: '🦊', name: 'フォックス', ct: 1.7 };
   const baseAtkVal = mode === 'sea' ? 8 : 10;
   return {
     name: baseMon.name,
@@ -70,7 +57,8 @@ function syncStamina() {
 let saveTimer = null, lastCloudSyncAt = 0;
 function triggerAutoSave(immediate = false) {
   const payload = {
-    savedAt: Date.now(), playerName, gold, gem, baseAtk, level, upCost, mode,
+    savedAt: Date.now(), playerName, gold, gem, level, upCost, mode,
+    landTankTier, seaShipTier, vehicleParts,
     stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked,
     cafeLv, cafeCost, staff, gardenItems, party, state,
     captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig
@@ -96,7 +84,12 @@ function triggerAutoSave(immediate = false) {
 function applySaveData(data) {
   if (!data) return;
   playerName = data.playerName || 'ハンター';
-  gold = data.gold ?? 200; gem = data.gem ?? 1000; baseAtk = data.baseAtk ?? 10; level = data.level ?? 1; upCost = data.upCost ?? 50; mode = data.mode || 'sea';
+  gold = data.gold ?? 200; gem = data.gem ?? 1000; level = data.level ?? 1; upCost = data.upCost ?? 50;
+  mode = data.mode || 'land';
+  landTankTier = Number(data.landTankTier) || 0;
+  seaShipTier = Number(data.seaShipTier) || 0;
+  if (data.vehicleParts) vehicleParts = data.vehicleParts;
+
   autoUnlocked = Boolean(data.autoUnlocked);
   speed2xUnlocked = Boolean(data.speed2xUnlocked);
   staminaFastUnlocked = Boolean(data.staminaFastUnlocked);
@@ -126,7 +119,7 @@ function applySaveData(data) {
   }
   const bg = document.getElementById('battle-bg'), btn = document.getElementById('mode-switch-btn');
   if (bg && btn) {
-    if (mode === 'land') { bg.classList.add('land-mode'); btn.textContent = '🌊 海へ戻る'; } else { bg.classList.remove('land-mode'); btn.textContent = '🌲 陸へ行く'; }
+    if (mode === 'land') { bg.classList.add('land-mode'); btn.textContent = '🌊 海へ行く'; } else { bg.classList.remove('land-mode'); btn.textContent = '🌲 陸へ戻る'; }
   }
   if (typeof resetBattleAllies === 'function') resetBattleAllies();
   if (typeof renderParty === 'function') renderParty();
@@ -170,7 +163,7 @@ async function initCloudLoad() {
 }
 
 window.addEventListener('beforeunload', () => {
-  const payload = { savedAt: Date.now(), playerName, gold, gem, baseAtk, level, upCost, mode, stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, cafeLv, cafeCost, staff, gardenItems, party, state, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
+  const payload = { savedAt: Date.now(), playerName, gold, gem, level, upCost, mode, landTankTier, seaShipTier, vehicleParts, stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, cafeLv, cafeCost, staff, gardenItems, party, state, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
   localStorage.setItem('treasure_save_' + userId, JSON.stringify(payload));
 });
 
@@ -183,7 +176,7 @@ function renderSprite(displayVal, size = 32, round = '8px') {
   return (displayVal && displayVal.startsWith('data:image')) ? `<img src="${displayVal}" style="width:${size}px;height:${size}px;border-radius:${round};object-fit:cover;vertical-align:middle;">` : displayVal;
 }
 function getTotalPower() {
-  let p = mode === 'sea' ? baseAtk : 0;
+  let p = typeof getVehicleSupportAtk === 'function' ? getVehicleSupportAtk(mode) : 0;
   party.forEach(monId => {
     const m = captured.find(x => x.id === monId);
     if (m && typeof getMonStats === 'function') { const st = getMonStats(m); p += st.atk + Math.floor(st.def / 2); }
@@ -273,9 +266,22 @@ function updateUI() {
       hpBarEl.style.width = '0%';
     }
   }
-  if (document.getElementById('ally-lv')) document.getElementById('ally-lv').textContent = level;
-  document.getElementById('power-disp').textContent = getTotalPower();
-  document.getElementById('up-cost').textContent = upCost.toLocaleString();
+
+  const upBtn = document.getElementById('vehicle-upgrade-btn');
+  if (upBtn) {
+    const hasAnyVehicle = (landTankTier > 0 || seaShipTier > 0);
+    if (!hasAnyVehicle) {
+      upBtn.textContent = '🚜 戦車・探索船 未所持（ショップで購入しよう！）';
+      upBtn.style.background = '#90a4ae';
+    } else {
+      const eq = typeof getEquippedVehicle === 'function' ? getEquippedVehicle(mode) : null;
+      const vLabel = eq ? `${eq.icon} ${eq.name}` : '戦車・探索船';
+      upBtn.innerHTML = `${vLabel}を強化 Lv.<span id="ally-lv">${level}</span>（費用: <span id="up-cost">${upCost.toLocaleString()}</span> G）`;
+      upBtn.style.background = '#ff7043';
+    }
+  }
+
+  document.getElementById('power-disp').textContent = getTotalPower().toLocaleString();
   const inc = typeof getCafeIncome === 'function' ? getCafeIncome() : 0;
   document.getElementById('cafe-income-hud').textContent = inc;
   if (document.getElementById('cafe-rate')) document.getElementById('cafe-rate').textContent = inc;
@@ -286,7 +292,7 @@ function updateUI() {
 function toggleMode(e) {
   e.stopPropagation(); mode = mode === 'sea' ? 'land' : 'sea';
   const bg = document.getElementById('battle-bg'), btn = document.getElementById('mode-switch-btn');
-  if (mode === 'land') { bg.classList.add('land-mode'); btn.textContent = '🌊 海へ戻る'; } else { bg.classList.remove('land-mode'); btn.textContent = '🌲 陸へ行く'; }
+  if (mode === 'land') { bg.classList.add('land-mode'); btn.textContent = '🌊 海へ行く'; } else { bg.classList.remove('land-mode'); btn.textContent = '🌲 陸へ戻る'; }
   if (!state[mode].inBattle && typeof resetBattleAllies === 'function') resetBattleAllies();
   updateUI(); triggerAutoSave();
 }
