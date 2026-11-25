@@ -2,12 +2,13 @@ let userId = localStorage.getItem('treasure_uid') || ('H-' + Math.random().toStr
 localStorage.setItem('treasure_uid', userId);
 let playerName = 'ハンター';
 let gold = 200, gem = 1000, mode = 'land';
-let landTankTier = 0, landTankLv = 1, landUpCost = 50; // 陸戦車ランク・レベル・強化費
-let seaShipTier = 0, seaShipLv = 1, seaUpCost = 50;    // 海探索船ランク・レベル・強化費
+let landTankTier = 0, landTankLv = 1, landUpCost = 50;
+let seaShipTier = 0, seaShipLv = 1, seaUpCost = 50;
 let vehicleParts = { land: { cannon: null, engine: null }, sea: { cannon: null, engine: null } };
 
 let cafeLv = 1, cafeCost = 80, staff = new Array(3).fill(null), gardenItems = [];
 let party = new Array(3).fill(null);
+let trainingSlots = new Array(3).fill(null);
 let selectedMonIdx = -1;
 
 let autoUnlocked = false, autoActive = false;
@@ -18,9 +19,10 @@ const MAX_STAMINA = 30;
 let stamina = MAX_STAMINA;
 let staminaUpdatedAt = Date.now();
 
+// ステージ(1〜10)・階層(1〜50)・ウェーブ(1〜5)進行状態
 let state = {
-  sea: { area: 1, wave: 1, maxHp: 100, hp: 100, idx: 0, inBattle: false, enemyCt: 0, shipCt: 0 },
-  land: { area: 1, wave: 1, maxHp: 120, hp: 120, idx: 0, inBattle: false, enemyCt: 0, shipCt: 0 }
+  land: { stage: 1, floor: 1, wave: 1, maxStage: 1, maxFloorByStage: { 1: 1 }, enemies: [], inBattle: false, shipCt: 0 },
+  sea: { stage: 1, floor: 1, wave: 1, maxStage: 1, maxFloorByStage: { 1: 1 }, enemies: [], inBattle: false, shipCt: 0 }
 };
 
 let battleAllies = new Array(3).fill(null);
@@ -28,19 +30,26 @@ let battleAllies = new Array(3).fill(null);
 let captured = [], speciesSkins = {}, aiBackgrounds = [], aiStamps = [];
 let iconConfig = { species: 'デフォルト', bgIdx: -1, scale: 1.0, x: 0, y: 0, rotate: 0 };
 
-function getEnemyStats() {
-  const cur = state[mode];
-  const list = mode === 'sea' ? seaMonsters : landMonsters;
-  const pickIdx = cur.idx % list.length;
-  const baseMon = list.slice(pickIdx, pickIdx + 1).pop() || { icon: '🦊', name: 'フォックス', ct: 1.7 };
-  const baseAtkVal = mode === 'sea' ? 8 : 10;
-  return {
-    name: baseMon.name,
-    icon: baseMon.icon,
-    atk: Math.floor(baseAtkVal * Math.pow(1.22, cur.area - 1) + (cur.wave - 1) * 2),
-    def: Math.floor((cur.area - 1) * 2 + (cur.wave - 1) * 0.5),
-    ct: Number(baseMon.ct) || 2.2
-  };
+function ensureWaveEnemies(targetMode = mode) {
+  const cur = state[targetMode];
+  if (!cur.stage) cur.stage = 1;
+  if (!cur.floor) cur.floor = 1;
+  if (!cur.wave) cur.wave = 1;
+  if (!cur.maxStage) cur.maxStage = cur.stage;
+  if (!cur.maxFloorByStage) cur.maxFloorByStage = { [cur.stage]: cur.floor };
+  if (!Array.isArray(cur.enemies) || cur.enemies.length === 0) {
+    cur.enemies = typeof getFixedWaveEnemies === 'function'
+      ? getFixedWaveEnemies(targetMode, cur.stage, cur.floor, cur.wave)
+      : [];
+  }
+  return cur.enemies;
+}
+
+function getShopGoldAmount() {
+  const curL = state.land || { stage: 1, floor: 1 };
+  const curS = state.sea || { stage: 1, floor: 1 };
+  const score = Math.max((curL.stage || 1) * 10 + (curL.floor || 1), (curS.stage || 1) * 10 + (curS.floor || 1));
+  return score * 120;
 }
 
 function syncStamina() {
@@ -56,13 +65,17 @@ function syncStamina() {
 
 let saveTimer = null, lastCloudSyncAt = 0;
 function triggerAutoSave(immediate = false) {
+  const cleanState = {
+    land: { stage: state.land.stage, floor: state.land.floor, wave: 1, maxStage: state.land.maxStage, maxFloorByStage: state.land.maxFloorByStage },
+    sea: { stage: state.sea.stage, floor: state.sea.floor, wave: 1, maxStage: state.sea.maxStage, maxFloorByStage: state.sea.maxFloorByStage }
+  };
   const payload = {
     savedAt: Date.now(), playerName, gold, gem, mode,
     landTankTier, landTankLv, landUpCost,
     seaShipTier, seaShipLv, seaUpCost,
     vehicleParts,
     stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked,
-    cafeLv, cafeCost, staff, gardenItems, party, state,
+    cafeLv, cafeCost, staff, gardenItems, party, trainingSlots, state: cleanState,
     captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig
   };
   const jsonStr = JSON.stringify(payload);
@@ -106,31 +119,58 @@ function applySaveData(data) {
   staff = Array.isArray(data.staff) ? data.staff.slice(0, 3) : new Array(3).fill(null);
   while (staff.length < 3) staff.push(null);
   gardenItems = data.gardenItems || [];
+
   const rawParty = Array.isArray(data.party) ? data.party : [];
   party = [rawParty.slice(0, 1).pop() ?? null, rawParty.slice(1, 2).pop() ?? null, rawParty.slice(2, 3).pop() ?? null];
+
+  const rawTrain = Array.isArray(data.trainingSlots) ? data.trainingSlots : [];
+  trainingSlots = [rawTrain.slice(0, 1).pop() ?? null, rawTrain.slice(1, 2).pop() ?? null, rawTrain.slice(2, 3).pop() ?? null];
+
   if (data.state) {
-    state = data.state;
-    if (state.sea) { state.sea.inBattle = false; state.sea.enemyCt = 0; state.sea.shipCt = 0; }
-    if (state.land) { state.land.inBattle = false; state.land.enemyCt = 0; state.land.shipCt = 0; }
+    ['land', 'sea'].forEach(k => {
+      const s = data.state[k] || {};
+      const stg = Number(s.stage) || 1;
+      const flr = Math.min(50, Number(s.floor) || Number(s.area) || 1);
+      state[k] = {
+        stage: stg,
+        floor: flr,
+        wave: 1,
+        maxStage: Math.max(stg, Number(s.maxStage) || 1),
+        maxFloorByStage: s.maxFloorByStage || { [stg]: flr },
+        enemies: [],
+        inBattle: false,
+        shipCt: 0
+      };
+    });
   }
+
   captured = (data.captured || []).map((m, idx) => {
-    const baseData = [...seaMonsters, ...landMonsters].find(x => x.name === m.name);
+    const sp = typeof getSpeciesData === 'function' ? getSpeciesData(m.name) : { baseHp: 70, baseAtk: 12, baseDef: 4, ct: 1.8 };
+    const initSkills = Array.isArray(m.skills) && m.skills.length > 0 ? m.skills : [typeof getSpeciesInnateSkillId === 'function' ? getSpeciesInnateSkillId(m.name) : 'power_slash'];
+    const initTraits = Array.isArray(m.traits) && m.traits.length > 0 ? m.traits : (m.traitId ? [m.traitId] : [typeof getSpeciesInnateTraitId === 'function' ? getSpeciesInnateTraitId(m.name) : 'atk_up_1']);
     return {
       id: m.id || ('M' + idx),
       icon: m.icon,
       name: m.name,
-      type: m.type,
-      lv: m.lv || 1,
-      rarity: m.rarity || 'N',
-      maxHp: m.maxHp || (55 + (m.lv || 1) * 18),
-      atk: m.atk || 8,
-      def: m.def || (3 + (m.lv || 1) * 2),
-      ct: Number(m.ct) || (baseData ? baseData.ct : 2.1),
-      traitId: m.traitId || 'gold_up',
+      type: m.type || sp.type || 'land',
+      lv: Number(m.lv) || 1,
+      maxLv: Number(m.maxLv) || 10,
+      exp: Number(m.exp) || 0,
+      plus: Number(m.plus) || 0,
+      bonusHp: Number(m.bonusHp) || 0,
+      bonusAtk: Number(m.bonusAtk) || 0,
+      bonusDef: Number(m.bonusDef) || 0,
+      baseHp: Number(m.baseHp) || sp.baseHp,
+      baseAtk: Number(m.baseAtk) || sp.baseAtk,
+      baseDef: Number(m.baseDef) || sp.baseDef,
+      ct: Number(m.ct) || sp.ct,
+      skills: initSkills,
+      traits: initTraits,
       customSkin: m.customSkin || null,
       customBgIdx: (typeof m.customBgIdx === 'number') ? m.customBgIdx : -1
     };
   });
+
   speciesSkins = data.speciesSkins || {}; aiBackgrounds = data.aiBackgrounds || []; aiStamps = data.aiStamps || [];
   if (data.iconConfig) iconConfig = data.iconConfig;
   if (document.getElementById('player-name')) document.getElementById('player-name').value = playerName;
@@ -143,8 +183,11 @@ function applySaveData(data) {
   if (bg && btn) {
     if (mode === 'land') { bg.classList.add('land-mode'); btn.textContent = '🌊 海へ行く'; } else { bg.classList.remove('land-mode'); btn.textContent = '🌲 陸へ戻る'; }
   }
+  ensureWaveEnemies('land');
+  ensureWaveEnemies('sea');
   if (typeof resetBattleAllies === 'function') resetBattleAllies();
   if (typeof renderParty === 'function') renderParty();
+  if (typeof renderTraining === 'function') renderTraining();
   if (typeof renderCaptured === 'function') renderCaptured();
   if (typeof renderCafe === 'function') renderCafe();
   if (typeof renderShop === 'function') renderShop();
@@ -163,8 +206,11 @@ async function initCloudLoad() {
   if (localStr) {
     try { localData = JSON.parse(localStr); applySaveData(localData); } catch (e) {}
   } else {
+    ensureWaveEnemies('land');
+    ensureWaveEnemies('sea');
     if (typeof resetBattleAllies === 'function') resetBattleAllies();
     if (typeof renderParty === 'function') renderParty();
+    if (typeof renderTraining === 'function') renderTraining();
     if (typeof renderCaptured === 'function') renderCaptured();
     if (typeof renderCafe === 'function') renderCafe();
     if (typeof renderShop === 'function') renderShop();
@@ -185,13 +231,18 @@ async function initCloudLoad() {
 }
 
 window.addEventListener('beforeunload', () => {
-  const payload = { savedAt: Date.now(), playerName, gold, gem, mode, landTankTier, landTankLv, landUpCost, seaShipTier, seaShipLv, seaUpCost, vehicleParts, stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, cafeLv, cafeCost, staff, gardenItems, party, state, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
+  const cleanState = {
+    land: { stage: state.land.stage, floor: state.land.floor, wave: 1, maxStage: state.land.maxStage, maxFloorByStage: state.land.maxFloorByStage },
+    sea: { stage: state.sea.stage, floor: state.sea.floor, wave: 1, maxStage: state.sea.maxStage, maxFloorByStage: state.sea.maxFloorByStage }
+  };
+  const payload = { savedAt: Date.now(), playerName, gold, gem, mode, landTankTier, landTankLv, landUpCost, seaShipTier, seaShipLv, seaUpCost, vehicleParts, stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, cafeLv, cafeCost, staff, gardenItems, party, trainingSlots, state: cleanState, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
   localStorage.setItem('treasure_save_' + userId, JSON.stringify(payload));
 });
 
 function getSpeciesDisplay(name, defaultIcon) {
-  const defVisual = typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual(name, defaultIcon) : defaultIcon;
-  const data = speciesSkins[name];
+  const raw = String(name || '').replace('👑 ', '');
+  const defVisual = typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual(raw, defaultIcon) : defaultIcon;
+  const data = speciesSkins[raw];
   if (!data || data.activeIdx < 0) return defVisual;
   return data.list.slice(data.activeIdx, data.activeIdx + 1).pop() || defVisual;
 }
@@ -211,22 +262,57 @@ function getTotalPower() {
   });
   return p;
 }
+
 function triggerMotion(elementId, className) {
   const el = document.getElementById(elementId);
   if (!el) return;
   el.classList.remove(className); void el.offsetWidth; el.classList.add(className);
 }
+
 function showDamagePopup(targetId, text, typeClass = '') {
   const targetEl = document.getElementById(targetId), fxLayer = document.getElementById('fx-layer') || document.getElementById('battle-bg');
   if (!targetEl || !fxLayer) return;
   const rect = targetEl.getBoundingClientRect(), bgRect = fxLayer.getBoundingClientRect();
   const popup = document.createElement('div');
   popup.className = `dmg-popup ${typeClass}`; popup.textContent = text;
-  popup.style.left = `${(rect.left - bgRect.left) + (rect.width / 2) + ((Math.random() - 0.5) * 28)}px`;
-  popup.style.top = `${(rect.top - bgRect.top) + 8}px`;
+  popup.style.left = `${(rect.left - bgRect.left) + (rect.width / 2) + ((Math.random() - 0.5) * 24)}px`;
+  popup.style.top = `${(rect.top - bgRect.top) + 6}px`;
   fxLayer.appendChild(popup); setTimeout(() => popup.remove(), 800);
 }
 
+function openFloorSelectModal(e) {
+  if (e) e.stopPropagation();
+  const cur = state[mode];
+  if (cur.inBattle) return alert('バトル中は階層移動できません。先に「🏳️ 退却」を押してください。');
+  const box = document.getElementById('floor-select-list');
+  if (!box) return;
+
+  const maxStg = cur.maxStage || 1;
+  let html = '';
+  for (let s = 1; s <= maxStg; s++) {
+    const stgTitle = typeof getStageName === 'function' ? getStageName(mode, s) : `Stage ${s}`;
+    const maxFlr = (s < maxStg) ? 50 : (cur.maxFloorByStage?.[s] || 1);
+    html += `<div style="margin-bottom:10px;"><div style="font-size:12px;font-weight:bold;color:#0277bd;margin-bottom:4px;">${stgTitle}（到達: ${maxFlr}/50階）</div><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;">`;
+    for (let f = 1; f <= maxFlr; f++) {
+      const isCur = (s === cur.stage && f === cur.floor);
+      html += `<button onclick="jumpToStageFloor(${s}, ${f})" style="padding:6px 2px;border-radius:6px;border:1px solid ${isCur ? '#ff7043' : '#cfd8dc'};background:${isCur ? '#ff7043' : '#f8fdff'};color:${isCur ? '#fff' : '#263238'};font-size:11px;font-weight:bold;cursor:pointer;">${f}F</button>`;
+    }
+    html += `</div></div>`;
+  }
+  box.innerHTML = html;
+  document.getElementById('floor-modal').style.display = 'flex';
+}
+
+function closeFloorSelectModal() { document.getElementById('floor-modal').style.display = 'none'; }
+
+function jumpToStageFloor(targetStg, targetFlr) {
+  const cur = state[mode];
+  cur.stage = targetStg; cur.floor = targetFlr; cur.wave = 1;
+  cur.enemies = typeof getFixedWaveEnemies === 'function' ? getFixedWaveEnemies(mode, targetStg, targetFlr, 1) : [];
+  cur.inBattle = false;
+  closeFloorSelectModal(); updateUI(); triggerAutoSave();
+  showToast(`📍 Stage${targetStg} ${targetFlr}-1 に移動しました`);
+}
 function updateUI() {
   syncStamina();
   const intervalMs = typeof getStaminaIntervalMs === 'function' ? getStaminaIntervalMs() : 60000;
@@ -242,7 +328,7 @@ function updateUI() {
   const autoBtn = document.getElementById('hud-auto-btn');
   if (autoBtn) {
     autoBtn.style.display = autoUnlocked ? 'inline-block' : 'none';
-    autoBtn.textContent = autoActive ? '🔄 自動ON' : '🔄 自動OFF';
+    autoBtn.textContent = autoActive ? '🔄 周回ON' : '🔄 周回OFF';
     autoBtn.classList.toggle('active', autoActive);
   }
   const speedBtn = document.getElementById('hud-speed-btn');
@@ -252,44 +338,61 @@ function updateUI() {
     speedBtn.classList.toggle('active', speed2xActive);
   }
 
-  const cur = state[mode], eStats = getEnemyStats();
+  const cur = state[mode];
+  const enemies = ensureWaveEnemies(mode);
   document.getElementById('gold').textContent = gold.toLocaleString();
   document.getElementById('gem').textContent = gem.toLocaleString();
-  document.getElementById('floor-text').textContent = mode === 'sea' ? `🌊 海域 ${cur.area}-${cur.wave}` : `🌲 陸地 ${cur.area}-${cur.wave}`;
+
+  const floorEl = document.getElementById('floor-text');
+  if (floorEl) {
+    const prefix = mode === 'sea' ? '🌊海' : '🌲陸';
+    floorEl.textContent = `${prefix} S${cur.stage} ${cur.floor}-${cur.wave} ▾`;
+  }
   if (typeof renderStageBackground === 'function') renderStageBackground();
 
   const startBtn = document.getElementById('start-battle-btn');
-  if (cur.inBattle) { document.getElementById('enemy-name').textContent = `⚔️ ${eStats.name}`; if (startBtn) startBtn.style.display = 'none'; }
-  else { document.getElementById('enemy-name').textContent = `${eStats.name} (待機中)`; if (startBtn) startBtn.style.display = 'inline-block'; }
-
-  const enemySpriteEl = document.getElementById('enemy-sprite');
-  if (enemySpriteEl) {
-    const enemyDisp = getSpeciesDisplay(eStats.name, eStats.icon);
-    const enemyHtml = renderSprite(enemyDisp, 48, '8px');
-    if (enemySpriteEl.innerHTML !== enemyHtml) enemySpriteEl.innerHTML = enemyHtml;
+  const retreatBtn = document.getElementById('retreat-battle-btn');
+  if (cur.inBattle) {
+    if (startBtn) startBtn.style.display = 'none';
+    if (retreatBtn) retreatBtn.style.display = 'inline-block';
+  } else {
+    if (startBtn) startBtn.style.display = 'inline-block';
+    if (retreatBtn) retreatBtn.style.display = 'none';
   }
 
-  document.getElementById('enemy-hp-text').textContent = Math.max(0, cur.hp);
-  document.getElementById('enemy-hp-bar').style.width = `${Math.max(0, (cur.hp / cur.maxHp) * 100)}%`;
+  for (let i = 0; i < 3; i++) {
+    const box = document.getElementById(`enemy-slot-${i}`);
+    if (!box) continue;
+    const e = enemies.slice(i, i + 1).pop();
+    if (!e) { box.style.display = 'none'; continue; }
+    box.style.display = 'block';
+    box.classList.toggle('dead', e.hp <= 0);
+    const nameEl = box.querySelector('.e-name');
+    const hpEl = box.querySelector('.e-hp-fill');
+    const sprEl = box.querySelector('.e-sprite');
+    if (nameEl) nameEl.textContent = `${e.name} (${Math.max(0, e.hp)})`;
+    if (hpEl) hpEl.style.width = `${Math.max(0, Math.min(100, (e.hp / (e.maxHp || 1)) * 100))}%`;
+    if (sprEl) {
+      const disp = getSpeciesDisplay(e.rawName || e.name, e.icon);
+      const nextHtml = renderSprite(disp, 40, '6px');
+      if (sprEl.innerHTML !== nextHtml) sprEl.innerHTML = nextHtml;
+    }
+  }
 
   for (let i = 0; i < 3; i++) {
     const el = document.getElementById(`ally-slot-${i}`);
     if (!el) continue;
     const unit = battleAllies.slice(i, i + 1).pop();
-
     if (!el.querySelector('.ally-ct-bar')) {
       el.innerHTML = `<div class="unit-sprite"></div><div class="hp-text"></div><div class="bar-bg"><div class="ally-hp-fill"></div></div><div class="bar-bg" style="height:6px;margin-top:2px;"><div class="ct-fill ally-ct-bar"></div></div>`;
     }
-
     const spriteEl = el.querySelector('.unit-sprite');
     const textEl = el.querySelector('.hp-text');
     const hpBarEl = el.querySelector('.ally-hp-fill');
 
     if (unit) {
       el.classList.toggle('dead', unit.hp <= 0);
-      const disp = (unit.monRef && typeof getMonsterVisual === 'function')
-        ? getMonsterVisual(unit.monRef)
-        : getSpeciesDisplay(unit.name, unit.icon);
+      const disp = (unit.monRef && typeof getMonsterVisual === 'function') ? getMonsterVisual(unit.monRef) : getSpeciesDisplay(unit.name, unit.icon);
       const nextHtml = renderSprite(disp, 30, '6px');
       if (spriteEl.innerHTML !== nextHtml) spriteEl.innerHTML = nextHtml;
       spriteEl.style.opacity = '1';
@@ -310,8 +413,7 @@ function updateUI() {
   if (upBtn) {
     const eq = typeof getEquippedVehicle === 'function' ? getEquippedVehicle(mode) : null;
     if (!eq) {
-      const label = mode === 'land' ? '🚜 陸地用の戦車 未所持（ショップで購入！）' : '⛵ 海域用の探索船 未所持（ショップで購入！）';
-      upBtn.textContent = label;
+      upBtn.textContent = mode === 'land' ? '🚜 陸地用の戦車 未所持（ショップで購入！）' : '⛵ 海域用の探索船 未所持（ショップで購入！）';
       upBtn.style.background = '#90a4ae';
     } else {
       const vLv = typeof getVehicleLevel === 'function' ? getVehicleLevel(mode) : 1;
@@ -329,15 +431,17 @@ function updateUI() {
   if (document.getElementById('cafe-cost')) document.getElementById('cafe-cost').textContent = cafeCost.toLocaleString();
   if (document.getElementById('garden-bonus')) document.getElementById('garden-bonus').textContent = gardenItems.length * 15;
 }
+
 function toggleMode(e) {
   if (e) e.stopPropagation();
+  if (state[mode].inBattle) return alert('バトル中は陸・海を切り替えられません。先に「🏳️ 退却」を押してください。');
   mode = mode === 'sea' ? 'land' : 'sea';
   const bg = document.getElementById('battle-bg'), btn = document.getElementById('mode-switch-btn');
   if (bg && btn) {
     if (mode === 'land') { bg.classList.add('land-mode'); btn.textContent = '🌊 海へ行く'; }
     else { bg.classList.remove('land-mode'); btn.textContent = '🌲 陸へ戻る'; }
   }
-  if (!state[mode].inBattle && typeof resetBattleAllies === 'function') resetBattleAllies();
+  if (typeof resetBattleAllies === 'function') resetBattleAllies();
   updateUI(); triggerAutoSave();
 }
 
@@ -352,7 +456,7 @@ function toggleAutoMode(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
   if (!autoUnlocked) return;
   autoActive = !autoActive;
-  showToast(autoActive ? '🔄 自動戦闘: ON' : '⏸️ 自動戦闘: OFF');
+  showToast(autoActive ? '🔄 階層間オート周回: ON' : '⏸️ 階層間オート周回: OFF');
   updateUI();
   if (autoActive && !state[mode].inBattle && stamina >= 1) startBattle();
 }
@@ -364,37 +468,109 @@ function toggleSpeedMode(e) {
   showToast(speed2xActive ? '▷▷ 戦闘速度: 2倍速' : '▷ 戦闘速度: 通常(1x)');
   updateUI();
 }
-
 function startBattle(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
   const cur = state[mode];
   if (!cur || cur.inBattle) return;
   syncStamina();
   if (stamina < 1) {
-    if (autoActive) { autoActive = false; showToast('⚡ スタミナ切れのため自動戦闘停止'); }
+    if (autoActive) { autoActive = false; showToast('⚡ スタミナ切れのため周回停止'); }
     else showToast('⚡ スタミナ不足！ショップで回復できます');
     updateUI(); return;
   }
   if (stamina === MAX_STAMINA) staminaUpdatedAt = Date.now();
   stamina -= 1;
+
+  cur.wave = 1;
+  cur.enemies = typeof getFixedWaveEnemies === 'function' ? getFixedWaveEnemies(mode, cur.stage, cur.floor, 1) : [];
   if (typeof resetBattleAllies === 'function') resetBattleAllies();
-  cur.hp = cur.maxHp; cur.enemyCt = 0; cur.shipCt = 0; cur.inBattle = true;
-  triggerAutoSave(); updateUI();
+  cur.shipCt = 0;
+  cur.inBattle = true;
+  triggerAutoSave();
+  updateUI();
 }
 
-function handleEnemyDefeat(cur, eStats) {
+function retreatBattle(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  const cur = state[mode];
+  if (!cur || !cur.inBattle) return;
   cur.inBattle = false;
-  const goldTraitCount = party.map(id => captured.find(x => x.id === id)).filter(m => m && m.traitId === 'gold_up').length;
-  const rewardGold = Math.floor(cur.area * 25 * (1 + goldTraitCount * 0.3));
-  gold += rewardGold;
-  const recruited = typeof tryAutoRecruit === 'function' ? tryAutoRecruit(eStats, cur.area) : false;
-  if (!recruited) showToast(`🎉 討伐完了！+${rewardGold}G`);
-  cur.wave++; cur.idx++;
-  if (cur.wave > 5) { cur.wave = 1; cur.area++; }
-  cur.maxHp = Math.floor((mode === 'sea' ? 100 : 120) * Math.pow(1.3, cur.area - 1));
-  cur.hp = cur.maxHp; cur.enemyCt = 0; cur.shipCt = 0;
+  cur.wave = 1;
+  cur.enemies = typeof getFixedWaveEnemies === 'function' ? getFixedWaveEnemies(mode, cur.stage, cur.floor, 1) : [];
+  if (autoActive) autoActive = false;
   if (typeof resetBattleAllies === 'function') resetBattleAllies();
-  triggerAutoSave(); updateUI();
+  showToast('🏳️ バトルから退却しました');
+  updateUI();
+}
+
+function handleWaveClear(cur) {
+  const enemies = cur.enemies || [];
+  let totalGold = 0, totalExp = 0;
+  enemies.forEach(e => {
+    totalGold += Number(e.goldReward) || 15;
+    totalExp += Number(e.expReward) || 12;
+  });
+
+  let goldMult = 1.0;
+  party.forEach(id => {
+    const m = captured.find(x => x.id === id);
+    if (m && typeof getMonStats === 'function') goldMult += (getMonStats(m).goldMult - 1.0);
+  });
+  const finalGold = Math.floor(totalGold * goldMult);
+  gold += finalGold;
+
+  let anyLevelUp = false;
+  const activeMons = party.map(id => captured.find(x => x.id === id)).filter(Boolean);
+  activeMons.forEach(m => {
+    if (typeof grantExpToMonster === 'function' && grantExpToMonster(m, totalExp)) anyLevelUp = true;
+  });
+
+  const trainExp = Math.max(1, Math.floor(totalExp * 0.1));
+  (trainingSlots || []).forEach(id => {
+    const tm = captured.find(x => x.id === id);
+    if (tm && typeof grantExpToMonster === 'function') grantExpToMonster(tm, trainExp);
+  });
+
+  const targetForRecruit = enemies[Math.floor(Math.random() * enemies.length)];
+  const recruited = (targetForRecruit && typeof tryAutoRecruit === 'function') ? tryAutoRecruit(targetForRecruit) : false;
+
+  if (typeof renderParty === 'function') renderParty();
+  if (typeof renderTraining === 'function') renderTraining();
+  if (typeof renderCaptured === 'function') renderCaptured();
+
+  if (cur.wave < 5) {
+    cur.wave++;
+    cur.enemies = typeof getFixedWaveEnemies === 'function' ? getFixedWaveEnemies(mode, cur.stage, cur.floor, cur.wave) : [];
+    if (!recruited) {
+      showToast(anyLevelUp ? `⬆️ レベルUP！WAVE ${cur.wave}/5 へ！` : `⚔️ WAVE ${cur.wave}/5 突入！(+${finalGold}G / +${totalExp}EXP)`);
+    }
+    updateUI();
+    return;
+  }
+
+  cur.inBattle = false;
+  cur.wave = 1;
+
+  if (cur.floor < 50) {
+    cur.floor++;
+    cur.maxFloorByStage[cur.stage] = Math.max(cur.maxFloorByStage[cur.stage] || 1, cur.floor);
+    showToast(`🎉 ${cur.floor - 1}階踏破！次は ${cur.floor}-1！(+${finalGold}G)`);
+  } else if (cur.stage < 10) {
+    cur.stage++;
+    cur.floor = 1;
+    cur.maxStage = Math.max(cur.maxStage || 1, cur.stage);
+    cur.maxFloorByStage[cur.stage] = Math.max(cur.maxFloorByStage[cur.stage] || 1, 1);
+    const stgName = typeof getStageName === 'function' ? getStageName(mode, cur.stage) : `Stage ${cur.stage}`;
+    showToast(`🏆 Stage踏破！新ステージ「${stgName}」解放！`);
+  } else {
+    showToast(`👑 最終階層 50-5 クリア！(+${finalGold}G / +${totalExp}EXP)`);
+  }
+
+  cur.enemies = typeof getFixedWaveEnemies === 'function' ? getFixedWaveEnemies(mode, cur.stage, cur.floor, 1) : [];
+  if (typeof resetBattleAllies === 'function') resetBattleAllies();
+  triggerAutoSave();
+  updateUI();
+
   if (autoActive) {
     const delay = speed2xActive ? 350 : 700;
     setTimeout(() => { if (autoActive && !state[mode].inBattle) startBattle(); }, delay);
@@ -420,7 +596,7 @@ function battleFrameLoop(now) {
     if (cur && cur.inBattle) {
       const dt = (speed2xUnlocked && speed2xActive) ? rawDt * 2.0 : rawDt;
       if ((!battleAllies || battleAllies.every(u => !u)) && typeof resetBattleAllies === 'function') resetBattleAllies();
-      const eStats = getEnemyStats();
+      const enemies = ensureWaveEnemies(mode);
       let needsUiSync = false;
 
       for (let i = 0; i < 3; i++) {
@@ -435,66 +611,110 @@ function battleFrameLoop(now) {
 
         if (u.ct >= limitCt) {
           u.ct = 0;
-          let rawAtk = Number(u.atk) || 10, isCrit = false;
-          if (u.monRef && typeof getMonsterSkill === 'function') {
-            const sk = getMonsterSkill(u.name), bonusRate = u.monRef.traitId === 'crit_master' ? 0.1 : 0;
-            if (Math.random() < (sk.rate + bonusRate)) { rawAtk = Math.floor(rawAtk * sk.mult); isCrit = true; }
-          }
-          const dmg = Math.max(1, rawAtk - Math.floor(eStats.def / 2));
-          cur.hp -= dmg;
-          triggerMotion(`ally-slot-${i}`, 'atk-motion');
-          triggerMotion('enemy-unit-box', 'hit-motion');
-          showDamagePopup('enemy-unit-box', isCrit ? `💥-${dmg}` : `-${dmg}`, isCrit ? 'crit' : '');
-          needsUiSync = true;
+          const aliveEnemies = enemies.filter(e => e.hp > 0);
+          if (aliveEnemies.length > 0) {
+            const st = u.monRef && typeof getMonStats === 'function' ? getMonStats(u.monRef) : { bonusSkillRate: 0, bonusSkillDmg: 0, lifesteal: 0 };
+            const skillIds = u.monRef?.skills || ['power_slash'];
+            const firedSkill = typeof rollOneBattleSkill === 'function' ? rollOneBattleSkill(skillIds, st.bonusSkillRate) : null;
 
-          if (cur.hp <= 0) {
-            handleEnemyDefeat(cur, eStats);
-            requestAnimationFrame(battleFrameLoop);
-            return;
+            const mult = firedSkill ? (firedSkill.mult + st.bonusSkillDmg) : 1.0;
+            const targets = (firedSkill && firedSkill.aoe) ? aliveEnemies : [aliveEnemies[Math.floor(Math.random() * aliveEnemies.length)]];
+
+            let totalDealt = 0;
+            targets.forEach(tgt => {
+              const effDef = (firedSkill && firedSkill.ignoreDef) ? 0 : Math.floor((tgt.def || 0) / 2);
+              const dmg = Math.max(1, Math.floor((Number(u.atk) || 10) * mult) - effDef);
+              tgt.hp -= dmg;
+              totalDealt += dmg;
+              triggerMotion(`enemy-slot-${tgt.slot}`, 'hit-motion');
+              showDamagePopup(`enemy-slot-${tgt.slot}`, firedSkill ? `💥-${dmg}` : `-${dmg}`, firedSkill ? 'crit' : '');
+            });
+
+            const healRate = (st.lifesteal || 0) + (firedSkill?.drain || 0);
+            if (healRate > 0 && totalDealt > 0) {
+              u.hp = Math.min(u.maxHp, u.hp + Math.max(1, Math.floor(totalDealt * healRate)));
+            }
+
+            triggerMotion(`ally-slot-${i}`, 'atk-motion');
+            needsUiSync = true;
+
+            if (enemies.every(e => e.hp <= 0)) {
+              handleWaveClear(cur);
+              requestAnimationFrame(battleFrameLoop);
+              return;
+            }
           }
         }
         if (ctBar) ctBar.style.width = `${Math.min(100, (u.ct / limitCt) * 100)}%`;
       }
 
-      if (typeof processShipSupport === 'function' && processShipSupport(cur, eStats, dt)) {
-        requestAnimationFrame(battleFrameLoop);
-        return;
-      }
-
-      cur.enemyCt = (Number(cur.enemyCt) || 0) + dt;
-      const enemyCtBar = document.getElementById('enemy-ct-bar');
-      if (cur.enemyCt >= eStats.ct) {
-        cur.enemyCt = 0;
-        const aliveIndices = Array.of(0, 1, 2).filter(idx => {
-          const u = battleAllies.slice(idx, idx + 1).pop();
-          return u && u.hp > 0;
-        });
-        if (aliveIndices.length > 0) {
-          const targetIdx = aliveIndices.slice(Math.floor(Math.random() * aliveIndices.length)).shift();
-          const targetUnit = battleAllies.slice(targetIdx, targetIdx + 1).pop();
-          const dmg = Math.max(1, eStats.atk - Math.floor(targetUnit.def / 2));
-          targetUnit.hp -= dmg;
-          triggerMotion('enemy-unit-box', 'atk-motion');
-          triggerMotion(`ally-slot-${targetIdx}`, 'hit-motion');
-          showDamagePopup(`ally-slot-${targetIdx}`, `-${dmg}`, 'ally-dmg');
-          needsUiSync = true;
-
-          if (!Array.of(0, 1, 2).some(idx => { const u = battleAllies.slice(idx, idx + 1).pop(); return u && u.hp > 0; })) {
-            cur.hp = cur.maxHp; cur.enemyCt = 0; cur.shipCt = 0; cur.inBattle = false;
-            if (autoActive) autoActive = false;
-            if (typeof resetBattleAllies === 'function') resetBattleAllies();
-            showToast('💀 全滅…仲間を強化しよう！');
-            triggerAutoSave();
+      if (typeof getVehicleSupportAtk === 'function' && typeof getEquippedVehicle === 'function' && getEquippedVehicle(mode)) {
+        cur.shipCt = (Number(cur.shipCt) || 0) + dt;
+        const vInterval = typeof getVehicleInterval === 'function' ? getVehicleInterval(mode) : 3.0;
+        if (cur.shipCt >= vInterval) {
+          cur.shipCt = 0;
+          const aliveEnemies = enemies.filter(e => e.hp > 0);
+          if (aliveEnemies.length > 0) {
+            const tgt = aliveEnemies[Math.floor(Math.random() * aliveEnemies.length)];
+            const vDmg = Math.max(1, getVehicleSupportAtk(mode) - Math.floor((tgt.def || 0) / 3));
+            tgt.hp -= vDmg;
+            triggerMotion(`enemy-slot-${tgt.slot}`, 'hit-motion');
+            showDamagePopup(`enemy-slot-${tgt.slot}`, `🚀-${vDmg}`, 'ship-dmg');
             needsUiSync = true;
+            if (enemies.every(e => e.hp <= 0)) {
+              handleWaveClear(cur);
+              requestAnimationFrame(battleFrameLoop);
+              return;
+            }
           }
         }
       }
-      if (enemyCtBar) enemyCtBar.style.width = `${Math.min(100, (cur.enemyCt / eStats.ct) * 100)}%`;
+      for (let ei = 0; ei < enemies.length; ei++) {
+        const e = enemies[ei];
+        if (!e || e.hp <= 0) continue;
+        e.curCt = (Number(e.curCt) || 0) + dt;
+        const eCtBar = document.querySelector(`#enemy-slot-${e.slot} .e-ct-fill`);
+        if (e.curCt >= (Number(e.ct) || 2.0)) {
+          e.curCt = 0;
+          const aliveAllies = Array.of(0, 1, 2).filter(idx => {
+            const u = battleAllies.slice(idx, idx + 1).pop();
+            return u && u.hp > 0;
+          });
+          if (aliveAllies.length > 0) {
+            const tIdx = aliveAllies[Math.floor(Math.random() * aliveAllies.length)];
+            const tUnit = battleAllies.slice(tIdx, tIdx + 1).pop();
+            const dmg = Math.max(1, (Number(e.atk) || 8) - Math.floor((Number(tUnit.def) || 0) / 2));
+            tUnit.hp -= dmg;
+            triggerMotion(`enemy-slot-${e.slot}`, 'atk-motion');
+            triggerMotion(`ally-slot-${tIdx}`, 'hit-motion');
+            showDamagePopup(`ally-slot-${tIdx}`, `-${dmg}`, 'ally-dmg');
+            needsUiSync = true;
+
+            if (!Array.of(0, 1, 2).some(idx => {
+              const u = battleAllies.slice(idx, idx + 1).pop();
+              return u && u.hp > 0;
+            })) {
+              cur.inBattle = false;
+              cur.wave = 1;
+              cur.enemies = typeof getFixedWaveEnemies === 'function'
+                ? getFixedWaveEnemies(mode, cur.stage, cur.floor, 1)
+                : [];
+              if (autoActive) autoActive = false;
+              if (typeof resetBattleAllies === 'function') resetBattleAllies();
+              showToast('💀 全滅…訓練や配合で仲間を強化しよう！');
+              triggerAutoSave();
+              needsUiSync = true;
+              break;
+            }
+          }
+        }
+        if (eCtBar) eCtBar.style.width = `${Math.min(100, (e.curCt / (Number(e.ct) || 2.0)) * 100)}%`;
+      }
 
       if (needsUiSync) updateUI();
     }
-  } catch (e) {
-    console.error(e);
+  } catch (err) {
+    console.error(err);
   }
   requestAnimationFrame(battleFrameLoop);
 }
