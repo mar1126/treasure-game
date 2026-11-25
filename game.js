@@ -224,17 +224,40 @@ function updateUI() {
     const el = document.getElementById(`ally-slot-${i}`);
     if (!el) continue;
     const unit = battleAllies.slice(i, i + 1).pop();
+
+    if (!el.querySelector('.ally-ct-bar')) {
+      el.innerHTML = `<div class="unit-sprite"></div><div class="hp-text"></div><div class="bar-bg"><div class="ally-hp-fill"></div></div><div class="bar-bg" style="height:6px;margin-top:2px;"><div class="ct-fill ally-ct-bar"></div></div>`;
+    }
+
+    const spriteEl = el.querySelector('.unit-sprite');
+    const textEl = el.querySelector('.hp-text');
+    const hpBarEl = el.querySelector('.ally-hp-fill');
+    const ctBarEl = el.querySelector('.ally-ct-bar');
+
     if (unit) {
       el.classList.toggle('dead', unit.hp <= 0);
       const disp = getSpeciesDisplay(unit.name, unit.icon);
+      const nextHtml = renderSprite(disp, 28, '6px');
+      if (spriteEl.innerHTML !== nextHtml) spriteEl.innerHTML = nextHtml;
+      spriteEl.style.opacity = '1';
+      textEl.style.opacity = '1';
+      textEl.textContent = `${unit.name} ${Math.max(0, unit.hp)}/${unit.maxHp}`;
+
       const hpPct = Math.max(0, Math.min(100, (unit.hp / (unit.maxHp || 100)) * 100));
       const limitCt = Number(unit.maxCt) || Number(unit.ct) || 2.0;
       const nowCt = Number(unit.ct) || 0;
       const ctPct = unit.hp > 0 ? Math.max(0, Math.min(100, (nowCt / limitCt) * 100)) : 0;
-      el.innerHTML = `<div class="unit-sprite">${renderSprite(disp, 28, '6px')}</div><div class="hp-text">${unit.name} ${Math.max(0, unit.hp)}/${unit.maxHp}</div><div class="bar-bg"><div class="ally-hp-fill" style="width:${hpPct}%"></div></div><div class="bar-bg" style="height:6px;margin-top:2px;"><div class="ct-fill" style="width:${ctPct}%"></div></div>`;
+
+      hpBarEl.style.width = `${hpPct}%`;
+      ctBarEl.style.width = `${ctPct}%`;
     } else {
       el.classList.remove('dead');
-      el.innerHTML = `<div class="unit-sprite" style="opacity:0.4;font-size:18px;">＋</div><div class="hp-text" style="opacity:0.7;">空き枠</div><div class="bar-bg"><div class="ally-hp-fill" style="width:0%"></div></div><div class="bar-bg" style="height:6px;margin-top:2px;"><div class="ct-fill" style="width:0%"></div></div>`;
+      if (spriteEl.textContent !== '＋') spriteEl.textContent = '＋';
+      spriteEl.style.opacity = '0.4';
+      textEl.style.opacity = '0.7';
+      textEl.textContent = '空き枠';
+      hpBarEl.style.width = '0%';
+      ctBarEl.style.width = '0%';
     }
   }
   if (document.getElementById('ally-lv')) document.getElementById('ally-lv').textContent = level;
