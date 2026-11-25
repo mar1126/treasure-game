@@ -7,14 +7,14 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 12px; height: 225px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; cursor: pointer; transition: background 0.4s; }
+    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 12px; height: 220px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; cursor: pointer; transition: background 0.4s; }
     .battle-area.land-mode { background: linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%); }
     .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; z-index: 2; }
     .area-badge { background: rgba(255,255,255,0.25); padding: 4px 12px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); }
     .mode-btn { background: #ff7043; color: white; border: 2px solid #fff; padding: 4px 12px; border-radius: 15px; font-weight: bold; font-size: 12px; cursor: pointer; }
     .units-row { display: flex; justify-content: space-around; align-items: center; margin: 2px 0; }
     .unit { text-align: center; width: 90px; }
-    .unit-sprite { font-size: 40px; transition: transform 0.1s; }
+    .unit-sprite { font-size: 38px; transition: transform 0.1s; }
     .unit:active .unit-sprite { transform: scale(1.25); }
     .hp-text { font-size: 11px; font-weight: bold; }
     .bar-bg { background: rgba(0,0,0,0.4); height: 6px; border-radius: 3px; overflow: hidden; margin-top: 2px; }
@@ -22,21 +22,24 @@
     .capture-btn { position: absolute; bottom: 8px; right: 10px; background: #ffd54f; color: #3e2723; border: 2px solid #fff; padding: 4px 10px; border-radius: 14px; font-size: 11px; font-weight: bold; cursor: pointer; z-index: 2; }
     .capture-msg { position: absolute; top: 45px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.75); color: #ffd54f; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; display: none; white-space: nowrap; }
     .status-bar { background: #ffffff; border-bottom: 1px solid #d0e8f2; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: bold; }
-    .currency { display: flex; gap: 8px; }
-    .gold-box { background: #fff8e7; border: 1px solid #ffe082; padding: 3px 10px; border-radius: 12px; color: #d98200; }
-    .gem-box { background: #e1f5fe; border: 1px solid #81d4fa; padding: 3px 10px; border-radius: 12px; color: #0277bd; }
+    .currency { display: flex; gap: 6px; }
+    .gold-box { background: #fff8e7; border: 1px solid #ffe082; padding: 3px 8px; border-radius: 12px; color: #d98200; }
+    .gem-box { background: #e1f5fe; border: 1px solid #81d4fa; padding: 3px 8px; border-radius: 12px; color: #0277bd; }
     .main-content { flex: 1; overflow-y: auto; padding: 12px; padding-bottom: 85px; }
     .tab-pane { display: none; }
     .tab-pane.active { display: block; }
     .card { background: #ffffff; border: 1px solid #dceef5; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
     .card-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; color: #0277bd; display: flex; justify-content: space-between; align-items: center; }
     .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .slot-box { border: 1px solid #e0f2f1; border-radius: 10px; padding: 8px; text-align: center; background: #f8fdff; }
+    .slot-box { border: 1px solid #e0f2f1; border-radius: 10px; padding: 8px; text-align: center; background: #f8fdff; cursor: pointer; }
     .slot-box.land { background: #f1f8e9; border-color: #c5e1a5; }
+    .slot-box.staff { background: #fff8e1; border: 2px dashed #ffb74d; }
     .slot-box .lvl { font-size: 10px; color: #ff7043; font-weight: bold; text-align: left; }
     .slot-box .icon { font-size: 30px; margin: 4px 0; }
     .slot-box .name { font-size: 11px; font-weight: bold; }
     .btn-coral { background: #ff7043; color: white; border: none; padding: 10px 14px; border-radius: 10px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%; }
+    .garden-field { background: linear-gradient(180deg, #b3e5fc 0%, #fff9c4 45%, #c8e6c9 100%); border: 2px solid #81d4fa; border-radius: 12px; padding: 10px; min-height: 120px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; margin-bottom: 10px; }
+    .garden-cell { background: rgba(255,255,255,0.6); border-radius: 8px; height: 48px; display: flex; align-items: center; justify-content: center; font-size: 26px; }
     .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: #ffffff; border-top: 1px solid #d0e8f2; display: grid; grid-template-columns: repeat(4, 1fr); }
     .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; color: #78909c; border: none; background: none; cursor: pointer; }
     .nav-item.active { color: #ff7043; font-weight: bold; background: #fff5f2; border-top: 3px solid #ff7043; }
@@ -60,12 +63,12 @@
     <div class="units-row">
       <div class="unit"><div class="unit-sprite">🐬</div><div class="hp-text">相棒 Lv.<span id="ally-lv">1</span></div></div>
       <div class="unit"><div class="unit-sprite">🚤</div><div class="hp-text">攻撃 <span id="atk-power">10</span></div></div>
-      <div class="unit"><div class="unit-sprite">🐢</div><div class="hp-text">仲間 <span id="pet-count">0</span>体</div></div>
+      <div class="unit"><div class="unit-sprite">🍰</div><div class="hp-text">カフェ +<span id="cafe-income-hud">0</span>G/秒</div></div>
     </div>
     <button class="capture-btn" onclick="tryCapture(event)">🕸️ 捕獲ネット (20G)</button>
   </div>
   <div class="status-bar">
-    <span>⚓ トレジャーハンター</span>
+    <span>⚓ ハンター</span>
     <div class="currency">
       <div class="gold-box">🪙 <span id="gold">100</span> G</div>
       <div class="gem-box">💎 <span id="gem">100</span></div>
@@ -85,9 +88,9 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-title"><span>🐾 捕獲したモンスター図鑑</span><span>1体につき攻撃+3</span></div>
+        <div class="card-title"><span>🐾 捕獲したモンスター図鑑</span><span>タップでカフェ店員に配属</span></div>
         <div class="grid-3" id="captured-list">
-          <p style="grid-column: span 3; font-size: 12px; color: #78909c; text-align: center; padding: 10px;">まだ捕獲していません。バトル右下の「🕸️ 捕獲ネット」で仲間にしてみよう！</p>
+          <p style="grid-column: span 3; font-size: 12px; color: #78909c; text-align: center; padding: 10px;">まだ捕獲していません。上の「🕸️ 捕獲ネット」で仲間にしよう！</p>
         </div>
       </div>
     </div>
@@ -103,8 +106,20 @@
     </div>
     <div id="tab-cafe" class="tab-pane">
       <div class="card">
-        <div class="card-title">🍰 海辺のカフェ＆箱庭</div>
-        <p style="font-size: 13px; color: #546e7a;">捕まえたモンスターを店員や箱庭に配置できるようになります！</p>
+        <div class="card-title"><span>🍰 海辺のカフェ経営 (Lv.<span id="cafe-lv">1</span>)</span><span>売上: +<span id="cafe-rate">0</span> G/秒</span></div>
+        <div class="grid-3" id="staff-slots"></div>
+        <div style="margin-top: 10px;">
+          <button class="btn-coral" onclick="upgradeCafe()">カフェ店舗を拡張（費用: <span id="cafe-cost">80</span> G）</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span>🏝️ リゾート箱庭</span><span>魅力ボーナス: +<span id="garden-bonus">0</span>%</span></div>
+        <div class="garden-field" id="garden-grid"></div>
+        <div class="grid-3">
+          <button class="slot-box" onclick="buyDecor('🌴', 60)"><div class="icon">🌴</div><div class="name">ヤシの木 (60G)</div></button>
+          <button class="slot-box" onclick="buyDecor('⛲', 120)"><div class="icon">⛲</div><div class="name">噴水 (120G)</div></button>
+          <button class="slot-box" onclick="buyDecor('🌺', 90)"><div class="icon">🌺</div><div class="name">ハイビスカス (90G)</div></button>
+        </div>
       </div>
     </div>
     <div id="tab-rank" class="tab-pane">
@@ -125,11 +140,19 @@
   </nav>
   <script>
     let gold = 100, baseAtk = 10, level = 1, upCost = 50, mode = 'sea';
+    let cafeLv = 1, cafeCost = 80, staff = [null, null, null], gardenItems = [];
     let state = { sea: { area: 1, wave: 1, maxHp: 100, hp: 100, idx: 0 }, land: { area: 1, wave: 1, maxHp: 120, hp: 120, idx: 0 } };
     const seaMonsters = [{ icon: '🐙', name: 'オクトパス' }, { icon: '🦈', name: 'シャーク' }, { icon: '🦀', name: 'クラブ' }, { icon: '🐡', name: 'ハリセンボン' }, { icon: '🦑', name: 'ダイオウイカ' }, { icon: '🐳', name: 'ホエール' }];
     const landMonsters = [{ icon: '🦊', name: 'フォックス' }, { icon: '🐗', name: 'ボア' }, { icon: '🦎', name: 'リザード' }, { icon: '🦉', name: 'オウル' }, { icon: '🐻', name: 'グリズリー' }, { icon: '🐉', name: 'ワイバーン' }];
     let captured = [];
     function getTotalAtk() { return baseAtk + (captured.length * 3); }
+    function getCafeIncome() {
+      const activeStaff = staff.filter(s => s !== null).length;
+      if (activeStaff === 0) return 0;
+      const base = activeStaff * 6 * cafeLv;
+      const bonus = 1 + (gardenItems.length * 0.15);
+      return Math.floor(base * bonus);
+    }
     function updateUI() {
       const cur = state[mode], list = mode === 'sea' ? seaMonsters : landMonsters, mon = list[cur.idx % list.length];
       document.getElementById('gold').textContent = gold.toLocaleString();
@@ -141,9 +164,14 @@
       document.getElementById('ally-lv').textContent = level;
       document.getElementById('atk-power').textContent = getTotalAtk();
       document.getElementById('power-disp').textContent = getTotalAtk();
-      document.getElementById('pet-count').textContent = captured.length;
       document.getElementById('up-cost').textContent = upCost.toLocaleString();
       document.querySelectorAll('.lv-sync').forEach(el => el.textContent = level);
+      const inc = getCafeIncome();
+      document.getElementById('cafe-income-hud').textContent = inc;
+      document.getElementById('cafe-rate').textContent = inc;
+      document.getElementById('cafe-lv').textContent = cafeLv;
+      document.getElementById('cafe-cost').textContent = cafeCost.toLocaleString();
+      document.getElementById('garden-bonus').textContent = gardenItems.length * 15;
     }
     function toggleMode(e) {
       e.stopPropagation(); mode = mode === 'sea' ? 'land' : 'sea';
@@ -160,13 +188,41 @@
       if (gold < 20) { showToast('ゴールドが足りません(20G)'); return; }
       gold -= 20;
       const cur = state[mode], list = mode === 'sea' ? seaMonsters : landMonsters, mon = list[cur.idx % list.length];
-      const rate = (cur.hp / cur.maxHp) < 0.4 ? 0.8 : 0.45;
-      if (Math.random() < rate) { captured.push({ icon: mon.icon, name: mon.name, type: mode }); renderCaptured(); showToast(`✨ ${mon.name}を捕獲した！`); }
-      else { showToast(`💨 逃げられた！`); }
+      if (Math.random() < ((cur.hp / cur.maxHp) < 0.4 ? 0.8 : 0.45)) {
+        captured.push({ icon: mon.icon, name: mon.name, type: mode });
+        renderCaptured(); showToast(`✨ ${mon.name}を捕獲した！`);
+      } else { showToast(`💨 逃げられた！`); }
       updateUI();
     }
+    function assignStaff(idx) {
+      const mon = captured[idx];
+      const emptyIdx = staff.findIndex(s => s === null);
+      if (emptyIdx !== -1) { staff[emptyIdx] = mon; showToast(`🍰 ${mon.name}をカフェ店員に配属！`); renderCafe(); updateUI(); }
+      else { showToast('店員枠がいっぱいです（枠をタップで解除）'); }
+    }
+    function removeStaff(slotIdx) {
+      if (staff[slotIdx]) { staff[slotIdx] = null; renderCafe(); updateUI(); }
+    }
     function renderCaptured() {
-      document.getElementById('captured-list').innerHTML = captured.map((m, i) => `<div class="slot-box ${m.type}"><div class="lvl">${m.type === 'sea' ? '🌊海' : '🌲陸'} #${i + 1}</div><div class="icon">${m.icon}</div><div class="name">${m.name}</div></div>`).join('');
+      document.getElementById('captured-list').innerHTML = captured.map((m, i) => `<div class="slot-box ${m.type}" onclick="assignStaff(${i})"><div class="lvl">${m.type === 'sea' ? '🌊海' : '🌲陸'} #${i + 1}</div><div class="icon">${m.icon}</div><div class="name">${m.name}</div></div>`).join('');
+    }
+    function renderCafe() {
+      const roles = ['店長', 'ホール', 'キッチン'];
+      document.getElementById('staff-slots').innerHTML = staff.map((s, i) => s
+        ? `<div class="slot-box staff" onclick="removeStaff(${i})"><div class="lvl">${roles[i]}</div><div class="icon">${s.icon}</div><div class="name">${s.name}</div></div>`
+        : `<div class="slot-box staff"><div class="lvl">${roles[i]}</div><div class="icon">➕</div><div class="name">空き枠</div></div>`
+      ).join('');
+      const cells = Array(8).fill('').map((_, i) => `<div class="garden-cell">${gardenItems[i] || (staff[i] ? staff[i].icon : '')}</div>`).join('');
+      document.getElementById('garden-grid').innerHTML = cells;
+    }
+    function upgradeCafe() {
+      if (gold >= cafeCost) { gold -= cafeCost; cafeLv++; cafeCost = Math.floor(cafeCost * 1.6); updateUI(); }
+      else { alert('ゴールドが足りません！'); }
+    }
+    function buyDecor(icon, cost) {
+      if (gardenItems.length >= 8) { alert('箱庭がいっぱいです！'); return; }
+      if (gold >= cost) { gold -= cost; gardenItems.push(icon); renderCafe(); updateUI(); }
+      else { alert('ゴールドが足りません！'); }
     }
     function damageEnemy(dmg) {
       const cur = state[mode]; cur.hp -= dmg;
@@ -178,7 +234,11 @@
       updateUI();
     }
     function tapAttack() { damageEnemy(getTotalAtk()); }
-    setInterval(() => { damageEnemy(Math.floor(getTotalAtk() / 2) || 1); }, 1000);
+    setInterval(() => {
+      damageEnemy(Math.floor(getTotalAtk() / 2) || 1);
+      gold += getCafeIncome();
+      updateUI();
+    }, 1000);
     function upgradeUnit() {
       if (gold >= upCost) { gold -= upCost; level++; baseAtk += 8; upCost = Math.floor(upCost * 1.4); updateUI(); }
       else { alert('ゴールドが足りません！'); }
@@ -188,6 +248,7 @@
       document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
       document.getElementById('tab-' + tabName).classList.add('active'); btn.classList.add('active');
       if (tabName === 'rank') loadRanking();
+      if (tabName === 'cafe') renderCafe();
     }
     async function saveToD1() {
       const name = document.getElementById('player-name').value || 'ハンター';
@@ -203,7 +264,7 @@
         document.getElementById('ranking-list').innerHTML = data.map((r, i) => `<li style="padding:6px 0; border-bottom:1px solid #e0f2f1;">${i+1}位: <b>${r.name}</b> - ${r.score.toLocaleString()} G</li>`).join('');
       } catch (e) {}
     }
-    updateUI();
+    renderCafe(); updateUI();
   </script>
 </body>
 </html>
