@@ -7,20 +7,32 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 10px 12px; height: 235px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; transition: background 0.4s; }
+    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 10px 12px; height: 255px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; transition: background 0.4s; }
     .battle-area.land-mode { background: linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%); }
     .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; z-index: 2; }
     .area-badge { background: rgba(255,255,255,0.25); padding: 4px 12px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); }
     .mode-btn { background: #ff7043; color: white; border: 2px solid #fff; padding: 4px 12px; border-radius: 15px; font-weight: bold; font-size: 12px; cursor: pointer; }
-    .units-row { display: flex; justify-content: space-around; align-items: center; margin: 2px 0; }
-    .unit { text-align: center; width: 92px; background: rgba(255,255,255,0.2); border-radius: 10px; padding: 4px; border: 1px solid rgba(255,255,255,0.4); }
-    .enemy-unit { text-align: center; width: 145px; }
-    .unit-sprite { font-size: 32px; height: 38px; display: flex; align-items: center; justify-content: center; transition: transform 0.1s; }
-    .hp-text { font-size: 10px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
-    .bar-bg { background: rgba(0,0,0,0.4); height: 6px; border-radius: 3px; overflow: hidden; margin-top: 2px; }
+    .enemy-section { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; margin-top: 2px; }
+    .enemy-unit { text-align: center; width: 160px; position: relative; }
+    .ally-section { display: flex; flex-direction: column; align-items: center; width: 100%; }
+    .ally-hp-wrap { width: 100%; max-width: 310px; margin-bottom: 5px; }
+    .units-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; max-width: 310px; }
+    .unit { text-align: center; background: rgba(255,255,255,0.2); border-radius: 10px; padding: 4px; border: 1px solid rgba(255,255,255,0.45); }
+    .unit-sprite { font-size: 30px; height: 34px; display: flex; align-items: center; justify-content: center; transition: transform 0.1s; }
+    .hp-text { font-size: 10px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.65); }
+    .bar-bg { background: rgba(0,0,0,0.45); height: 6px; border-radius: 3px; overflow: hidden; margin-top: 2px; }
     .hp-fill { background: #ff7043; height: 100%; width: 100%; transition: width 0.15s; }
-    .capture-btn { position: absolute; bottom: 8px; right: 10px; background: #ffd54f; color: #3e2723; border: 2px solid #fff; padding: 4px 10px; border-radius: 14px; font-size: 11px; font-weight: bold; cursor: pointer; z-index: 2; }
-    .capture-msg { position: absolute; top: 45px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #ffd54f; padding: 5px 14px; border-radius: 12px; font-size: 12px; font-weight: bold; display: none; white-space: nowrap; z-index: 10; }
+    .ally-hp-fill { background: #66bb6a; height: 100%; width: 100%; transition: width 0.15s; }
+    .start-battle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #ff7043; color: #fff; border: 2px solid #fff; padding: 7px 18px; border-radius: 18px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.35); z-index: 5; white-space: nowrap; }
+    .dmg-popup { position: absolute; font-weight: 900; font-size: 18px; color: #ffeb3b; text-shadow: 0 2px 4px rgba(0,0,0,0.85), 0 0 2px #000; pointer-events: none; z-index: 20; animation: floatDmg 0.85s ease-out forwards; white-space: nowrap; }
+    .dmg-popup.crit { font-size: 23px; color: #ff5252; }
+    .dmg-popup.ally-dmg { font-size: 16px; color: #ff8a80; }
+    @keyframes floatDmg {
+      0% { opacity: 1; transform: translate(-50%, 0) scale(0.85); }
+      25% { opacity: 1; transform: translate(-50%, -10px) scale(1.15); }
+      100% { opacity: 0; transform: translate(-50%, -32px) scale(1.0); }
+    }
+    .capture-msg { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #ffd54f; padding: 5px 14px; border-radius: 12px; font-size: 12px; font-weight: bold; display: none; white-space: nowrap; z-index: 15; }
     .status-bar { background: #ffffff; border-bottom: 1px solid #d0e8f2; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: bold; gap: 4px; }
     .profile-mini { display: flex; align-items: center; gap: 5px; min-width: 0; }
     .mini-avatar { width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; display: flex; align-items: center; justify-content: center; font-size: 15px; border: 2px solid #ff7043; overflow: hidden; }
@@ -77,7 +89,7 @@
   </style>
 </head>
 <body>
-  <div class="battle-area" id="battle-bg" onclick="startBattle()">
+  <div class="battle-area" id="battle-bg">
     <div class="battle-header">
       <div class="area-badge" id="floor-text">🌊 海域 1-1</div>
       <div>🍰 +<span id="cafe-income-hud">0</span>G/秒</div>
@@ -86,31 +98,30 @@
 
     <div class="capture-msg" id="capture-msg"></div>
 
-    <div class="units-row">
-      <div class="enemy-unit">
+    <div class="enemy-section">
+      <div class="enemy-unit" id="enemy-unit-box">
         <div class="hp-text"><span id="enemy-name">オクトパス</span> (<span id="enemy-hp-text">100</span>)</div>
         <div class="bar-bg"><div class="hp-fill" id="enemy-hp-bar"></div></div>
         <div class="unit-sprite" id="enemy-sprite" style="font-size:44px;height:48px;margin-top:4px;">🐙</div>
-        <button id="start-battle-btn" onclick="startBattle(event)" style="margin-top:4px;background:#ff7043;color:#fff;border:2px solid #fff;padding:3px 12px;border-radius:12px;font-size:11px;font-weight:bold;cursor:pointer;">⚔️ バトル開始 (⚡1)</button>
       </div>
     </div>
 
-    <div class="units-row" style="justify-content:flex-start; gap:8px; padding-right:85px;">
-      <div class="unit" id="ally-slot-0">
-        <div class="unit-sprite">⛵</div>
-        <div class="hp-text">船 ATK:10</div>
+    <button class="start-battle-btn" id="start-battle-btn" onclick="startBattle(event)">⚔️ バトル開始 (⚡1)</button>
+
+    <div class="ally-section">
+      <div class="ally-hp-wrap" id="ally-unit-box">
+        <div style="display:flex;justify-content:space-between;" class="hp-text">
+          <span>🛡️ 味方HP</span>
+          <span><span id="ally-hp-text">100</span> / <span id="ally-max-hp-text">100</span></span>
+        </div>
+        <div class="bar-bg"><div class="ally-hp-fill" id="ally-hp-bar"></div></div>
       </div>
-      <div class="unit" id="ally-slot-1">
-        <div class="unit-sprite">⬜</div>
-        <div class="hp-text">空き枠</div>
-      </div>
-      <div class="unit" id="ally-slot-2">
-        <div class="unit-sprite">⬜</div>
-        <div class="hp-text">空き枠</div>
+      <div class="units-grid">
+        <div class="unit" id="ally-slot-0"><div class="unit-sprite">⛵</div><div class="hp-text">船 ATK:10</div></div>
+        <div class="unit" id="ally-slot-1"><div class="unit-sprite">⬜</div><div class="hp-text">空き枠</div></div>
+        <div class="unit" id="ally-slot-2"><div class="unit-sprite">⬜</div><div class="hp-text">空き枠</div></div>
       </div>
     </div>
-
-    <button class="capture-btn" onclick="tryCapture(event)">🕸️ 捕獲 (20G)</button>
   </div>
 
   <div class="status-bar">
@@ -127,7 +138,6 @@
       <div class="gem-box">💎 <span id="gem">1,000</span></div>
     </div>
   </div>
-
   <div class="main-content">
     <!-- タブ1: 船・育成 -->
     <div class="tab-pane active" id="tab-ship">
@@ -148,12 +158,12 @@
 
       <div class="card">
         <div class="card-title">
-          <span>🐾 捕獲モンスター一覧</span>
-          <span style="font-size:11px;color:#546e7a;">タップで詳細・スキル確認</span>
+          <span>🐾 仲間モンスター一覧</span>
+          <span style="font-size:11px;color:#546e7a;">敵を倒すと確率で仲間になる！</span>
         </div>
         <div class="grid-3" id="captured-list">
           <p style="grid-column:span 3;font-size:12px;color:#78909c;text-align:center;padding:12px 0;">
-            上の「🕸️ 捕獲」で仲間にしてみよう！
+            バトルに勝利して仲間を増やそう！
           </p>
         </div>
       </div>
@@ -185,6 +195,7 @@
         </div>
       </div>
     </div>
+
     <!-- タブ3: AIアトリエ -->
     <div class="tab-pane" id="tab-ai">
       <div class="card">
@@ -215,7 +226,6 @@
           <label class="extend-box"><input type="checkbox" id="bg-ext" onchange="toggleExtend('bg')"> 長文プロンプト拡張（500文字 / 250💎）</label>
           <button class="btn-blue" onclick="generateAI('bg')">🖼️ アイコン背景を生成（<span id="bg-cost">200</span> 💎）</button>
         </div>
-
         <!-- サブ3: AIスタンプ -->
         <div class="ai-sub-pane" id="ai-sub-stamp">
           <select class="inp" id="stamp-species-sel"><option value="🐬 イルカ">🐬 イルカ(相棒)</option></select>
@@ -314,9 +324,9 @@
     <button class="nav-item" onclick="switchTab('chat', this)"><span class="nav-icon">💬</span>チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">👤</span>マイページ</button>
   </nav>
-  <script src="/skills.js"></script>
-  <script src="/game.js"></script>
-  <script src="/social.js"></script>
+  <script src="/skills.js?v=3"></script>
+  <script src="/game.js?v=3"></script>
+  <script src="/social.js?v=3"></script>
   <script>initCloudLoad();</script>
 </body>
 </html>
