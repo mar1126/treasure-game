@@ -7,20 +7,21 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 12px; height: 215px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; cursor: pointer; transition: background 0.4s; }
+    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 10px 12px; height: 225px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; cursor: pointer; transition: background 0.4s; }
     .battle-area.land-mode { background: linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%); }
     .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; z-index: 2; }
     .area-badge { background: rgba(255,255,255,0.25); padding: 4px 12px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); }
     .mode-btn { background: #ff7043; color: white; border: 2px solid #fff; padding: 4px 12px; border-radius: 15px; font-weight: bold; font-size: 12px; cursor: pointer; }
     .units-row { display: flex; justify-content: space-around; align-items: center; margin: 2px 0; }
-    .unit { text-align: center; width: 95px; }
-    .unit-sprite { font-size: 34px; height: 42px; display: flex; align-items: center; justify-content: center; transition: transform 0.1s; }
+    .unit { text-align: center; width: 92px; background: rgba(255,255,255,0.2); border-radius: 10px; padding: 4px; border: 1px solid rgba(255,255,255,0.4); }
+    .enemy-unit { text-align: center; width: 110px; }
+    .unit-sprite { font-size: 32px; height: 38px; display: flex; align-items: center; justify-content: center; transition: transform 0.1s; }
     .unit:active .unit-sprite { transform: scale(1.25); }
-    .hp-text { font-size: 10px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+    .hp-text { font-size: 10px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
     .bar-bg { background: rgba(0,0,0,0.4); height: 6px; border-radius: 3px; overflow: hidden; margin-top: 2px; }
     .hp-fill { background: #ff7043; height: 100%; width: 100%; transition: width 0.15s; }
     .capture-btn { position: absolute; bottom: 8px; right: 10px; background: #ffd54f; color: #3e2723; border: 2px solid #fff; padding: 4px 10px; border-radius: 14px; font-size: 11px; font-weight: bold; cursor: pointer; z-index: 2; }
-    .capture-msg { position: absolute; top: 45px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #ffd54f; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; display: none; white-space: nowrap; z-index: 10; }
+    .capture-msg { position: absolute; top: 45px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #ffd54f; padding: 5px 14px; border-radius: 12px; font-size: 12px; font-weight: bold; display: none; white-space: nowrap; z-index: 10; }
     .status-bar { background: #ffffff; border-bottom: 1px solid #d0e8f2; padding: 7px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: bold; }
     .profile-mini { display: flex; align-items: center; gap: 6px; }
     .mini-avatar { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 2px solid #ff7043; overflow: hidden; }
@@ -46,11 +47,12 @@
     .btn-coral { background: #ff7043; color: white; border: none; padding: 10px 14px; border-radius: 10px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%; }
     .btn-blue { background: #0288d1; color: white; border: none; padding: 10px 14px; border-radius: 10px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%; }
     .btn-gray { background: #90a4ae; color: white; border: none; padding: 8px 12px; border-radius: 10px; font-weight: bold; font-size: 12px; cursor: pointer; width: 100%; }
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: none; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
-    .modal-card { background: #ffffff; border-radius: 16px; padding: 16px; width: 100%; max-width: 360px; border: 2px solid #4fc3f7; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 999; padding: 16px; }
+    .modal-card { background: #ffffff; border-radius: 16px; padding: 16px; width: 100%; max-width: 360px; border: 3px solid #4fc3f7; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
     .stat-table { width: 100%; font-size: 12px; margin: 10px 0; border-collapse: collapse; }
-    .stat-table td { padding: 5px 4px; border-bottom: 1px solid #eceff1; }
-    .stat-table td:last-child { text-align: right; font-weight: bold; color: #0277bd; }
+    .stat-table td { padding: 6px 4px; border-bottom: 1px solid #eceff1; vertical-align: top; }
+    .stat-table td:first-child { width: 85px; color: #607d8b; font-weight: bold; }
+    .stat-table td:last-child { font-weight: bold; color: #0277bd; }
     .sub-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; background: #e1f5fe; padding: 4px; border-radius: 10px; }
     .sub-tab-btn { border: none; background: transparent; padding: 8px 4px; border-radius: 8px; font-size: 12px; font-weight: bold; color: #0277bd; cursor: pointer; }
     .sub-tab-btn.active { background: #ffffff; color: #ff7043; }
@@ -76,22 +78,23 @@
   <div class="battle-area" id="battle-bg" onclick="tapAttack()">
     <div class="battle-header">
       <span class="area-badge" id="floor-text">🌊 海域 1-1</span>
+      <span style="font-size:11px;opacity:0.9;">🍰+<span id="cafe-income-hud">0</span>G/秒</span>
       <button class="mode-btn" id="mode-switch-btn" onclick="toggleMode(event)">🌲 陸へ行く</button>
     </div>
     <div class="capture-msg" id="capture-msg">✨ モンスターを捕獲した！</div>
     <div class="units-row">
-      <div class="unit">
+      <div class="enemy-unit">
         <div class="hp-text"><span id="enemy-name">オクトパス</span> (<span id="enemy-hp-text">100</span>)</div>
         <div class="bar-bg"><div class="hp-fill" id="enemy-hp-bar"></div></div>
-        <div class="unit-sprite" id="enemy-sprite">🐙</div>
+        <div class="unit-sprite" id="enemy-sprite" style="font-size:42px;height:46px;">🐙</div>
       </div>
     </div>
-    <div class="units-row">
-      <div class="unit" id="ally-slot-0"><div class="unit-sprite">🚤</div><div class="hp-text">探索船 Lv.1</div></div>
-      <div class="unit" id="ally-slot-1"><div class="unit-sprite">➕</div><div class="hp-text">空き枠</div></div>
-      <div class="unit" id="ally-slot-2"><div class="unit-sprite">➕</div><div class="hp-text">空き枠</div></div>
+    <div class="units-row" style="padding-right: 95px;">
+      <div class="unit" id="ally-slot-0"><div class="unit-sprite">⛵</div><div class="hp-text">空き枠</div></div>
+      <div class="unit" id="ally-slot-1"><div class="unit-sprite">⬜</div><div class="hp-text">空き枠</div></div>
+      <div class="unit" id="ally-slot-2"><div class="unit-sprite">⬜</div><div class="hp-text">空き枠</div></div>
     </div>
-    <button class="capture-btn" onclick="tryCapture(event)">🕸️ 捕獲ネット (20G)</button>
+    <button class="capture-btn" onclick="tryCapture(event)">🕸️ 捕獲 (20G)</button>
   </div>
 
   <div class="status-bar">
@@ -116,8 +119,8 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-title"><span>🐾 捕獲モンスター一覧</span><span>タップでステータス・編成</span></div>
-        <div class="grid-3" id="captured-list"><p style="grid-column: span 3; font-size: 12px; color: #78909c; text-align: center;">上の「🕸️ 捕獲ネット」で仲間にしてみよう！</p></div>
+        <div class="card-title"><span>🐾 捕獲モンスター一覧</span><span>タップで詳細・スキル確認</span></div>
+        <div class="grid-3" id="captured-list"><p style="grid-column: span 3; font-size: 12px; color: #78909c; text-align: center;">上の「🕸️ 捕獲」で仲間にしてみよう！</p></div>
       </div>
     </div>
 
@@ -224,7 +227,7 @@
     </div>
   </div>
 
-  <!-- モンスターステータス詳細モーダル -->
+  <!-- モンスターステータス・スキル・特性詳細モーダル -->
   <div class="modal-overlay" id="mon-modal" onclick="closeMonModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
       <div style="text-align:center;">
@@ -235,8 +238,9 @@
       <table class="stat-table">
         <tr><td>レベル</td><td id="modal-mon-lv">Lv.1</td></tr>
         <tr><td>基礎攻撃力</td><td id="modal-mon-atk">10</td></tr>
-        <tr><td>得意フィールド</td><td id="modal-mon-terrain">🌊 海（海戦で攻撃+20%）</td></tr>
-        <tr><td>固有スキル</td><td id="modal-mon-skill">潮の流れ</td></tr>
+        <tr><td>得意地形</td><td id="modal-mon-terrain">🌊 海</td></tr>
+        <tr><td>スキル</td><td id="modal-mon-skill"></td></tr>
+        <tr><td>特性</td><td id="modal-mon-trait"></td></tr>
       </table>
       <div style="display:grid; gap:6px;">
         <button class="btn-coral" id="modal-party-btn" onclick="togglePartyFromModal()">⚔️ バトルパーティに編成する</button>
