@@ -72,6 +72,71 @@
     .nav-icon { font-size: 19px; margin-bottom: 2px; }
   </style>
 </head>
+<body>
+  <div class="battle-area" id="battle-bg" onclick="tapAttack()">
+    <div class="battle-header">
+      <span class="area-badge" id="floor-text">🌊 海域 1-1</span>
+      <button class="mode-btn" id="mode-switch-btn" onclick="toggleMode(event)">🌲 陸へ行く</button>
+    </div>
+    <div class="capture-msg" id="capture-msg">✨ モンスターを捕獲した！</div>
+    <div class="units-row">
+      <div class="unit">
+        <div class="hp-text"><span id="enemy-name">オクトパス</span> (<span id="enemy-hp-text">100</span>)</div>
+        <div class="bar-bg"><div class="hp-fill" id="enemy-hp-bar"></div></div>
+        <div class="unit-sprite" id="enemy-sprite">🐙</div>
+      </div>
+    </div>
+    <div class="units-row">
+      <div class="unit" id="ally-slot-0"><div class="unit-sprite">🚤</div><div class="hp-text">探索船 Lv.1</div></div>
+      <div class="unit" id="ally-slot-1"><div class="unit-sprite">➕</div><div class="hp-text">空き枠</div></div>
+      <div class="unit" id="ally-slot-2"><div class="unit-sprite">➕</div><div class="hp-text">空き枠</div></div>
+    </div>
+    <button class="capture-btn" onclick="tryCapture(event)">🕸️ 捕獲ネット (20G)</button>
+  </div>
+
+  <div class="status-bar">
+    <div class="profile-mini">
+      <div class="mini-avatar" id="hud-my-icon">🐬</div>
+      <span id="hud-name">ハンター</span>
+      <span class="save-badge" id="save-indicator">☁️ 自動保存済</span>
+    </div>
+    <div class="currency">
+      <div class="gold-box">🪙 <span id="gold">200</span> G</div>
+      <div class="gem-box">💎 <span id="gem">1000</span></div>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div id="tab-ship" class="tab-pane active">
+      <div class="card">
+        <div class="card-title"><span>⚔️ バトルパーティ編成 (3枠)</span><span>総攻撃力: <span id="power-disp">10</span></span></div>
+        <div class="grid-3" id="party-slots"></div>
+        <div style="margin-top: 10px;">
+          <button class="btn-coral" onclick="upgradeUnit()">探索船を改造・全体強化 Lv.<span id="ally-lv">1</span>（費用: <span id="up-cost">50</span> G）</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span>🐾 捕獲モンスター一覧</span><span>タップでステータス・編成</span></div>
+        <div class="grid-3" id="captured-list"><p style="grid-column: span 3; font-size: 12px; color: #78909c; text-align: center;">上の「🕸️ 捕獲ネット」で仲間にしてみよう！</p></div>
+      </div>
+    </div>
+
+    <div id="tab-cafe" class="tab-pane">
+      <div class="card">
+        <div class="card-title"><span>🍰 海辺のカフェ経営 (Lv.<span id="cafe-lv">1</span>)</span><span>売上: +<span id="cafe-rate">0</span> G/秒</span></div>
+        <div class="grid-3" id="staff-slots"></div>
+        <div style="margin-top: 10px;"><button class="btn-coral" onclick="upgradeCafe()">カフェ店舗を拡張（費用: <span id="cafe-cost">80</span> G）</button></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span>🏝️ リゾート箱庭</span><span>魅力ボーナス: +<span id="garden-bonus">0</span>%</span></div>
+        <div class="garden-field" id="garden-grid"></div>
+        <div class="grid-3">
+          <button class="slot-box" onclick="buyDecor('🌴', 60)"><div class="icon">🌴</div><div class="name">ヤシの木 (60G)</div></button>
+          <button class="slot-box" onclick="buyDecor('⛲', 120)"><div class="icon">⛲</div><div class="name">噴水 (120G)</div></button>
+          <button class="slot-box" onclick="buyDecor('🌺', 90)"><div class="icon">🌺</div><div class="name">花壇 (90G)</div></button>
+        </div>
+      </div>
+    </div>
     <div id="tab-ai" class="tab-pane">
       <div class="card">
         <div class="sub-tabs">
@@ -193,72 +258,3 @@
   <script src="/social.js"></script>
 </body>
 </html>
-let userId = localStorage.getItem('treasure_uid') || ('H-' + Math.random().toString(36).substring(2, 10).toUpperCase());
-localStorage.setItem('treasure_uid', userId);
-let playerName = 'ハンター';
-let gold = 200, gem = 1000, baseAtk = 10, level = 1, upCost = 50, mode = 'sea';
-let cafeLv = 1, cafeCost = 80, staff = [null, null, null], gardenItems = [];
-let party = [null, null, null];
-let selectedMonIdx = -1;
-let state = { sea: { area: 1, wave: 1, maxHp: 100, hp: 100, idx: 0 }, land: { area: 1, wave: 1, maxHp: 120, hp: 120, idx: 0 } };
-const seaMonsters = [{ icon: '🐙', name: 'オクトパス', skill: '墨噴射(攻撃+5)' }, { icon: '🦈', name: 'シャーク', skill: '鋭い牙(会心撃)' }, { icon: '🦀', name: 'クラブ', skill: '硬い甲羅(安定)' }, { icon: '🐡', name: 'ハリセンボン', skill: '毒針連打' }, { icon: '🦑', name: 'ダイオウイカ', skill: '深海の圧力' }, { icon: '🐳', name: 'ホエール', skill: '巨大津波' }];
-const landMonsters = [{ icon: '🦊', name: 'フォックス', skill: '狐火(素早い)' }, { icon: '🐗', name: 'ボア', skill: '猛突進(高火力)' }, { icon: '🦎', name: 'リザード', skill: '尻尾斬り' }, { icon: '🦉', name: 'オウル', skill: '夜目の狙撃' }, { icon: '🐻', name: 'グリズリー', skill: '剛腕の一撃' }, { icon: '🐉', name: 'ワイバーン', skill: '竜の咆哮' }];
-let captured = [], speciesSkins = {}, aiBackgrounds = [], aiStamps = [];
-let iconConfig = { species: 'デフォルト', bgIdx: -1, scale: 1.0, x: 0, y: 0, rotate: 0 };
-
-let saveTimer = null;
-function triggerAutoSave(immediate = false) {
-  const payload = { playerName, gold, gem, baseAtk, level, upCost, mode, cafeLv, cafeCost, staff, gardenItems, party, state, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
-  const jsonStr = JSON.stringify(payload);
-  localStorage.setItem('treasure_save_' + userId, jsonStr);
-  const badge = document.getElementById('save-indicator');
-  if (badge) badge.textContent = '⏳ 保存中...';
-  clearTimeout(saveTimer);
-  const doSync = async () => {
-    try {
-      await fetch('/api/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, user_name: playerName, save_json: jsonStr }) });
-      if (badge) badge.textContent = '☁️ 自動保存済';
-    } catch (e) { if (badge) badge.textContent = '📱 端末保存済'; }
-  };
-  if (immediate) doSync(); else saveTimer = setTimeout(doSync, 800);
-}
-
-function applySaveData(data) {
-  if (!data) return;
-  playerName = data.playerName || 'ハンター';
-  gold = data.gold ?? 200; gem = data.gem ?? 1000; baseAtk = data.baseAtk ?? 10; level = data.level ?? 1; upCost = data.upCost ?? 50; mode = data.mode || 'sea';
-  cafeLv = data.cafeLv ?? 1; cafeCost = data.cafeCost ?? 80; staff = data.staff || [null, null, null]; gardenItems = data.gardenItems || [];
-  party = data.party || [null, null, null];
-  if (data.state) state = data.state;
-  captured = (data.captured || []).map((m, idx) => ({
-    id: m.id || ('M' + idx), icon: m.icon, name: m.name, type: m.type,
-    lv: m.lv || 1, rarity: m.rarity || 'N', atk: m.atk || 8, skill: m.skill || '突撃'
-  }));
-  speciesSkins = data.speciesSkins || {}; aiBackgrounds = data.aiBackgrounds || []; aiStamps = data.aiStamps || [];
-  if (data.iconConfig) iconConfig = data.iconConfig;
-
-  document.getElementById('player-name').value = playerName;
-  document.getElementById('hud-name').textContent = playerName;
-  document.getElementById('icon-scale').value = iconConfig.scale;
-  document.getElementById('icon-x').value = iconConfig.x;
-  document.getElementById('icon-y').value = iconConfig.y;
-  document.getElementById('icon-rot').value = iconConfig.rotate;
-  const bg = document.getElementById('battle-bg'), btn = document.getElementById('mode-switch-btn');
-  if (mode === 'land') { bg.classList.add('land-mode'); btn.textContent = '🌊 海へ戻る'; } else { bg.classList.remove('land-mode'); btn.textContent = '🌲 陸へ行く'; }
-  renderParty(); renderCaptured(); renderCafe(); updateSelectOptions();
-  document.getElementById('icon-char-sel').value = iconConfig.species;
-  document.getElementById('icon-bg-sel').value = iconConfig.bgIdx;
-  renderSpeciesGallery(); renderStamps(); updateIconPreview(false); updateUI();
-}
-
-async function initCloudLoad() {
-  document.getElementById('my-user-id').textContent = userId;
-  const local = localStorage.getItem('treasure_save_' + userId);
-  if (local) applySaveData(JSON.parse(local));
-  try {
-    const res = await fetch(`/api/save?user_id=${encodeURIComponent(userId)}`);
-    const row = await res.json();
-    if (row && row.save_json) applySaveData(JSON.parse(row.save_json));
-  } catch (e) {}
-}
-window.addEventListener('beforeunload', () => triggerAutoSave(true));
