@@ -12,9 +12,8 @@
     .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 11px; z-index: 2; gap: 4px; }
     .area-badge { background: rgba(255,255,255,0.25); padding: 4px 10px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); white-space: nowrap; }
     .mode-btn { background: #ff7043; color: white; border: 2px solid #fff; padding: 4px 10px; border-radius: 15px; font-weight: bold; font-size: 11px; cursor: pointer; white-space: nowrap; }
-    .auto-btn { background: #546e7a; color: white; border: 2px solid #fff; padding: 4px 9px; border-radius: 15px; font-weight: bold; font-size: 11px; cursor: pointer; white-space: nowrap; }
-    .auto-btn.unlocked { background: #00897b; }
-    .auto-btn.active { background: #ffca28; color: #263238; box-shadow: 0 0 10px #ffea00; }
+    .hud-toggle-btn { background: rgba(0,0,0,0.45); color: #fff; border: 1.5px solid rgba(255,255,255,0.8); padding: 3px 8px; border-radius: 12px; font-weight: bold; font-size: 11px; cursor: pointer; white-space: nowrap; display: none; }
+    .hud-toggle-btn.active { background: #ffca28; color: #263238; border-color: #fff; box-shadow: 0 0 8px #ffea00; }
     .enemy-section { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; margin-top: 2px; }
     .enemy-unit { text-align: center; width: 170px; position: relative; }
     .ally-section { display: flex; flex-direction: column; align-items: center; width: 100%; }
@@ -87,6 +86,13 @@
     .btn-coral { background: #ff7043; color: white; border: none; padding: 10px 14px; border-radius: 10px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%; }
     .btn-blue { background: #0288d1; color: white; border: none; padding: 10px 14px; border-radius: 10px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%; }
     .btn-gray { background: #90a4ae; color: white; border: none; padding: 8px 12px; border-radius: 10px; font-weight: bold; font-size: 12px; cursor: pointer; width: 100%; }
+    .shop-item-card { border: 1.5px solid #cfd8dc; border-radius: 12px; padding: 12px; margin-bottom: 10px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .shop-item-info { flex: 1; min-width: 0; }
+    .shop-item-title { font-size: 13px; font-weight: bold; color: #263238; margin-bottom: 4px; }
+    .shop-item-desc { font-size: 11px; color: #546e7a; line-height: 1.4; }
+    .shop-item-action { flex-shrink: 0; }
+    .shop-buy-btn { background: #ff7043; color: #fff; border: none; padding: 10px 14px; border-radius: 10px; font-weight: bold; font-size: 12px; cursor: pointer; min-width: 84px; box-shadow: 0 2px 6px rgba(255,112,67,0.3); }
+    .shop-buy-btn.done { background: #ffccbc; color: #bf360c; box-shadow: none; cursor: default; }
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 999; padding: 16px; }
     .modal-card { background: #ffffff; border-radius: 16px; padding: 16px; width: 100%; max-width: 360px; border: 3px solid #4fc3f7; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
     .stat-table { width: 100%; font-size: 12px; margin: 10px 0; border-collapse: collapse; }
@@ -109,9 +115,9 @@
     .slider-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin: 6px 0; }
     .slider-row input { width: 65%; }
     .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: #ffffff; border-top: 1px solid #d0e8f2; display: flex; justify-content: space-around; align-items: center; z-index: 100; }
-    .nav-item { background: none; border: none; color: #78909c; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; flex: 1; }
+    .nav-item { background: none; border: none; color: #78909c; font-size: 9px; font-weight: bold; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; flex: 1; padding: 0 2px; }
     .nav-item.active { color: #ff7043; }
-    .nav-icon { font-size: 20px; }
+    .nav-icon { font-size: 19px; }
     .chat-box { height: 220px; overflow-y: auto; background: #f8fdff; border: 1px solid #dceef5; border-radius: 10px; padding: 8px; margin-bottom: 8px; font-size: 12px; }
     .chat-msg { margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #eceff1; }
   </style>
@@ -122,8 +128,9 @@
     <div class="battle-header">
       <div class="area-badge" id="floor-text">🌊 海域 1-1</div>
       <div>🍰 +<span id="cafe-income-hud">0</span>G/秒</div>
-      <div style="display:flex;gap:4px;">
-        <button class="auto-btn" id="auto-battle-btn" onclick="toggleAutoBattle(event)">🤖 オート(1500💎)</button>
+      <div style="display:flex;gap:4px;align-items:center;">
+        <button class="hud-toggle-btn" id="hud-auto-btn" onclick="toggleAutoMode(event)">🔄 自動</button>
+        <button class="hud-toggle-btn" id="hud-speed-btn" onclick="toggleSpeedMode(event)">▷ 1x</button>
         <button class="mode-btn" id="mode-switch-btn" onclick="toggleMode(event)">🌲 陸へ行く</button>
       </div>
     </div>
@@ -232,6 +239,16 @@
           <div class="slot-box" onclick="buyDecor('🌺', 250)"><div class="icon">🌺</div><div class="name">ハイビスカス</div><div class="sub">250 G</div></div>
           <div class="slot-box" onclick="buyDecor('⛲', 600)"><div class="icon">⛲</div><div class="name">噴水</div><div class="sub">600 G</div></div>
         </div>
+      </div>
+    </div>
+
+    <div class="tab-pane" id="tab-shop">
+      <div class="card">
+        <div class="card-title">
+          <span>🏪 ショップ（便利機能＆アイテム）</span>
+          <span style="font-size:11px;color:#0288d1;">💎 ジェム交換所</span>
+        </div>
+        <div id="shop-list">読み込み中...</div>
       </div>
     </div>
 
@@ -344,17 +361,19 @@
 
   <nav class="bottom-nav">
     <button class="nav-item active" onclick="switchTab('ship', this)"><span class="nav-icon">⚓</span>船・育成</button>
-    <button class="nav-item" onclick="switchTab('cafe', this)"><span class="nav-icon">🍰</span>カフェ箱庭</button>
-    <button class="nav-item" onclick="switchTab('ai', this)"><span class="nav-icon">🎨</span>AIアトリエ</button>
+    <button class="nav-item" onclick="switchTab('cafe', this)"><span class="nav-icon">🍰</span>カフェ</button>
+    <button class="nav-item" onclick="switchTab('shop', this)"><span class="nav-icon">🏪</span>ショップ</button>
+    <button class="nav-item" onclick="switchTab('ai', this)"><span class="nav-icon">🎨</span>AI生成</button>
     <button class="nav-item" onclick="switchTab('chat', this)"><span class="nav-icon">💬</span>チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">👤</span>マイページ</button>
   </nav>
-  <script src="/skills.js?v=11"></script>
-  <script src="/ship.js?v=11"></script>
-  <script src="/party.js?v=11"></script>
-  <script src="/cafe.js?v=11"></script>
-  <script src="/game.js?v=11"></script>
-  <script src="/social.js?v=11"></script>
+  <script src="/skills.js?v=12"></script>
+  <script src="/ship.js?v=12"></script>
+  <script src="/party.js?v=12"></script>
+  <script src="/cafe.js?v=12"></script>
+  <script src="/shop.js?v=12"></script>
+  <script src="/game.js?v=12"></script>
+  <script src="/social.js?v=12"></script>
   <script>initCloudLoad();</script>
 </body>
 </html>
