@@ -49,7 +49,7 @@ function getEnemyStats() {
     icon: baseMon.icon,
     atk: Math.floor(baseAtkVal * Math.pow(1.22, cur.area - 1) + (cur.wave - 1) * 2),
     def: Math.floor((cur.area - 1) * 2 + (cur.wave - 1) * 0.5),
-    ct: baseMon.ct || 2.2
+    ct: Number(baseMon.ct) || 2.2
   };
 }
 
@@ -106,7 +106,7 @@ function applySaveData(data) {
   }
   captured = (data.captured || []).map((m, idx) => {
     const baseData = [...seaMonsters, ...landMonsters].find(x => x.name === m.name);
-    return { id: m.id || ('M' + idx), icon: m.icon, name: m.name, type: m.type, lv: m.lv || 1, rarity: m.rarity || 'N', maxHp: m.maxHp || (55 + (m.lv || 1) * 18), atk: m.atk || 8, def: m.def || (3 + (m.lv || 1) * 2), ct: m.ct || (baseData ? baseData.ct : 2.1), traitId: m.traitId || 'gold_up' };
+    return { id: m.id || ('M' + idx), icon: m.icon, name: m.name, type: m.type, lv: m.lv || 1, rarity: m.rarity || 'N', maxHp: m.maxHp || (55 + (m.lv || 1) * 18), atk: m.atk || 8, def: m.def || (3 + (m.lv || 1) * 2), ct: Number(m.ct) || (baseData ? baseData.ct : 2.1), traitId: m.traitId || 'gold_up' };
   });
   speciesSkins = data.speciesSkins || {}; aiBackgrounds = data.aiBackgrounds || []; aiStamps = data.aiStamps || [];
   if (data.iconConfig) iconConfig = data.iconConfig;
@@ -227,12 +227,14 @@ function updateUI() {
     if (unit) {
       el.classList.toggle('dead', unit.hp <= 0);
       const disp = getSpeciesDisplay(unit.name, unit.icon);
-      const hpPct = Math.max(0, (unit.hp / unit.maxHp) * 100);
-      const ctPct = unit.hp > 0 ? Math.min(100, (unit.ct / unit.maxCt) * 100) : 0;
-      el.innerHTML = `<div class="unit-sprite">${renderSprite(disp, 28, '6px')}</div><div class="hp-text">${unit.name} ${Math.max(0, unit.hp)}/${unit.maxHp}</div><div class="bar-bg"><div class="ally-hp-fill" style="width:${hpPct}%"></div></div><div class="bar-bg" style="height:4px;"><div class="ct-fill" style="width:${ctPct}%"></div></div>`;
+      const hpPct = Math.max(0, Math.min(100, (unit.hp / (unit.maxHp || 100)) * 100));
+      const limitCt = Number(unit.maxCt) || Number(unit.ct) || 2.0;
+      const nowCt = Number(unit.ct) || 0;
+      const ctPct = unit.hp > 0 ? Math.max(0, Math.min(100, (nowCt / limitCt) * 100)) : 0;
+      el.innerHTML = `<div class="unit-sprite">${renderSprite(disp, 28, '6px')}</div><div class="hp-text">${unit.name} ${Math.max(0, unit.hp)}/${unit.maxHp}</div><div class="bar-bg"><div class="ally-hp-fill" style="width:${hpPct}%"></div></div><div class="bar-bg" style="height:6px;margin-top:2px;"><div class="ct-fill" style="width:${ctPct}%"></div></div>`;
     } else {
       el.classList.remove('dead');
-      el.innerHTML = `<div class="unit-sprite" style="opacity:0.4;font-size:18px;">＋</div><div class="hp-text" style="opacity:0.7;">空き枠</div><div class="bar-bg"><div class="ally-hp-fill" style="width:0%"></div></div><div class="bar-bg" style="height:4px;"><div class="ct-fill" style="width:0%"></div></div>`;
+      el.innerHTML = `<div class="unit-sprite" style="opacity:0.4;font-size:18px;">＋</div><div class="hp-text" style="opacity:0.7;">空き枠</div><div class="bar-bg"><div class="ally-hp-fill" style="width:0%"></div></div><div class="bar-bg" style="height:6px;margin-top:2px;"><div class="ct-fill" style="width:0%"></div></div>`;
     }
   }
   if (document.getElementById('ally-lv')) document.getElementById('ally-lv').textContent = level;
@@ -258,7 +260,7 @@ function showToast(text) {
   el.textContent = text; el.style.display = 'block'; setTimeout(() => { el.style.display = 'none'; }, 1800);
 }
 function startBattle(e) {
-  if (e) e.stopPropagation();
+  if (e) { e.preventDefault(); e.stopPropagation(); }
   const cur = state[mode]; if (cur.inBattle) return;
   syncStamina();
   if (stamina < 1) { showToast('⚡ スタミナ不足！（1分で1回復）'); updateUI(); return; }
@@ -269,6 +271,7 @@ function startBattle(e) {
   triggerAutoSave(); updateUI();
 }
 function handleEnemyDefeat(cur, eStats) {
+  cur.inBattle = false;
   const goldTraitCount = party.map(id => captured.find(x => x.id === id)).filter(m => m && m.traitId === 'gold_up').length;
   const rewardGold = Math.floor(cur.area * 25 * (1 + goldTraitCount * 0.3));
   gold += rewardGold;
@@ -277,7 +280,7 @@ function handleEnemyDefeat(cur, eStats) {
   cur.wave++; cur.idx++;
   if (cur.wave > 5) { cur.wave = 1; cur.area++; }
   cur.maxHp = Math.floor((mode === 'sea' ? 100 : 120) * Math.pow(1.3, cur.area - 1));
-  cur.hp = cur.maxHp; cur.enemyCt = 0; cur.shipCt = 0; cur.inBattle = false;
+  cur.hp = cur.maxHp; cur.enemyCt = 0; cur.shipCt = 0;
   if (typeof resetBattleAllies === 'function') resetBattleAllies();
   triggerAutoSave(); updateUI();
 }
@@ -295,8 +298,9 @@ setInterval(() => {
   for (let i = 0; i < 3; i++) {
     const u = battleAllies.slice(i, i + 1).pop();
     if (!u || u.hp <= 0) continue;
-    u.ct = (u.ct || 0) + dt;
-    if (u.ct >= (u.maxCt || 2.0)) {
+    u.ct = (Number(u.ct) || 0) + dt;
+    const limitCt = Number(u.maxCt) || 2.0;
+    if (u.ct >= limitCt) {
       u.ct = 0;
       let rawAtk = u.atk || 10, isCrit = false;
       if (u.monRef && typeof getMonsterSkill === 'function') {
@@ -312,7 +316,7 @@ setInterval(() => {
   }
   if (typeof processShipSupport === 'function' && processShipSupport(cur, eStats, dt)) return;
 
-  cur.enemyCt = (cur.enemyCt || 0) + dt;
+  cur.enemyCt = (Number(cur.enemyCt) || 0) + dt;
   if (cur.enemyCt >= eStats.ct) {
     cur.enemyCt = 0;
     const aliveIndices = Array.of(0, 1, 2).filter(idx => { const u = battleAllies.slice(idx, idx + 1).pop(); return u && u.hp > 0; });
