@@ -7,20 +7,20 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 12px; height: 215px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; cursor: pointer; transition: background 0.4s; }
+    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 12px; height: 210px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; cursor: pointer; transition: background 0.4s; }
     .battle-area.land-mode { background: linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%); }
     .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; z-index: 2; }
     .area-badge { background: rgba(255,255,255,0.25); padding: 4px 12px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); }
     .mode-btn { background: #ff7043; color: white; border: 2px solid #fff; padding: 4px 12px; border-radius: 15px; font-weight: bold; font-size: 12px; cursor: pointer; }
     .units-row { display: flex; justify-content: space-around; align-items: center; margin: 2px 0; }
     .unit { text-align: center; width: 90px; }
-    .unit-sprite { font-size: 38px; transition: transform 0.1s; }
+    .unit-sprite { font-size: 36px; transition: transform 0.1s; }
     .unit:active .unit-sprite { transform: scale(1.25); }
     .hp-text { font-size: 11px; font-weight: bold; }
     .bar-bg { background: rgba(0,0,0,0.4); height: 6px; border-radius: 3px; overflow: hidden; margin-top: 2px; }
     .hp-fill { background: #ff7043; height: 100%; width: 100%; transition: width 0.15s; }
     .capture-btn { position: absolute; bottom: 8px; right: 10px; background: #ffd54f; color: #3e2723; border: 2px solid #fff; padding: 4px 10px; border-radius: 14px; font-size: 11px; font-weight: bold; cursor: pointer; z-index: 2; }
-    .capture-msg { position: absolute; top: 45px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.75); color: #ffd54f; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; display: none; white-space: nowrap; z-index: 10; }
+    .capture-msg { position: absolute; top: 45px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #ffd54f; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; display: none; white-space: nowrap; z-index: 10; }
     .status-bar { background: #ffffff; border-bottom: 1px solid #d0e8f2; padding: 7px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: bold; }
     .profile-mini { display: flex; align-items: center; gap: 6px; }
     .mini-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 2px solid #ff7043; overflow: hidden; }
@@ -36,14 +36,23 @@
     .slot-box { border: 1px solid #e0f2f1; border-radius: 10px; padding: 8px; text-align: center; background: #f8fdff; cursor: pointer; }
     .slot-box.land { background: #f1f8e9; border-color: #c5e1a5; }
     .slot-box.staff { background: #fff8e1; border: 2px dashed #ffb74d; }
+    .slot-box.selected { border: 2px solid #ff7043; background: #fff3e0; }
     .slot-box .lvl { font-size: 10px; color: #ff7043; font-weight: bold; text-align: left; }
     .slot-box .icon { font-size: 28px; margin: 4px 0; }
     .slot-box .name { font-size: 11px; font-weight: bold; }
     .btn-coral { background: #ff7043; color: white; border: none; padding: 10px 14px; border-radius: 10px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%; }
     .btn-blue { background: #0288d1; color: white; border: none; padding: 10px 14px; border-radius: 10px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%; }
+    .sub-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; background: #e1f5fe; padding: 4px; border-radius: 10px; }
+    .sub-tab-btn { border: none; background: transparent; padding: 8px 4px; border-radius: 8px; font-size: 12px; font-weight: bold; color: #0277bd; cursor: pointer; }
+    .sub-tab-btn.active { background: #ffffff; color: #ff7043; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .ai-sub-pane { display: none; }
+    .ai-sub-pane.active { display: block; }
+    .inp { width: 100%; padding: 9px; margin-bottom: 8px; border: 1px solid #b0bec5; border-radius: 8px; font-size: 13px; }
+    textarea.inp { min-height: 85px; resize: vertical; line-height: 1.4; }
+    .char-count { font-size: 11px; color: #607d8b; text-align: right; margin-top: -4px; margin-bottom: 8px; }
+    .extend-box { display: flex; align-items: center; gap: 6px; font-size: 12px; background: #fff8e1; padding: 8px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ffe082; color: #d84315; font-weight: bold; }
     .garden-field { background: linear-gradient(180deg, #b3e5fc 0%, #fff9c4 45%, #c8e6c9 100%); border: 2px solid #81d4fa; border-radius: 12px; padding: 10px; min-height: 110px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; margin-bottom: 10px; }
     .garden-cell { background: rgba(255,255,255,0.6); border-radius: 8px; height: 46px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
-    .inp { width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #b0bec5; border-radius: 8px; font-size: 13px; }
     .preview-wrap { display: flex; justify-content: center; margin: 10px 0; }
     #icon-preview-box { width: 110px; height: 110px; border-radius: 50%; border: 4px solid #ff7043; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; background-position: center; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
     .slider-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin: 6px 0; }
@@ -80,7 +89,7 @@
     <div class="profile-mini"><div class="mini-avatar" id="hud-my-icon">🐬</div><span>ハンター</span></div>
     <div class="currency">
       <div class="gold-box">🪙 <span id="gold">200</span> G</div>
-      <div class="gem-box">💎 <span id="gem">100</span></div>
+      <div class="gem-box">💎 <span id="gem">1000</span></div>
     </div>
   </div>
 
@@ -117,17 +126,49 @@
         </div>
       </div>
     </div>
-
     <div id="tab-ai" class="tab-pane">
       <div class="card">
-        <div class="card-title"><span>🎨 AI限定着せ替え＆背景生成</span><span>1回 20💎</span></div>
+        <div class="sub-tabs">
+          <button class="sub-tab-btn active" onclick="switchAiSub('costume', this)">👗 着せ替え</button>
+          <button class="sub-tab-btn" onclick="switchAiSub('bg', this)">🖼️ 背景</button>
+          <button class="sub-tab-btn" onclick="switchAiSub('stamp', this)">💬 スタンプ</button>
+        </div>
         <p id="ai-status" style="font-size: 12px; color: #ff7043; font-weight: bold; margin-bottom: 8px;"></p>
-        <select id="ai-target-mon" class="inp"></select>
-        <input type="text" id="ai-mon-prompt" class="inp" placeholder="着せ替え指示 (例: pirate captain octopus with gold crown)">
-        <button class="btn-coral" style="margin-bottom: 12px;" onclick="generateAI('monster')">✨ 選択モンスターをAI着せ替え (20💎)</button>
-        <input type="text" id="ai-bg-prompt" class="inp" placeholder="背景指示 (例: coral reef underwater palace with sunbeams)">
-        <button class="btn-blue" onclick="generateAI('bg')">🖼️ 自分専用AI背景を生成 (20💎)</button>
+
+        <div id="ai-sub-costume" class="ai-sub-pane active">
+          <label style="font-size:12px; font-weight:bold;">1. 着せ替えるモンスター種族を選択</label>
+          <select id="ai-species-sel" class="inp" onchange="renderSpeciesGallery()"></select>
+          <label style="font-size:12px; font-weight:bold;">2. 着せ替えデザイン選択（タップで切り替え）</label>
+          <div class="grid-3" id="species-skin-gallery" style="margin-bottom:10px;"></div>
+          <label style="font-size:12px; font-weight:bold;">3. 新しい着せ替えをAI作成</label>
+          <textarea id="ai-mon-prompt" class="inp" maxlength="200" placeholder="どんな姿にする？（例：金色の海賊帽と眼帯をつけたかっこいい姿）" oninput="updateCharCount('mon')"></textarea>
+          <div class="char-count"><span id="mon-count">0</span> / <span id="mon-max">200</span> 文字</div>
+          <label class="extend-box"><input type="checkbox" id="mon-ext" onchange="toggleExtend('mon')"> +50💎追加で500文字まで入力する</label>
+          <button class="btn-coral" onclick="generateAI('monster')">✨ この種族の着せ替えを生成 (<span id="mon-cost">200</span>💎)</button>
+        </div>
+
+        <div id="ai-sub-bg" class="ai-sub-pane">
+          <label style="font-size:12px; font-weight:bold;">自分専用の背景プロンプト</label>
+          <textarea id="ai-bg-prompt" class="inp" maxlength="200" placeholder="どんな背景にする？（例：キラキラ光るサンゴ礁の海底宮殿、南国の夕焼けビーチ）" oninput="updateCharCount('bg')"></textarea>
+          <div class="char-count"><span id="bg-count">0</span> / <span id="bg-max">200</span> 文字</div>
+          <label class="extend-box"><input type="checkbox" id="bg-ext" onchange="toggleExtend('bg')"> +50💎追加で500文字まで入力する</label>
+          <button class="btn-blue" onclick="generateAI('bg')">🖼️ 専用AI背景を生成 (<span id="bg-cost">200</span>💎)</button>
+        </div>
+
+        <div id="ai-sub-stamp" class="ai-sub-pane">
+          <label style="font-size:12px; font-weight:bold;">1. 元にする種族・着せ替え</label>
+          <select id="stamp-species-sel" class="inp"></select>
+          <label style="font-size:12px; font-weight:bold;">2. スタンプに入れる文字（20文字まで）</label>
+          <input type="text" id="stamp-text" class="inp" maxlength="20" placeholder="例：やったー！、おつかれさま！、神引き！">
+          <label style="font-size:12px; font-weight:bold;">3. スタンプのポーズ・雰囲気プロンプト</label>
+          <textarea id="ai-stamp-prompt" class="inp" maxlength="200" placeholder="どんな表情やポーズにする？（例：キラキラの目でガッツポーズをして喜んでいる）" oninput="updateCharCount('stamp')"></textarea>
+          <div class="char-count"><span id="stamp-count">0</span> / <span id="stamp-max">200</span> 文字</div>
+          <label class="extend-box"><input type="checkbox" id="stamp-ext" onchange="toggleExtend('stamp')"> +50💎追加で500文字まで入力する</label>
+          <button class="btn-coral" onclick="generateAI('stamp')">💬 オリジナルスタンプを生成 (<span id="stamp-cost">200</span>💎)</button>
+          <div class="grid-3" id="stamp-gallery" style="margin-top:10px;"></div>
+        </div>
       </div>
+
       <div class="card">
         <div class="card-title"><span>🖼️ プロフィールアイコン自由編集</span><span>サイズ・位置・角度</span></div>
         <div class="preview-wrap"><div id="icon-preview-box"><div id="icon-char-layer">🐬</div></div></div>
@@ -142,13 +183,15 @@
 
     <div id="tab-chat" class="tab-pane">
       <div class="card">
-        <div class="card-title">💬 冒険者全体チャット（D1保存）</div>
+        <div class="card-title">💬 冒険者全体チャット（スタンプ対応）</div>
         <input type="text" id="chat-name" class="inp" placeholder="あなたの名前">
-        <div style="display:flex; gap:6px;">
+        <div style="display:flex; gap:6px; margin-bottom:8px;">
           <input type="text" id="chat-input" class="inp" placeholder="メッセージを入力..." style="margin:0;">
-          <button class="btn-coral" style="width:80px;" onclick="sendChat()">送信</button>
+          <button class="btn-coral" style="width:75px;" onclick="sendChat()">送信</button>
         </div>
-        <div id="chat-list" style="margin-top: 10px; max-height: 220px; overflow-y: auto;"></div>
+        <div style="font-size:11px; font-weight:bold; color:#0277bd; margin-bottom:4px;">作成したスタンプをタップして送信：</div>
+        <div class="grid-3" id="chat-stamp-bar" style="margin-bottom:8px;"></div>
+        <div id="chat-list" style="margin-top: 8px; max-height: 220px; overflow-y: auto;"></div>
       </div>
     </div>
 
@@ -166,7 +209,7 @@
   <nav class="bottom-nav">
     <button class="nav-item active" onclick="switchTab('ship', this)"><span class="nav-icon">⚓</span>船・育成</button>
     <button class="nav-item" onclick="switchTab('cafe', this)"><span class="nav-icon">🍰</span>カフェ箱庭</button>
-    <button class="nav-item" onclick="switchTab('ai', this)"><span class="nav-icon">🎨</span>AI着せ替え</button>
+    <button class="nav-item" onclick="switchTab('ai', this)"><span class="nav-icon">🎨</span>AIアトリエ</button>
     <button class="nav-item" onclick="switchTab('chat', this)"><span class="nav-icon">💬</span>チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">🏆</span>ランキング</button>
   </nav>
