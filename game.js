@@ -5,36 +5,114 @@ let gold = 200, gem = 1000, baseAtk = 10, level = 1, upCost = 50, mode = 'sea';
 let cafeLv = 1, cafeCost = 80, staff = [null, null, null], gardenItems = [];
 let party = [null, null, null];
 let selectedMonIdx = -1;
-let state = { sea: { area: 1, wave: 1, maxHp: 100, hp: 100, idx: 0 }, land: { area: 1, wave: 1, maxHp: 120, hp: 120, idx: 0 } };
+
+const MAX_STAMINA = 30;
+const STAMINA_RECOVERY_MS = 60 * 1000;
+let stamina = MAX_STAMINA;
+let staminaUpdatedAt = Date.now();
+
+let state = {
+  sea: { area: 1, wave: 1, maxHp: 100, hp: 100, idx: 0, inBattle: false },
+  land: { area: 1, wave: 1, maxHp: 120, hp: 120, idx: 0, inBattle: false }
+};
+
 const seaMonsters = [{ icon: '🐙', name: 'オクトパス' }, { icon: '🦈', name: 'シャーク' }, { icon: '🦀', name: 'クラブ' }, { icon: '🐡', name: 'ハリセンボン' }, { icon: '🦑', name: 'ダイオウイカ' }, { icon: '🐳', name: 'ホエール' }];
 const landMonsters = [{ icon: '🦊', name: 'フォックス' }, { icon: '🐗', name: 'ボア' }, { icon: '🦎', name: 'リザード' }, { icon: '🦉', name: 'オウル' }, { icon: '🐻', name: 'グリズリー' }, { icon: '🐉', name: 'ワイバーン' }];
 let captured = [], speciesSkins = {}, aiBackgrounds = [], aiStamps = [];
 let iconConfig = { species: 'デフォルト', bgIdx: -1, scale: 1.0, x: 0, y: 0, rotate: 0 };
 
+function syncStamina() {
+  if (stamina >= MAX_STAMINA) {
+    stamina = MAX_STAMINA;
+    staminaUpdatedAt = Date.now();
+    return;
+  }
+  const now = Date.now();
+  const elapsed = now - staminaUpdatedAt;
+  const recovered = Math.floor(elapsed / STAMINA_RECOVERY_MS);
+  if (recovered > 0) {
+    stamina = Math.min(MAX_STAMINA, stamina + recovered);
+    staminaUpdatedAt = (stamina >= MAX_STAMINA) ? now : staminaUpdatedAt + (recovered * STAMINA_RECOVERY_MS);
+  }
+}
+
+function tryStartBattle(isAuto = false) {
+  const cur = state[mode];
+  if (cur.inBattle) return true;
+
+  syncStamina();
+  if (stamina < 1) {
+    if (!isAuto) showToast('⚡ スタミナ不足！（1分で1回復）');
+    return false;
+  }
+
+  if (stamina === MAX_STAMINA) {
+    staminaUpdatedAt = Date.now();
+  }
+  stamina -= 1;
+  cur.inBattle = true;
+  triggerAutoSave();
+  return true;
+}
+
 let saveTimer = null;
+let lastCloudSyncAt = 0;
+const CLOUD_SYNC_INTERVAL_MS = 15000;
+
 function triggerAutoSave(immediate = false) {
-  const payload = { playerName, gold, gem, baseAtk, level, upCost, mode, cafeLv, cafeCost, staff, gardenItems, party, state, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
+  const savedAt = Date.now();
+  const payload = {
+    savedAt, playerName, gold, gem, baseAtk, level, upCost, mode,
+    stamina, staminaUpdatedAt,
+    cafeLv, cafeCost, staff, gardenItems, party, state,
+    captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig
+  };
   const jsonStr = JSON.stringify(payload);
   localStorage.setItem('treasure_save_' + userId, jsonStr);
+
   const badge = document.getElementById('save-indicator');
-  if (badge) badge.textContent = '⏳ 保存中...';
   clearTimeout(saveTimer);
+
   const doSync = async () => {
+    lastCloudSyncAt = Date.now();
+    if (badge) badge.textContent = '⏳ 同期中...';
     try {
-      await fetch('/api/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, user_name: playerName, save_json: jsonStr }) });
+      const res = await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, user_name: playerName, save_json: jsonStr })
+      });
+      if (!res.ok) throw new Error('Save failed');
       if (badge) badge.textContent = '☁️ 自動保存済';
-    } catch (e) { if (badge) badge.textContent = '📱 端末保存済'; }
+    } catch (e) {
+      if (badge) badge.textContent = '📱 端末保存済';
+    }
   };
-  if (immediate) doSync(); else saveTimer = setTimeout(doSync, 800);
+
+  const timeSinceLastSync = Date.now() - lastCloudSyncAt;
+  if (immediate || timeSinceLastSync >= CLOUD_SYNC_INTERVAL_MS) {
+    doSync();
+  } else {
+    if (badge) badge.textContent = '📱 端末保存済';
+    saveTimer = setTimeout(doSync, CLOUD_SYNC_INTERVAL_MS - timeSinceLastSync);
+  }
 }
 
 function applySaveData(data) {
   if (!data) return;
   playerName = data.playerName || 'ハンター';
   gold = data.gold ?? 200; gem = data.gem ?? 1000; baseAtk = data.baseAtk ?? 10; level = data.level ?? 1; upCost = data.upCost ?? 50; mode = data.mode || 'sea';
+  stamina = data.stamina ?? MAX_STAMINA;
+  staminaUpdatedAt = data.staminaUpdatedAt || Date.now();
+  syncStamina();
+
   cafeLv = data.cafeLv ?? 1; cafeCost = data.cafeCost ?? 80; staff = data.staff || [null, null, null]; gardenItems = data.gardenItems || [];
   party = data.party || [null, null, null];
-  if (data.state) state = data.state;
+  if (data.state) {
+    state = data.state;
+    if (state.sea && state.sea.inBattle === undefined) state.sea.inBattle = false;
+    if (state.land && state.land.inBattle === undefined) state.land.inBattle = false;
+  }
   captured = (data.captured || []).map((m, idx) => ({
     id: m.id || ('M' + idx), icon: m.icon, name: m.name, type: m.type,
     lv: m.lv || 1, rarity: m.rarity || 'N', atk: m.atk || 8, traitId: m.traitId || 'gold_up'
@@ -42,30 +120,60 @@ function applySaveData(data) {
   speciesSkins = data.speciesSkins || {}; aiBackgrounds = data.aiBackgrounds || []; aiStamps = data.aiStamps || [];
   if (data.iconConfig) iconConfig = data.iconConfig;
 
-  document.getElementById('player-name').value = playerName;
-  document.getElementById('hud-name').textContent = playerName;
-  document.getElementById('icon-scale').value = iconConfig.scale;
-  document.getElementById('icon-x').value = iconConfig.x;
-  document.getElementById('icon-y').value = iconConfig.y;
-  document.getElementById('icon-rot').value = iconConfig.rotate;
+  const pNameEl = document.getElementById('player-name');
+  if (pNameEl) pNameEl.value = playerName;
+  const hudNameEl = document.getElementById('hud-name');
+  if (hudNameEl) hudNameEl.textContent = playerName;
+
+  if (document.getElementById('icon-scale')) {
+    document.getElementById('icon-scale').value = iconConfig.scale;
+    document.getElementById('icon-x').value = iconConfig.x;
+    document.getElementById('icon-y').value = iconConfig.y;
+    document.getElementById('icon-rot').value = iconConfig.rotate;
+  }
+
   const bg = document.getElementById('battle-bg'), btn = document.getElementById('mode-switch-btn');
-  if (mode === 'land') { bg.classList.add('land-mode'); btn.textContent = '🌊 海へ戻る'; } else { bg.classList.remove('land-mode'); btn.textContent = '🌲 陸へ行く'; }
+  if (bg && btn) {
+    if (mode === 'land') { bg.classList.add('land-mode'); btn.textContent = '🌊 海へ戻る'; }
+    else { bg.classList.remove('land-mode'); btn.textContent = '🌲 陸へ行く'; }
+  }
   renderParty(); renderCaptured(); renderCafe(); updateSelectOptions();
-  document.getElementById('icon-char-sel').value = iconConfig.species;
-  document.getElementById('icon-bg-sel').value = iconConfig.bgIdx;
+  if (document.getElementById('icon-char-sel')) {
+    document.getElementById('icon-char-sel').value = iconConfig.species;
+    document.getElementById('icon-bg-sel').value = iconConfig.bgIdx;
+  }
   renderSpeciesGallery(); renderStamps(); updateIconPreview(false); updateUI();
 }
+
 async function initCloudLoad() {
-  document.getElementById('my-user-id').textContent = userId;
-  const local = localStorage.getItem('treasure_save_' + userId);
-  if (local) applySaveData(JSON.parse(local));
+  const idEl = document.getElementById('my-user-id');
+  if (idEl) idEl.textContent = userId;
+
+  let localData = null;
+  const localStr = localStorage.getItem('treasure_save_' + userId);
+  if (localStr) {
+    try { localData = JSON.parse(localStr); applySaveData(localData); } catch (e) {}
+  }
+
   try {
     const res = await fetch(`/api/save?user_id=${encodeURIComponent(userId)}`);
     const row = await res.json();
-    if (row && row.save_json) applySaveData(JSON.parse(row.save_json));
+    if (row && row.save_json) {
+      const cloudData = JSON.parse(row.save_json);
+      if (!localData || (cloudData.savedAt || 0) > (localData.savedAt || 0)) {
+        applySaveData(cloudData);
+      }
+    }
   } catch (e) {}
 }
-window.addEventListener('beforeunload', () => triggerAutoSave(true));
+window.addEventListener('beforeunload', () => {
+  const payload = {
+    savedAt: Date.now(), playerName, gold, gem, baseAtk, level, upCost, mode,
+    stamina, staminaUpdatedAt, cafeLv, cafeCost, staff, gardenItems, party, state,
+    captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig
+  };
+  localStorage.setItem('treasure_save_' + userId, JSON.stringify(payload));
+});
 
 function getSpeciesDisplay(name, defaultIcon) {
   const data = speciesSkins[name];
@@ -94,24 +202,47 @@ function getCafeIncome() {
   const cafeTraitBonus = active.filter(s => s.traitId === 'cafe_star').length * 0.35;
   return Math.floor(active.length * 6 * cafeLv * (1 + gardenItems.length * 0.15 + cafeTraitBonus));
 }
+
 function updateUI() {
+  syncStamina();
+  const stDisp = document.getElementById('stamina-disp');
+  const stTimer = document.getElementById('stamina-timer');
+  if (stDisp) stDisp.textContent = stamina;
+  if (stTimer) {
+    if (stamina >= MAX_STAMINA) {
+      stTimer.textContent = 'MAX';
+    } else {
+      const remainSec = Math.max(1, Math.ceil((STAMINA_RECOVERY_MS - (Date.now() - staminaUpdatedAt)) / 1000));
+      const m = String(Math.floor(remainSec / 60)).padStart(2, '0');
+      const s = String(remainSec % 60).padStart(2, '0');
+      stTimer.textContent = `(${m}:${s})`;
+    }
+  }
+
   const cur = state[mode], list = mode === 'sea' ? seaMonsters : landMonsters, mon = list[cur.idx % list.length];
   document.getElementById('gold').textContent = gold.toLocaleString();
   document.getElementById('gem').textContent = gem.toLocaleString();
   document.getElementById('floor-text').textContent = mode === 'sea' ? `🌊 海域 ${cur.area}-${cur.wave}` : `🌲 陸地 ${cur.area}-${cur.wave}`;
-  document.getElementById('enemy-name').textContent = mon.name;
+  document.getElementById('enemy-name').textContent = cur.inBattle ? mon.name : `${mon.name} (待機中)`;
   document.getElementById('enemy-sprite').textContent = mon.icon;
   document.getElementById('enemy-hp-text').textContent = Math.max(0, cur.hp);
   document.getElementById('enemy-hp-bar').style.width = `${(cur.hp / cur.maxHp) * 100}%`;
-  document.getElementById('ally-lv').textContent = level;
+
+  const allyLvEl = document.getElementById('ally-lv');
+  if (allyLvEl) allyLvEl.textContent = level;
   document.getElementById('power-disp').textContent = getTotalAtk();
   document.getElementById('up-cost').textContent = upCost.toLocaleString();
+
   const inc = getCafeIncome();
   document.getElementById('cafe-income-hud').textContent = inc;
-  document.getElementById('cafe-rate').textContent = inc;
-  document.getElementById('cafe-lv').textContent = cafeLv;
-  document.getElementById('cafe-cost').textContent = cafeCost.toLocaleString();
-  document.getElementById('garden-bonus').textContent = gardenItems.length * 15;
+  const cafeRateEl = document.getElementById('cafe-rate');
+  if (cafeRateEl) cafeRateEl.textContent = inc;
+  const cafeLvEl = document.getElementById('cafe-lv');
+  if (cafeLvEl) cafeLvEl.textContent = cafeLv;
+  const cafeCostEl = document.getElementById('cafe-cost');
+  if (cafeCostEl) cafeCostEl.textContent = cafeCost.toLocaleString();
+  const gardenBonusEl = document.getElementById('garden-bonus');
+  if (gardenBonusEl) gardenBonusEl.textContent = gardenItems.length * 15;
 
   for (let i = 0; i < 3; i++) {
     const el = document.getElementById(`ally-slot-${i}`);
@@ -125,6 +256,7 @@ function updateUI() {
     }
   }
 }
+
 function toggleMode(e) {
   e.stopPropagation(); mode = mode === 'sea' ? 'land' : 'sea';
   const bg = document.getElementById('battle-bg'), btn = document.getElementById('mode-switch-btn');
@@ -132,7 +264,9 @@ function toggleMode(e) {
   updateUI(); triggerAutoSave();
 }
 function showToast(text) {
-  const el = document.getElementById('capture-msg'); el.textContent = text; el.style.display = 'block';
+  const el = document.getElementById('capture-msg');
+  if (!el) return;
+  el.textContent = text; el.style.display = 'block';
   setTimeout(() => { el.style.display = 'none'; }, 1800);
 }
 function tryCapture(e) {
@@ -155,7 +289,9 @@ function tryCapture(e) {
   updateUI(); triggerAutoSave();
 }
 function renderParty() {
-  document.getElementById('party-slots').innerHTML = party.map((monId, slotIdx) => {
+  const el = document.getElementById('party-slots');
+  if (!el) return;
+  el.innerHTML = party.map((monId, slotIdx) => {
     const m = captured.find(x => x.id === monId);
     if (!m) return `<div class="slot-box"><div class="lvl">枠${slotIdx + 1}</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>`;
     const disp = getSpeciesDisplay(m.name, m.icon), idx = captured.findIndex(x => x.id === monId);
@@ -163,8 +299,9 @@ function renderParty() {
   }).join('');
 }
 function renderCaptured() {
-  if (captured.length === 0) return;
-  document.getElementById('captured-list').innerHTML = captured.map((m, i) => {
+  const el = document.getElementById('captured-list');
+  if (!el || captured.length === 0) return;
+  el.innerHTML = captured.map((m, i) => {
     const disp = getSpeciesDisplay(m.name, m.icon), inParty = party.includes(m.id);
     return `<div class="slot-box ${m.type}" onclick="openMonModal(${i})"><div class="lvl"><span>[${m.rarity}] Lv.${m.lv}</span>${inParty ? '<span class="badge-tag">編成中</span>' : ''}</div><div class="icon">${renderSprite(disp, 36)}</div><div class="name">${m.name}</div><div class="sub">ATK: ${m.atk}</div></div>`;
   }).join('');
@@ -213,14 +350,26 @@ function assignStaff(idx) {
 function removeStaff(slotIdx) { if (staff[slotIdx]) { staff[slotIdx] = null; renderCafe(); updateUI(); triggerAutoSave(); } }
 function renderCafe() {
   const roles = ['店長', 'ホール', 'キッチン'];
-  document.getElementById('staff-slots').innerHTML = staff.map((s, i) => !s
-    ? `<div class="slot-box staff"><div class="lvl">${roles[i]}</div><div class="icon">➕</div><div class="name">空き枠</div></div>`
-    : `<div class="slot-box staff" onclick="removeStaff(${i})"><div class="lvl">${roles[i]}</div><div class="icon">${renderSprite(getSpeciesDisplay(s.name, s.icon), 36)}</div><div class="name">${s.name}</div></div>`).join('');
-  document.getElementById('garden-grid').innerHTML = Array(8).fill('').map((_, i) => `<div class="garden-cell">${gardenItems[i] || (staff[i] ? renderSprite(getSpeciesDisplay(staff[i].name, staff[i].icon), 28) : '')}</div>`).join('');
+  const staffEl = document.getElementById('staff-slots');
+  if (staffEl) {
+    staffEl.innerHTML = staff.map((s, i) => !s
+      ? `<div class="slot-box staff"><div class="lvl">${roles[i]}</div><div class="icon">➕</div><div class="name">空き枠</div></div>`
+      : `<div class="slot-box staff" onclick="removeStaff(${i})"><div class="lvl">${roles[i]}</div><div class="icon">${renderSprite(getSpeciesDisplay(s.name, s.icon), 36)}</div><div class="name">${s.name}</div></div>`).join('');
+  }
+  const gardenEl = document.getElementById('garden-grid');
+  if (gardenEl) {
+    gardenEl.innerHTML = Array(8).fill('').map((_, i) => `<div class="garden-cell">${gardenItems[i] || (staff[i] ? renderSprite(getSpeciesDisplay(staff[i].name, staff[i].icon), 28) : '')}</div>`).join('');
+  }
 }
 function upgradeCafe() { if (gold >= cafeCost) { gold -= cafeCost; cafeLv++; cafeCost = Math.floor(cafeCost * 1.6); updateUI(); triggerAutoSave(); } else alert('ゴールド不足'); }
 function buyDecor(icon, cost) { if (gardenItems.length >= 8) return alert('満杯です'); if (gold >= cost) { gold -= cost; gardenItems.push(icon); renderCafe(); updateUI(); triggerAutoSave(); } else alert('ゴールド不足'); }
+
 function damageEnemy(dmg, isAuto = false) {
+  if (!tryStartBattle(isAuto)) {
+    updateUI();
+    return;
+  }
+
   const cur = state[mode];
   let finalDmg = dmg;
   if (!isAuto) {
@@ -242,7 +391,9 @@ function damageEnemy(dmg, isAuto = false) {
     gold += Math.floor(cur.area * 25 * (1 + goldTraitCount * 0.3));
     cur.wave++; cur.idx++;
     if (cur.wave > 5) { cur.wave = 1; cur.area++; }
-    cur.maxHp = Math.floor((mode === 'sea' ? 100 : 120) * Math.pow(1.3, cur.area - 1)); cur.hp = cur.maxHp;
+    cur.maxHp = Math.floor((mode === 'sea' ? 100 : 120) * Math.pow(1.3, cur.area - 1));
+    cur.hp = cur.maxHp;
+    cur.inBattle = false;
     triggerAutoSave();
   }
   updateUI();
