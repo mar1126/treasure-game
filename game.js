@@ -1,11 +1,28 @@
-let gold = 200, gem = 100, baseAtk = 10, level = 1, upCost = 50, mode = 'sea';
+let gold = 200, gem = 1000, baseAtk = 10, level = 1, upCost = 50, mode = 'sea';
 let cafeLv = 1, cafeCost = 80, staff = [null, null, null], gardenItems = [];
 let state = { sea: { area: 1, wave: 1, maxHp: 100, hp: 100, idx: 0 }, land: { area: 1, wave: 1, maxHp: 120, hp: 120, idx: 0 } };
 const seaMonsters = [{ icon: '🐙', name: 'オクトパス' }, { icon: '🦈', name: 'シャーク' }, { icon: '🦀', name: 'クラブ' }, { icon: '🐡', name: 'ハリセンボン' }, { icon: '🦑', name: 'ダイオウイカ' }, { icon: '🐳', name: 'ホエール' }];
 const landMonsters = [{ icon: '🦊', name: 'フォックス' }, { icon: '🐗', name: 'ボア' }, { icon: '🦎', name: 'リザード' }, { icon: '🦉', name: 'オウル' }, { icon: '🐻', name: 'グリズリー' }, { icon: '🐉', name: 'ワイバーン' }];
 let captured = [];
+let speciesSkins = {}; // 種族名: { list: [imgUrl...], activeIdx: -1 } (-1はデフォルト)
 let aiBackgrounds = [];
-let iconConfig = { charIdx: -1, bgIdx: -1, scale: 1.0, x: 0, y: 0, rotate: 0 };
+let aiStamps = [];
+let iconConfig = { species: 'デフォルト', bgIdx: -1, scale: 1.0, x: 0, y: 0, rotate: 0 };
+
+function getSpeciesDisplay(name, defaultIcon) {
+  const data = speciesSkins[name];
+  if (data && data.activeIdx >= 0 && data.list[data.activeIdx]) {
+    return data.list[data.activeIdx];
+  }
+  return defaultIcon;
+}
+
+function renderSprite(displayVal, size = 32, round = '8px') {
+  if (displayVal && displayVal.startsWith('data:image')) {
+    return `<img src="${displayVal}" style="width:${size}px;height:${size}px;border-radius:${round};object-fit:cover;vertical-align:middle;">`;
+  }
+  return displayVal;
+}
 
 function getTotalAtk() { return baseAtk + (captured.length * 3); }
 function getCafeIncome() {
@@ -53,8 +70,9 @@ function tryCapture(e) {
   gold -= 20;
   const cur = state[mode], list = mode === 'sea' ? seaMonsters : landMonsters, mon = list[cur.idx % list.length];
   if (Math.random() < ((cur.hp / cur.maxHp) < 0.4 ? 0.85 : 0.5)) {
-    captured.push({ icon: mon.icon, name: mon.name, type: mode, aiImg: null });
-    renderCaptured(); updateSelectOptions(); showToast(`✨ ${mon.name}を捕獲した！`);
+    captured.push({ icon: mon.icon, name: mon.name, type: mode });
+    if (!speciesSkins[mon.name]) speciesSkins[mon.name] = { list: [], activeIdx: -1, defaultIcon: mon.icon };
+    renderCaptured(); updateSelectOptions(); renderSpeciesGallery(); showToast(`✨ ${mon.name}を捕獲した！`);
   } else { showToast(`💨 逃げられた！`); }
   updateUI();
 }
@@ -66,76 +84,150 @@ function assignStaff(idx) {
 function removeStaff(slotIdx) { if (staff[slotIdx]) { staff[slotIdx] = null; renderCafe(); updateUI(); } }
 
 function renderCaptured() {
-  document.getElementById('captured-list').innerHTML = captured.map((m, i) => `
-    <div class="slot-box ${m.type}" onclick="assignStaff(${i})">
-      <div class="lvl">${m.aiImg ? '✨AI限定' : (m.type === 'sea' ? '🌊海' : '🌲陸')} #${i + 1}</div>
-      <div class="icon">${m.aiImg ? `<img src="${m.aiImg}" style="width:42px;height:42px;border-radius:8px;object-fit:cover;">` : m.icon}</div>
+  document.getElementById('captured-list').innerHTML = captured.map((m, i) => {
+    const disp = getSpeciesDisplay(m.name, m.icon);
+    const isAi = disp.startsWith('data:image');
+    return `<div class="slot-box ${m.type}" onclick="assignStaff(${i})">
+      <div class="lvl">${isAi ? '✨AI限定' : (m.type === 'sea' ? '🌊海' : '🌲陸')} #${i + 1}</div>
+      <div class="icon">${renderSprite(disp, 40)}</div>
       <div class="name">${m.name}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function renderCafe() {
   const roles = ['店長', 'ホール', 'キッチン'];
-  document.getElementById('staff-slots').innerHTML = staff.map((s, i) => s
-    ? `<div class="slot-box staff" onclick="removeStaff(${i})"><div class="lvl">${roles[i]}</div><div class="icon">${s.aiImg ? `<img src="${s.aiImg}" style="width:36px;height:36px;border-radius:6px;">` : s.icon}</div><div class="name">${s.name}</div></div>`
-    : `<div class="slot-box staff"><div class="lvl">${roles[i]}</div><div class="icon">➕</div><div class="name">空き枠</div></div>`).join('');
-  document.getElementById('garden-grid').innerHTML = Array(8).fill('').map((_, i) => `<div class="garden-cell">${gardenItems[i] || (staff[i] ? staff[i].icon : '')}</div>`).join('');
+  document.getElementById('staff-slots').innerHTML = staff.map((s, i) => {
+    if (!s) return `<div class="slot-box staff"><div class="lvl">${roles[i]}</div><div class="icon">➕</div><div class="name">空き枠</div></div>`;
+    const disp = getSpeciesDisplay(s.name, s.icon);
+    return `<div class="slot-box staff" onclick="removeStaff(${i})"><div class="lvl">${roles[i]}</div><div class="icon">${renderSprite(disp, 36)}</div><div class="name">${s.name}</div></div>`;
+  }).join('');
+  document.getElementById('garden-grid').innerHTML = Array(8).fill('').map((_, i) => {
+    const item = gardenItems[i] || (staff[i] ? renderSprite(getSpeciesDisplay(staff[i].name, staff[i].icon), 28) : '');
+    return `<div class="garden-cell">${item}</div>`;
+  }).join('');
 }
 
 function upgradeCafe() { if (gold >= cafeCost) { gold -= cafeCost; cafeLv++; cafeCost = Math.floor(cafeCost * 1.6); updateUI(); } else alert('ゴールド不足'); }
 function buyDecor(icon, cost) { if (gardenItems.length >= 8) return alert('満杯です'); if (gold >= cost) { gold -= cost; gardenItems.push(icon); renderCafe(); updateUI(); } else alert('ゴールド不足'); }
 
+function switchAiSub(subName, btn) {
+  document.querySelectorAll('.ai-sub-pane').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.sub-tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('ai-sub-' + subName).classList.add('active');
+  btn.classList.add('active');
+}
+
+function updateCharCount(prefix) {
+  const inp = document.getElementById(`ai-${prefix}-prompt`);
+  document.getElementById(`${prefix}-count`).textContent = inp.value.length;
+}
+
+function toggleExtend(prefix) {
+  const isExt = document.getElementById(`${prefix}-ext`).checked;
+  const inp = document.getElementById(`ai-${prefix}-prompt`);
+  const max = isExt ? 500 : 200;
+  inp.maxLength = max;
+  if (inp.value.length > max) inp.value = inp.value.slice(0, max);
+  document.getElementById(`${prefix}-max`).textContent = max;
+  document.getElementById(`${prefix}-cost`).textContent = isExt ? 250 : 200;
+  updateCharCount(prefix);
+}
+
+function renderSpeciesGallery() {
+  const spName = document.getElementById('ai-species-sel').value;
+  const box = document.getElementById('species-skin-gallery');
+  if (!spName || !speciesSkins[spName]) { box.innerHTML = '<p style="grid-column:span 3;font-size:11px;color:#78909c;">先にモンスターを捕獲してください</p>'; return; }
+  const data = speciesSkins[spName];
+  let html = `<div class="slot-box ${data.activeIdx === -1 ? 'selected' : ''}" onclick="selectSkin('${spName}', -1)">
+    <div class="lvl">標準</div><div class="icon">${data.defaultIcon}</div><div class="name">デフォルト</div></div>`;
+  html += data.list.map((img, i) => `<div class="slot-box ${data.activeIdx === i ? 'selected' : ''}" onclick="selectSkin('${spName}', ${i})">
+    <div class="lvl">限定#${i + 1}</div><div class="icon">${renderSprite(img, 36)}</div><div class="name">着せ替え${i + 1}</div></div>`).join('');
+  box.innerHTML = html;
+}
+
+function selectSkin(spName, idx) {
+  speciesSkins[spName].activeIdx = idx;
+  renderSpeciesGallery(); renderCaptured(); renderCafe(); updateIconPreview();
+  showToast(`✨ ${spName}の見た目を変更しました！`);
+}
 async function generateAI(type) {
-  if (gem < 20) { alert('ジェムが足りません(20💎必要)'); return; }
-  const promptInput = type === 'monster' ? document.getElementById('ai-mon-prompt').value : document.getElementById('ai-bg-prompt').value;
-  if (!promptInput) { alert('AIへの指示（プロンプト）を入力してください'); return; }
-  if (type === 'monster' && captured.length === 0) { alert('先にモンスターを1体捕獲してください！'); return; }
+  const prefix = type === 'monster' ? 'mon' : type;
+  const isExt = document.getElementById(`${prefix}-ext`).checked;
+  const cost = isExt ? 250 : 200;
+  if (gem < cost) { alert(`ジェムが足りません(${cost}💎必要)`); return; }
+
+  const promptInput = document.getElementById(`ai-${prefix}-prompt`).value;
+  if (!promptInput) { alert('プロンプトを入力してください'); return; }
+
+  let spName = '';
+  let stampText = '';
+  if (type === 'monster') {
+    spName = document.getElementById('ai-species-sel').value;
+    if (!spName) { alert('先にモンスターを1体捕獲してください！'); return; }
+  } else if (type === 'stamp') {
+    spName = document.getElementById('stamp-species-sel').value;
+    stampText = document.getElementById('stamp-text').value;
+  }
+
   const statusEl = document.getElementById('ai-status');
   statusEl.textContent = '🎨 AIがあなた専用のイラストを描画中...（約10秒）';
-  gem -= 20; updateUI();
+  gem -= cost; updateUI();
+
   try {
-    const res = await fetch('/api/ai-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: promptInput, type }) });
+    const finalPrompt = spName ? `${spName} (${promptInput})` : promptInput;
+    const res = await fetch('/api/ai-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: finalPrompt, type, stampText }) });
     const data = await res.json();
     if (data.image) {
       if (type === 'monster') {
-        const targetIdx = parseInt(document.getElementById('ai-target-mon').value);
-        captured[targetIdx].aiImg = data.image; iconConfig.charIdx = targetIdx;
-        renderCaptured(); renderCafe();
-      } else {
+        speciesSkins[spName].list.push(data.image);
+        speciesSkins[spName].activeIdx = speciesSkins[spName].list.length - 1;
+        iconConfig.species = spName;
+        renderSpeciesGallery(); renderCaptured(); renderCafe();
+      } else if (type === 'bg') {
         aiBackgrounds.push({ name: promptInput.slice(0, 8), img: data.image });
         iconConfig.bgIdx = aiBackgrounds.length - 1;
+      } else if (type === 'stamp') {
+        aiStamps.push({ text: stampText || 'スタンプ', img: data.image });
+        renderStamps();
       }
       updateSelectOptions(); updateIconPreview();
       statusEl.textContent = '✨ あなた専用のAIデザインが完成しました！';
     } else { statusEl.textContent = 'エラー: ' + (data.error || '生成失敗'); }
   } catch (e) { statusEl.textContent = '通信エラーが発生しました'; }
 }
+
+function renderStamps() {
+  const html = aiStamps.map((s, i) => `<div class="slot-box" onclick="sendStampChat(${i})"><div class="lvl">スタンプ</div><div class="icon">${renderSprite(s.img, 48)}</div><div class="name">${s.text}</div></div>`).join('');
+  document.getElementById('stamp-gallery').innerHTML = html;
+  document.getElementById('chat-stamp-bar').innerHTML = html || '<p style="grid-column:span 3;font-size:11px;color:#78909c;">AIアトリエでスタンプを作るとここに並びます</p>';
+}
+
 function updateSelectOptions() {
-  const charSel = document.getElementById('icon-char-sel');
-  const aiTarget = document.getElementById('ai-target-mon');
-  const opts = captured.map((m, i) => `<option value="${i}">#${i+1} ${m.name} ${m.aiImg ? '(AI着せ替え済)' : ''}</option>`).join('');
-  charSel.innerHTML = `<option value="-1">デフォルト(🐬)</option>` + opts;
-  aiTarget.innerHTML = opts || `<option value="-1">モンスター未捕獲</option>`;
-  const bgSel = document.getElementById('icon-bg-sel');
-  bgSel.innerHTML = `<option value="-1">デフォルト(水色グラデ)</option>` + aiBackgrounds.map((b, i) => `<option value="${i}">AI背景: ${b.name}</option>`).join('');
+  const names = Object.keys(speciesSkins);
+  const spOpts = names.map(n => `<option value="${n}">${speciesSkins[n].defaultIcon} ${n}</option>`).join('');
+  document.getElementById('ai-species-sel').innerHTML = spOpts || '<option value="">未捕獲</option>';
+  document.getElementById('stamp-species-sel').innerHTML = '<option value="🐬 イルカ">🐬 イルカ(相棒)</option>' + spOpts;
+  document.getElementById('icon-char-sel').innerHTML = '<option value="デフォルト">🐬 デフォルト</option>' + spOpts;
+  document.getElementById('icon-bg-sel').innerHTML = '<option value="-1">デフォルト(水色グラデ)</option>' + aiBackgrounds.map((b, i) => `<option value="${i}">AI背景: ${b.name}</option>`).join('');
 }
 
 function updateIconPreview() {
-  iconConfig.charIdx = parseInt(document.getElementById('icon-char-sel').value);
+  iconConfig.species = document.getElementById('icon-char-sel').value;
   iconConfig.bgIdx = parseInt(document.getElementById('icon-bg-sel').value);
   iconConfig.scale = parseFloat(document.getElementById('icon-scale').value);
   iconConfig.x = parseInt(document.getElementById('icon-x').value);
   iconConfig.y = parseInt(document.getElementById('icon-y').value);
   iconConfig.rotate = parseInt(document.getElementById('icon-rot').value);
-  const preview = document.getElementById('icon-preview-box');
-  const charLayer = document.getElementById('icon-char-layer');
+  const preview = document.getElementById('icon-preview-box'), charLayer = document.getElementById('icon-char-layer');
   preview.style.backgroundImage = (iconConfig.bgIdx >= 0 && aiBackgrounds[iconConfig.bgIdx]) ? `url(${aiBackgrounds[iconConfig.bgIdx].img})` : 'linear-gradient(135deg, #4fc3f7, #0288d1)';
-  const mon = iconConfig.charIdx >= 0 ? captured[iconConfig.charIdx] : null;
-  charLayer.innerHTML = mon ? (mon.aiImg ? `<img src="${mon.aiImg}" style="width:70px;height:70px;border-radius:12px;">` : `<span style="font-size:52px;">${mon.icon}</span>`) : `<span style="font-size:52px;">🐬</span>`;
+  const sp = speciesSkins[iconConfig.species];
+  const disp = sp ? getSpeciesDisplay(iconConfig.species, sp.defaultIcon) : '🐬';
+  charLayer.innerHTML = disp.startsWith('data:image') ? renderSprite(disp, 72, '12px') : `<span style="font-size:52px;">${disp}</span>`;
   charLayer.style.transform = `translate(${iconConfig.x}px, ${iconConfig.y}px) scale(${iconConfig.scale}) rotate(${iconConfig.rotate}deg)`;
   const mini = document.getElementById('hud-my-icon');
   mini.style.backgroundImage = preview.style.backgroundImage;
-  mini.innerHTML = mon ? (mon.aiImg ? `<img src="${mon.aiImg}" style="width:24px;height:24px;border-radius:50%;">` : mon.icon) : '🐬';
+  mini.innerHTML = disp.startsWith('data:image') ? renderSprite(disp, 24, '50%') : disp;
 }
 
 function damageEnemy(dmg) {
@@ -157,26 +249,28 @@ function switchTab(tabName, btn) {
   document.getElementById('tab-' + tabName).classList.add('active'); btn.classList.add('active');
   if (tabName === 'rank') loadRanking();
   if (tabName === 'cafe') renderCafe();
-  if (tabName === 'chat') loadChat();
+  if (tabName === 'chat') { loadChat(); renderStamps(); }
 }
 
-async function sendChat() {
+async function sendChat(stampImg = null) {
   const name = document.getElementById('chat-name').value || 'ハンター';
-  const msg = document.getElementById('chat-input').value;
+  const msg = stampImg ? `[STAMP]${stampImg}` : document.getElementById('chat-input').value;
   if (!msg) return;
-  document.getElementById('chat-input').value = '';
-  const mon = iconConfig.charIdx >= 0 ? captured[iconConfig.charIdx] : null;
-  const iconData = JSON.stringify({ emoji: mon ? mon.icon : '🐬', rotate: iconConfig.rotate });
+  if (!stampImg) document.getElementById('chat-input').value = '';
+  const sp = speciesSkins[iconConfig.species];
+  const iconData = JSON.stringify({ emoji: sp ? sp.defaultIcon : '🐬', rotate: iconConfig.rotate });
   await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, icon_json: iconData, message: msg }) });
   loadChat();
 }
+function sendStampChat(idx) { if (aiStamps[idx]) sendChat(aiStamps[idx].img); }
 
 async function loadChat() {
   try {
     const res = await fetch('/api/chat'); const data = await res.json();
     document.getElementById('chat-list').innerHTML = data.map(c => {
       const ic = JSON.parse(c.icon_json || '{"emoji":"🐬","rotate":0}');
-      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee;"><div style="width:32px;height:32px;border-radius:50%;background:#e1f5fe;display:flex;align-items:center;justify-content:center;font-size:18px;transform:rotate(${ic.rotate}deg);">${ic.emoji}</div><div><div style="font-size:11px;font-weight:bold;color:#0277bd;">${c.name}</div><div style="font-size:13px;">${c.message}</div></div></div>`;
+      const content = c.message.startsWith('[STAMP]') ? renderSprite(c.message.replace('[STAMP]', ''), 72, '10px') : c.message;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee;"><div style="width:32px;height:32px;border-radius:50%;background:#e1f5fe;display:flex;align-items:center;justify-content:center;font-size:18px;transform:rotate(${ic.rotate}deg);">${ic.emoji}</div><div><div style="font-size:11px;font-weight:bold;color:#0277bd;">${c.name}</div><div style="font-size:13px;">${content}</div></div></div>`;
     }).join('');
   } catch (e) {}
 }
@@ -192,4 +286,4 @@ async function loadRanking() {
     document.getElementById('ranking-list').innerHTML = data.map((r, i) => `<li style="padding:6px 0; border-bottom:1px solid #e0f2f1;">${i+1}位: <b>${r.name}</b> - ${r.score.toLocaleString()} G</li>`).join('');
   } catch (e) {}
 }
-renderCafe(); updateSelectOptions(); updateUI();
+renderCafe(); updateSelectOptions(); renderSpeciesGallery(); renderStamps(); updateUI();
