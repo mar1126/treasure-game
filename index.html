@@ -14,7 +14,7 @@
     .mode-btn { background: #ff7043; color: white; border: 2px solid #fff; padding: 4px 12px; border-radius: 15px; font-weight: bold; font-size: 12px; cursor: pointer; }
     .units-row { display: flex; justify-content: space-around; align-items: center; margin: 2px 0; }
     .unit { text-align: center; width: 92px; background: rgba(255,255,255,0.2); border-radius: 10px; padding: 4px; border: 1px solid rgba(255,255,255,0.4); }
-    .enemy-unit { text-align: center; width: 110px; }
+    .enemy-unit { text-align: center; width: 125px; }
     .unit-sprite { font-size: 32px; height: 38px; display: flex; align-items: center; justify-content: center; transition: transform 0.1s; }
     .unit:active .unit-sprite { transform: scale(1.25); }
     .hp-text { font-size: 10px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
@@ -22,13 +22,14 @@
     .hp-fill { background: #ff7043; height: 100%; width: 100%; transition: width 0.15s; }
     .capture-btn { position: absolute; bottom: 8px; right: 10px; background: #ffd54f; color: #3e2723; border: 2px solid #fff; padding: 4px 10px; border-radius: 14px; font-size: 11px; font-weight: bold; cursor: pointer; z-index: 2; }
     .capture-msg { position: absolute; top: 45px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #ffd54f; padding: 5px 14px; border-radius: 12px; font-size: 12px; font-weight: bold; display: none; white-space: nowrap; z-index: 10; }
-    .status-bar { background: #ffffff; border-bottom: 1px solid #d0e8f2; padding: 7px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: bold; }
-    .profile-mini { display: flex; align-items: center; gap: 6px; }
-    .mini-avatar { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 2px solid #ff7043; overflow: hidden; }
-    .save-badge { font-size: 10px; color: #00897b; background: #e0f2f1; padding: 2px 6px; border-radius: 8px; }
-    .currency { display: flex; gap: 6px; }
-    .gold-box { background: #fff8e7; border: 1px solid #ffe082; padding: 3px 8px; border-radius: 12px; color: #d98200; }
-    .gem-box { background: #e1f5fe; border: 1px solid #81d4fa; padding: 3px 8px; border-radius: 12px; color: #0277bd; }
+    .status-bar { background: #ffffff; border-bottom: 1px solid #d0e8f2; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: bold; gap: 4px; }
+    .profile-mini { display: flex; align-items: center; gap: 5px; min-width: 0; }
+    .mini-avatar { width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; display: flex; align-items: center; justify-content: center; font-size: 15px; border: 2px solid #ff7043; overflow: hidden; }
+    .save-badge { font-size: 9px; color: #00897b; background: #e0f2f1; padding: 2px 5px; border-radius: 8px; white-space: nowrap; }
+    .currency { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+    .stamina-box { background: #e8f5e9; border: 1px solid #a5d6a7; padding: 3px 6px; border-radius: 12px; color: #2e7d32; white-space: nowrap; }
+    .gold-box { background: #fff8e7; border: 1px solid #ffe082; padding: 3px 6px; border-radius: 12px; color: #d98200; white-space: nowrap; }
+    .gem-box { background: #e1f5fe; border: 1px solid #81d4fa; padding: 3px 6px; border-radius: 12px; color: #0277bd; white-space: nowrap; }
     .main-content { flex: 1; overflow-y: auto; padding: 12px; padding-bottom: 85px; }
     .tab-pane { display: none; }
     .tab-pane.active { display: block; }
@@ -68,185 +69,240 @@
     #icon-preview-box { width: 120px; height: 120px; border-radius: 16px; border: 4px solid #ff7043; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; background-position: center; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
     .slider-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin: 6px 0; }
     .slider-row input { width: 65%; }
-    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: #ffffff; border-top: 1px solid #d0e8f2; display: grid; grid-template-columns: repeat(5, 1fr); }
-    .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #78909c; border: none; background: none; cursor: pointer; }
-    .nav-item.active { color: #ff7043; font-weight: bold; background: #fff5f2; border-top: 3px solid #ff7043; }
-    .nav-icon { font-size: 19px; margin-bottom: 2px; }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: #ffffff; border-top: 1px solid #d0e8f2; display: flex; justify-content: space-around; align-items: center; z-index: 100; }
+    .nav-item { background: none; border: none; color: #78909c; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; flex: 1; }
+    .nav-item.active { color: #ff7043; }
+    .nav-icon { font-size: 20px; }
+    .chat-box { height: 220px; overflow-y: auto; background: #f8fdff; border: 1px solid #dceef5; border-radius: 10px; padding: 8px; margin-bottom: 8px; font-size: 12px; }
+    .chat-msg { margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #eceff1; }
   </style>
 </head>
 <body>
   <div class="battle-area" id="battle-bg" onclick="tapAttack()">
     <div class="battle-header">
-      <span class="area-badge" id="floor-text">🌊 海域 1-1</span>
-      <span style="font-size:11px;opacity:0.9;">🍰+<span id="cafe-income-hud">0</span>G/秒</span>
+      <div class="area-badge" id="floor-text">🌊 海域 1-1</div>
+      <div>🍰 +<span id="cafe-income-hud">0</span>G/秒</div>
       <button class="mode-btn" id="mode-switch-btn" onclick="toggleMode(event)">🌲 陸へ行く</button>
     </div>
-    <div class="capture-msg" id="capture-msg">✨ モンスターを捕獲した！</div>
+
+    <div class="capture-msg" id="capture-msg"></div>
+
     <div class="units-row">
       <div class="enemy-unit">
         <div class="hp-text"><span id="enemy-name">オクトパス</span> (<span id="enemy-hp-text">100</span>)</div>
         <div class="bar-bg"><div class="hp-fill" id="enemy-hp-bar"></div></div>
-        <div class="unit-sprite" id="enemy-sprite" style="font-size:42px;height:46px;">🐙</div>
+        <div class="unit-sprite" id="enemy-sprite" style="font-size:44px;height:48px;margin-top:4px;">🐙</div>
       </div>
     </div>
-    <div class="units-row" style="padding-right: 95px;">
-      <div class="unit" id="ally-slot-0"><div class="unit-sprite">⛵</div><div class="hp-text">空き枠</div></div>
-      <div class="unit" id="ally-slot-1"><div class="unit-sprite">⬜</div><div class="hp-text">空き枠</div></div>
-      <div class="unit" id="ally-slot-2"><div class="unit-sprite">⬜</div><div class="hp-text">空き枠</div></div>
+
+    <div class="units-row" style="justify-content:flex-start; gap:8px; padding-right:85px;">
+      <div class="unit" id="ally-slot-0">
+        <div class="unit-sprite">⛵</div>
+        <div class="hp-text">船 ATK:10</div>
+      </div>
+      <div class="unit" id="ally-slot-1">
+        <div class="unit-sprite">⬜</div>
+        <div class="hp-text">空き枠</div>
+      </div>
+      <div class="unit" id="ally-slot-2">
+        <div class="unit-sprite">⬜</div>
+        <div class="hp-text">空き枠</div>
+      </div>
     </div>
+
     <button class="capture-btn" onclick="tryCapture(event)">🕸️ 捕獲 (20G)</button>
   </div>
 
   <div class="status-bar">
     <div class="profile-mini">
       <div class="mini-avatar" id="hud-my-icon">🐬</div>
-      <span id="hud-name">ハンター</span>
-      <span class="save-badge" id="save-indicator">☁️ 自動保存済</span>
+      <div>
+        <div id="hud-name" style="font-size:11px;">ハンター</div>
+        <div class="save-badge" id="save-indicator">☁️ 自動保存済</div>
+      </div>
     </div>
     <div class="currency">
+      <div class="stamina-box">⚡ <span id="stamina-disp">30</span>/30 <span id="stamina-timer" style="font-size:9px;">MAX</span></div>
       <div class="gold-box">🪙 <span id="gold">200</span> G</div>
-      <div class="gem-box">💎 <span id="gem">1000</span></div>
+      <div class="gem-box">💎 <span id="gem">1,000</span></div>
     </div>
   </div>
 
   <div class="main-content">
-    <div id="tab-ship" class="tab-pane active">
+    <!-- タブ1: 船・育成 -->
+    <div class="tab-pane active" id="tab-ship">
       <div class="card">
-        <div class="card-title"><span>⚔️ バトルパーティ編成 (3枠)</span><span>総攻撃力: <span id="power-disp">10</span></span></div>
-        <div class="grid-3" id="party-slots"></div>
-        <div style="margin-top: 10px;">
-          <button class="btn-coral" onclick="upgradeUnit()">探索船を改造・全体強化 Lv.<span id="ally-lv">1</span>（費用: <span id="up-cost">50</span> G）</button>
+        <div class="card-title">
+          <span>⚔️ バトルパーティ編成 (3枠)</span>
+          <span>総攻撃力: <span id="power-disp">10</span></span>
         </div>
+        <div class="grid-3" id="party-slots" style="margin-bottom:10px;">
+          <div class="slot-box"><div class="lvl">枠1</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>
+          <div class="slot-box"><div class="lvl">枠2</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>
+          <div class="slot-box"><div class="lvl">枠3</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>
+        </div>
+        <button class="btn-coral" onclick="upgradeUnit()">
+          探索船を改造・全体強化 Lv.<span id="ally-lv">1</span>（費用: <span id="up-cost">50</span> G）
+        </button>
       </div>
+
       <div class="card">
-        <div class="card-title"><span>🐾 捕獲モンスター一覧</span><span>タップで詳細・スキル確認</span></div>
-        <div class="grid-3" id="captured-list"><p style="grid-column: span 3; font-size: 12px; color: #78909c; text-align: center;">上の「🕸️ 捕獲」で仲間にしてみよう！</p></div>
+        <div class="card-title">
+          <span>🐾 捕獲モンスター一覧</span>
+          <span style="font-size:11px;color:#546e7a;">タップで詳細・スキル確認</span>
+        </div>
+        <div class="grid-3" id="captured-list">
+          <p style="grid-column:span 3;font-size:12px;color:#78909c;text-align:center;padding:12px 0;">
+            上の「🕸️ 捕獲」で仲間にしてみよう！
+          </p>
+        </div>
       </div>
     </div>
 
-    <div id="tab-cafe" class="tab-pane">
+    <!-- タブ2: カフェ箱庭 -->
+    <div class="tab-pane" id="tab-cafe">
       <div class="card">
-        <div class="card-title"><span>🍰 海辺のカフェ経営 (Lv.<span id="cafe-lv">1</span>)</span><span>売上: +<span id="cafe-rate">0</span> G/秒</span></div>
-        <div class="grid-3" id="staff-slots"></div>
-        <div style="margin-top: 10px;"><button class="btn-coral" onclick="upgradeCafe()">カフェ店舗を拡張（費用: <span id="cafe-cost">80</span> G）</button></div>
-      </div>
-      <div class="card">
-        <div class="card-title"><span>🏝️ リゾート箱庭</span><span>魅力ボーナス: +<span id="garden-bonus">0</span>%</span></div>
+        <div class="card-title">
+          <span>🍰 リゾートカフェ経営 Lv.<span id="cafe-lv">1</span></span>
+          <span>+<span id="cafe-rate">0</span> G/秒</span>
+        </div>
         <div class="garden-field" id="garden-grid"></div>
+        <div style="font-size:11px;color:#546e7a;margin-bottom:8px;">
+          店員配置（タップで外す / 家具ボーナス: +<span id="garden-bonus">0</span>%）
+        </div>
+        <div class="grid-3" id="staff-slots" style="margin-bottom:10px;"></div>
+        <button class="btn-coral" onclick="upgradeCafe()">
+          カフェ拡張アップグレード（費用: <span id="cafe-cost">80</span> G）
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span>🌴 ガーデン装飾ショップ（各+15%）</span></div>
         <div class="grid-3">
-          <button class="slot-box" onclick="buyDecor('🌴', 60)"><div class="icon">🌴</div><div class="name">ヤシの木 (60G)</div></button>
-          <button class="slot-box" onclick="buyDecor('⛲', 120)"><div class="icon">⛲</div><div class="name">噴水 (120G)</div></button>
-          <button class="slot-box" onclick="buyDecor('🌺', 90)"><div class="icon">🌺</div><div class="name">花壇 (90G)</div></button>
+          <div class="slot-box" onclick="buyDecor('🌴', 100)"><div class="icon">🌴</div><div class="name">ヤシの木</div><div class="sub">100 G</div></div>
+          <div class="slot-box" onclick="buyDecor('🌺', 250)"><div class="icon">🌺</div><div class="name">ハイビスカス</div><div class="sub">250 G</div></div>
+          <div class="slot-box" onclick="buyDecor('⛲', 600)"><div class="icon">⛲</div><div class="name">噴水</div><div class="sub">600 G</div></div>
         </div>
       </div>
     </div>
-    <div id="tab-ai" class="tab-pane">
+    <!-- タブ3: AIアトリエ -->
+    <div class="tab-pane" id="tab-ai">
       <div class="card">
+        <div class="card-title">
+          <span>🎨 AIアトリエ</span>
+          <span id="ai-status" style="font-size:11px;color:#ff7043;">準備OK</span>
+        </div>
         <div class="sub-tabs">
-          <button class="sub-tab-btn active" onclick="switchAiSub('costume', this)">👗 着せ替え</button>
+          <button class="sub-tab-btn active" onclick="switchAiSub('mon', this)">🐾 着せ替え</button>
           <button class="sub-tab-btn" onclick="switchAiSub('bg', this)">🖼️ 背景</button>
           <button class="sub-tab-btn" onclick="switchAiSub('stamp', this)">💬 スタンプ</button>
         </div>
-        <p id="ai-status" style="font-size: 12px; color: #ff7043; font-weight: bold; margin-bottom: 8px;"></p>
-        <div id="ai-sub-costume" class="ai-sub-pane active">
-          <label style="font-size:12px; font-weight:bold;">1. 着せ替えるモンスター種族を選択</label>
-          <select id="ai-species-sel" class="inp" onchange="renderSpeciesGallery()"></select>
-          <label style="font-size:12px; font-weight:bold;">2. 着せ替えデザイン選択（タップで切り替え）</label>
-          <div class="grid-3" id="species-skin-gallery" style="margin-bottom:10px;"></div>
-          <label style="font-size:12px; font-weight:bold;">3. 新しい着せ替えをAI作成</label>
-          <textarea id="ai-mon-prompt" class="inp" maxlength="200" placeholder="どんな姿にする？" oninput="updateCharCount('mon')"></textarea>
-          <div class="char-count"><span id="mon-count">0</span> / <span id="mon-max">200</span> 文字</div>
-          <label class="extend-box"><input type="checkbox" id="mon-ext" onchange="toggleExtend('mon')"> +50💎追加で500文字まで入力する</label>
-          <button class="btn-coral" onclick="generateAI('monster')">✨ この種族の着せ替えを生成 (<span id="mon-cost">200</span>💎)</button>
+
+        <!-- サブ1: モンスター着せ替え -->
+        <div class="ai-sub-pane active" id="ai-sub-mon">
+          <select class="inp" id="ai-species-sel" onchange="renderSpeciesGallery()"><option value="">未捕獲</option></select>
+          <textarea class="inp" id="ai-mon-prompt" maxlength="200" oninput="updateCharCount('mon')" placeholder="例：海賊の帽子をかぶったかっこいい姿、黄金の鎧など"></textarea>
+          <div class="char-count"><span id="mon-count">0</span> / <span id="mon-max">200</span>文字</div>
+          <label class="extend-box"><input type="checkbox" id="mon-ext" onchange="toggleExtend('mon')"> 長文プロンプト拡張（500文字 / 250💎）</label>
+          <button class="btn-coral" onclick="generateAI('monster')">✨ スキンを生成（<span id="mon-cost">200</span> 💎）</button>
+          <div class="grid-3" id="species-skin-gallery" style="margin-top:10px;"></div>
         </div>
-        <div id="ai-sub-bg" class="ai-sub-pane">
-          <label style="font-size:12px; font-weight:bold;">自分専用の背景プロンプト</label>
-          <textarea id="ai-bg-prompt" class="inp" maxlength="200" placeholder="どんな背景にする？" oninput="updateCharCount('bg')"></textarea>
-          <div class="char-count"><span id="bg-count">0</span> / <span id="bg-max">200</span> 文字</div>
-          <label class="extend-box"><input type="checkbox" id="bg-ext" onchange="toggleExtend('bg')"> +50💎追加で500文字まで入力する</label>
-          <button class="btn-blue" onclick="generateAI('bg')">🖼️ 専用AI背景を生成 (<span id="bg-cost">200</span>💎)</button>
+
+        <!-- サブ2: AI背景 -->
+        <div class="ai-sub-pane" id="ai-sub-bg">
+          <textarea class="inp" id="ai-bg-prompt" maxlength="200" oninput="updateCharCount('bg')" placeholder="例：夕焼けのトロピカルビーチ、神秘的な深海神殿"></textarea>
+          <div class="char-count"><span id="bg-count">0</span> / <span id="bg-max">200</span>文字</div>
+          <label class="extend-box"><input type="checkbox" id="bg-ext" onchange="toggleExtend('bg')"> 長文プロンプト拡張（500文字 / 250💎）</label>
+          <button class="btn-blue" onclick="generateAI('bg')">🖼️ アイコン背景を生成（<span id="bg-cost">200</span> 💎）</button>
         </div>
-        <div id="ai-sub-stamp" class="ai-sub-pane">
-          <label style="font-size:12px; font-weight:bold;">1. 元にする種族・着せ替え</label>
-          <select id="stamp-species-sel" class="inp"></select>
-          <label style="font-size:12px; font-weight:bold;">2. スタンプに入れる文字（20文字まで）</label>
-          <input type="text" id="stamp-text" class="inp" maxlength="20" placeholder="例：やったー！、おつかれさま！">
-          <label style="font-size:12px; font-weight:bold;">3. スタンプのポーズ・雰囲気プロンプト</label>
-          <textarea id="ai-stamp-prompt" class="inp" maxlength="200" placeholder="どんな表情やポーズにする？" oninput="updateCharCount('stamp')"></textarea>
-          <div class="char-count"><span id="stamp-count">0</span> / <span id="stamp-max">200</span> 文字</div>
-          <label class="extend-box"><input type="checkbox" id="stamp-ext" onchange="toggleExtend('stamp')"> +50💎追加で500文字まで入力する</label>
-          <button class="btn-coral" onclick="generateAI('stamp')">💬 オリジナルスタンプを生成 (<span id="stamp-cost">200</span>💎)</button>
+
+        <!-- サブ3: AIスタンプ -->
+        <div class="ai-sub-pane" id="ai-sub-stamp">
+          <select class="inp" id="stamp-species-sel"><option value="🐬 イルカ">🐬 イルカ(相棒)</option></select>
+          <input class="inp" id="stamp-text" maxlength="12" placeholder="スタンプ文字（例：よろしく！、やったー！）">
+          <textarea class="inp" id="ai-stamp-prompt" maxlength="200" oninput="updateCharCount('stamp')" placeholder="例：キラキラした笑顔で手を振るデフォルメイラスト"></textarea>
+          <div class="char-count"><span id="stamp-count">0</span> / <span id="stamp-max">200</span>文字</div>
+          <label class="extend-box"><input type="checkbox" id="stamp-ext" onchange="toggleExtend('stamp')"> 長文プロンプト拡張（500文字 / 250💎）</label>
+          <button class="btn-coral" onclick="generateAI('stamp')">💬 スタンプを生成（<span id="stamp-cost">200</span> 💎）</button>
           <div class="grid-3" id="stamp-gallery" style="margin-top:10px;"></div>
         </div>
       </div>
+    </div>
+
+    <!-- タブ4: チャット -->
+    <div class="tab-pane" id="tab-chat">
       <div class="card">
-        <div class="card-title"><span>🖼️ プロフィールアイコン自由編集</span><span>サイズ・位置・角度</span></div>
-        <div class="preview-wrap"><div id="icon-preview-box"><div id="icon-char-layer">🐬</div></div></div>
-        <select id="icon-char-sel" class="inp" onchange="updateIconPreview()"></select>
-        <select id="icon-bg-sel" class="inp" onchange="updateIconPreview()"></select>
-        <div class="slider-row"><span>サイズ</span><input type="range" id="icon-scale" min="0.5" max="2.0" step="0.1" value="1.0" oninput="updateIconPreview()"></div>
-        <div class="slider-row"><span>左右位置</span><input type="range" id="icon-x" min="-35" max="35" step="1" value="0" oninput="updateIconPreview()"></div>
-        <div class="slider-row"><span>上下位置</span><input type="range" id="icon-y" min="-35" max="35" step="1" value="0" oninput="updateIconPreview()"></div>
-        <div class="slider-row"><span>角度(回転)</span><input type="range" id="icon-rot" min="-180" max="180" step="5" value="0" oninput="updateIconPreview()"></div>
+        <div class="card-title">
+          <span>💬 みんなとチャット</span>
+          <button onclick="loadChat()" style="background:#e1f5fe;border:none;padding:3px 8px;border-radius:6px;font-size:11px;color:#0277bd;font-weight:bold;">🔄 更新</button>
+        </div>
+        <div class="chat-box" id="chat-messages">読み込み中...</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <input class="inp" id="chat-input" maxlength="100" placeholder="メッセージを入力（100文字まで）" style="margin-bottom:0;">
+          <button class="btn-blue" onclick="sendChat()" style="width:72px;">送信</button>
+        </div>
+        <div style="font-size:11px;color:#546e7a;margin-bottom:6px;">AIスタンプ送信（タップで即送信）</div>
+        <div class="grid-3" id="chat-stamp-bar"></div>
       </div>
     </div>
 
-    <div id="tab-chat" class="tab-pane">
+    <!-- タブ5: マイページ -->
+    <div class="tab-pane" id="tab-rank">
       <div class="card">
-        <div class="card-title">💬 冒険者全体チャット（スタンプ対応）</div>
-        <div style="display:flex; gap:6px; margin-bottom:8px;">
-          <input type="text" id="chat-input" class="inp" placeholder="メッセージを入力..." style="margin:0;">
-          <button class="btn-coral" style="width:75px;" onclick="sendChat()">送信</button>
-        </div>
-        <div style="font-size:11px; font-weight:bold; color:#0277bd; margin-bottom:4px;">作成したスタンプをタップして送信：</div>
-        <div class="grid-3" id="chat-stamp-bar" style="margin-bottom:8px;"></div>
-        <div id="chat-list" style="margin-top: 8px; max-height: 220px; overflow-y: auto;"></div>
-      </div>
-    </div>
+        <div class="card-title"><span>👤 プロフィール＆アイコン編集</span></div>
+        <div style="font-size:11px;color:#607d8b;margin-bottom:6px;">あなたのID: <b id="my-user-id">---</b></div>
+        <input class="inp" id="player-name" maxlength="12" value="ハンター" onchange="changePlayerName()" placeholder="プレイヤー名">
 
-    <div id="tab-rank" class="tab-pane">
-      <div class="card">
-        <div class="card-title"><span>👤 マイデータ＆自動クラウド保存</span><span style="font-size:11px;color:#00897b;">D1自動同期中</span></div>
-        <label style="font-size:11px;font-weight:bold;">ハンター名（変更すると自動保存）</label>
-        <input type="text" id="player-name" class="inp" placeholder="ハンター名を入力" onchange="changePlayerName()">
-        <div style="background:#f1f8e9;padding:8px;border-radius:8px;font-size:11px;margin-bottom:8px;">
-          <div>🔑 引き継ぎID：<b id="my-user-id" style="user-select:all;"></b></div>
-          <div style="color:#558b2f;margin-top:2px;">※操作のたびに全データが自動でD1に保存されます</div>
+        <div class="preview-wrap">
+          <div id="icon-preview-box"><div id="icon-char-layer">🐬</div></div>
         </div>
-        <div style="display:flex; gap:6px;">
-          <input type="text" id="import-id-input" class="inp" placeholder="別端末の引き継ぎIDを入力" style="margin:0;">
-          <button class="btn-blue" style="width:90px;" onclick="loadFromCloudById()">復元</button>
-        </div>
+
+        <select class="inp" id="icon-char-sel" onchange="updateIconPreview()"><option value="デフォルト">🐬 デフォルト</option></select>
+        <select class="inp" id="icon-bg-sel" onchange="updateIconPreview()"><option value="-1">デフォルト(水色グラデ)</option></select>
+
+        <div class="slider-row"><span>拡大率</span><input type="range" id="icon-scale" min="0.5" max="2.0" step="0.1" value="1.0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
+        <div class="slider-row"><span>横位置</span><input type="range" id="icon-x" min="-40" max="40" step="2" value="0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
+        <div class="slider-row"><span>縦位置</span><input type="range" id="icon-y" min="-40" max="40" step="2" value="0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
+        <div class="slider-row"><span>回転角度</span><input type="range" id="icon-rot" min="-180" max="180" step="5" value="0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
       </div>
+
       <div class="card">
-        <div class="card-title">🏆 ハンター資産ランキング</div>
-        <button class="btn-coral" onclick="submitRanking()">ランキングに現在のスコアを登録</button>
-        <p id="save-msg" style="font-size: 12px; color: #0277bd; margin-top: 6px;"></p>
-        <ul id="ranking-list" style="list-style: none; margin-top: 10px; font-size: 13px;"></ul>
+        <div class="card-title"><span>🏆 ランキング</span></div>
+        <div id="ranking-list" style="font-size:12px;">読み込み中...</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span>☁️ データ引き継ぎ（ID復元）</span></div>
+        <div style="display:flex;gap:6px;">
+          <input class="inp" id="import-id-input" placeholder="引き継ぎIDを入力" style="margin-bottom:0;">
+          <button class="btn-gray" onclick="loadFromCloudById()" style="width:80px;">復元</button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- モンスターステータス・スキル・特性詳細モーダル -->
+  <!-- モンスター詳細モーダル -->
   <div class="modal-overlay" id="mon-modal" onclick="closeMonModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
-      <div style="text-align:center;">
-        <div id="modal-mon-sprite" style="font-size:48px; margin-bottom:4px;"></div>
-        <div style="font-weight:bold; font-size:16px;" id="modal-mon-name"></div>
-        <div style="font-size:11px; color:#ff7043; font-weight:bold;" id="modal-mon-rarity"></div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div id="modal-mon-sprite" style="font-size:48px;"></div>
+        <div>
+          <div id="modal-mon-name" style="font-size:16px;font-weight:bold;"></div>
+          <div id="modal-mon-rarity" style="font-size:11px;color:#ff7043;font-weight:bold;"></div>
+        </div>
       </div>
       <table class="stat-table">
-        <tr><td>レベル</td><td id="modal-mon-lv">Lv.1</td></tr>
-        <tr><td>基礎攻撃力</td><td id="modal-mon-atk">10</td></tr>
-        <tr><td>得意地形</td><td id="modal-mon-terrain">🌊 海</td></tr>
-        <tr><td>スキル</td><td id="modal-mon-skill"></td></tr>
-        <tr><td>特性</td><td id="modal-mon-trait"></td></tr>
+        <tr><td>レベル</td><td id="modal-mon-lv"></td></tr>
+        <tr><td>攻撃力</td><td id="modal-mon-atk"></td></tr>
+        <tr><td>得意地形</td><td id="modal-mon-terrain"></td></tr>
+        <tr><td>固有スキル</td><td id="modal-mon-skill"></td></tr>
+        <tr><td>個体特性</td><td id="modal-mon-trait"></td></tr>
       </table>
-      <div style="display:grid; gap:6px;">
-        <button class="btn-coral" id="modal-party-btn" onclick="togglePartyFromModal()">⚔️ バトルパーティに編成する</button>
-        <button class="btn-blue" id="modal-lvup-btn" onclick="levelUpMonFromModal()">⬆️ モンスターを強化する</button>
-        <button class="btn-coral" style="background:#ffb300;" onclick="assignStaffFromModal()">🍰 カフェ店員に配属する</button>
-        <button class="btn-gray" onclick="closeMonModal()">閉じる</button>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button class="btn-coral" id="modal-party-btn" onclick="togglePartyFromModal()"></button>
+        <button class="btn-blue" id="modal-lvup-btn" onclick="levelUpMonFromModal()"></button>
+        <button class="btn-gray" onclick="assignStaffFromModal()">🍰 カフェ店員に配属する</button>
+        <button class="btn-gray" style="background:#cfd8dc;color:#37474f;" onclick="closeMonModal()">閉じる</button>
       </div>
     </div>
   </div>
@@ -261,5 +317,6 @@
   <script src="/skills.js"></script>
   <script src="/game.js"></script>
   <script src="/social.js"></script>
+  <script>initCloudLoad();</script>
 </body>
 </html>
