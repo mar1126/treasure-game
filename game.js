@@ -435,6 +435,103 @@ setInterval(() => {
 
       triggerMotion(`ally-slot-${i}`, 'atk-motion');
       triggerMotion('enemy-unit-box', 'hit-motion');
+function toggleMode(e) {
+  e.stopPropagation(); mode = mode === 'sea' ? 'land' : 'sea';
+  const bg = document.getElementById('battle-bg'), btn = document.getElementById('mode-switch-btn');
+  if (mode === 'land') { bg.classList.add('land-mode'); btn.textContent = '🌊 海へ戻る'; } else { bg.classList.remove('land-mode'); btn.textContent = '🌲 陸へ行く'; }
+  if (!state[mode].inBattle) resetBattleAllies();
+  updateUI(); triggerAutoSave();
+}
+function showToast(text) {
+  const el = document.getElementById('capture-msg');
+  if (!el) return;
+  el.textContent = text; el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 1800);
+}
+
+function startBattle(e) {
+  if (e) e.stopPropagation();
+  const cur = state[mode];
+  if (cur.inBattle) return;
+
+  syncStamina();
+  if (stamina < 1) {
+    showToast('⚡ スタミナ不足！（1分で1回復）');
+    updateUI();
+    return;
+  }
+
+  if (stamina === MAX_STAMINA) staminaUpdatedAt = Date.now();
+  stamina -= 1;
+  resetBattleAllies();
+  cur.hp = cur.maxHp;
+  cur.enemyCt = 0;
+  cur.shipCt = 0;
+  cur.inBattle = true;
+  triggerAutoSave();
+  updateUI();
+}
+
+function handleEnemyDefeat(cur, eStats) {
+  const goldTraitCount = party.map(id => captured.find(x => x.id === id)).filter(m => m && m.traitId === 'gold_up').length;
+  const rewardGold = Math.floor(cur.area * 25 * (1 + goldTraitCount * 0.3));
+  gold += rewardGold;
+
+  const recruited = tryAutoRecruit(eStats, cur.area);
+  if (!recruited) showToast(`🎉 討伐完了！+${rewardGold}G`);
+
+  cur.wave++; cur.idx++;
+  if (cur.wave > 5) { cur.wave = 1; cur.area++; }
+  cur.maxHp = Math.floor((mode === 'sea' ? 100 : 120) * Math.pow(1.3, cur.area - 1));
+  cur.hp = cur.maxHp;
+  cur.enemyCt = 0;
+  cur.shipCt = 0;
+  cur.inBattle = false;
+  resetBattleAllies();
+  triggerAutoSave();
+  updateUI();
+}
+
+let tickCount = 0;
+setInterval(() => {
+  tickCount++;
+  if (tickCount % 5 === 0) gold += getCafeIncome();
+
+  const cur = state[mode];
+  if (!cur.inBattle) {
+    if (tickCount % 5 === 0) updateUI();
+    return;
+  }
+
+  const dt = 0.2;
+  if (!battleAllies || battleAllies.every(u => !u)) {
+    resetBattleAllies();
+  }
+  const eStats = getEnemyStats();
+
+  for (let i = 0; i < 3; i++) {
+    const u = battleAllies.slice(i, i + 1).pop();
+    if (!u || u.hp <= 0) continue;
+    u.ct = (u.ct || 0) + dt;
+    if (u.ct >= (u.maxCt || 2.0)) {
+      u.ct = 0;
+      let rawAtk = u.atk || 10;
+      let isCrit = false;
+
+      if (u.monRef && typeof getMonsterSkill === 'function') {
+        const sk = getMonsterSkill(u.name);
+        const bonusRate = u.monRef.traitId === 'crit_master' ? 0.1 : 0;
+        if (Math.random() < (sk.rate + bonusRate)) {
+          rawAtk = Math.floor(rawAtk * sk.mult);
+          isCrit = true;
+        }
+      }
+
+      const dmg = Math.max(1, rawAtk - Math.floor(eStats.def / 2));
+      cur.hp -= dmg;
+
+      triggerMotion(`ally-slot-${i}`, 'atk-motion');
+      triggerMotion('enemy-unit-box', 'hit-motion');
       showDamagePopup('enemy-unit-box', isCrit ? `💥-${dmg}` : `-${dmg}`, isCrit ? 'crit' : '');
 
       if (cur.hp <= 0) {
@@ -451,7 +548,7 @@ setInterval(() => {
   cur.enemyCt = (cur.enemyCt || 0) + dt;
   if (cur.enemyCt >= eStats.ct) {
     cur.enemyCt = 0;
-    const aliveIndices = [0, 1, 2].filter(idx => {
+    const aliveIndices = Array.of(0, 1, 2).filter(idx => {
       const unit = battleAllies.slice(idx, idx + 1).pop();
       return unit && unit.hp > 0;
     });
@@ -466,7 +563,7 @@ setInterval(() => {
       triggerMotion(`ally-slot-${targetIdx}`, 'hit-motion');
       showDamagePopup(`ally-slot-${targetIdx}`, `-${dmg}`, 'ally-dmg');
 
-      const stillAlive = [0, 1, 2].some(idx => {
+      const stillAlive = Array.of(0, 1, 2).some(idx => {
         const unit = battleAllies.slice(idx, idx + 1).pop();
         return unit && unit.hp > 0;
       });
