@@ -1,4 +1,4 @@
-// パーティ編成・モンスター育成・スカウトシステム (party.js)
+// パーティ編成・モンスター育成・スカウト・見た目選択システム (party.js)
 function ensureStarterMonster() {
   if (!Array.isArray(captured)) captured = [];
   if (captured.length === 0) {
@@ -13,13 +13,21 @@ function ensureStarterMonster() {
       atk: 16,
       def: 5,
       ct: 1.7,
-      traitId: 'land_lord'
+      traitId: 'land_lord',
+      customSkin: null,
+      customBgIdx: -1
     };
     captured.push(starter);
     if (!speciesSkins['フォックス']) {
       speciesSkins['フォックス'] = { list: [], activeIdx: -1, defaultIcon: '🦊' };
     }
   }
+}
+
+function getMonsterVisual(m) {
+  if (!m) return '🐾';
+  if (m.customSkin) return m.customSkin;
+  return getSpeciesDisplay(m.name, m.icon);
 }
 
 function getMonStats(m) {
@@ -83,7 +91,9 @@ function tryAutoRecruit(baseMon, curArea) {
     atk: Math.floor((7 + curArea * 3) * mult),
     def: Math.floor((3 + curArea * 1.5) * mult),
     ct: Number(baseMon.ct) || 2.1,
-    traitId: trait.id
+    traitId: trait.id,
+    customSkin: null,
+    customBgIdx: -1
   };
   captured.push(newMon);
   if (!speciesSkins[baseMon.name]) speciesSkins[baseMon.name] = { list: [], activeIdx: -1, defaultIcon: baseMon.icon };
@@ -101,7 +111,7 @@ function renderParty() {
   el.innerHTML = party.slice(0, 3).map((monId, slotIdx) => {
     const m = captured.find(x => x.id === monId);
     if (!m) return `<div class="slot-box"><div class="lvl">枠${slotIdx + 1}</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>`;
-    const disp = getSpeciesDisplay(m.name, m.icon), idx = captured.findIndex(x => x.id === monId), st = getMonStats(m);
+    const disp = getMonsterVisual(m), idx = captured.findIndex(x => x.id === monId), st = getMonStats(m);
     return `<div class="slot-box ${m.type}" onclick="openMonModal(${idx})"><div class="lvl"><span>[${m.rarity}] Lv.${m.lv}</span><span>CT:${st.ct}s</span></div><div class="icon">${renderSprite(disp, 36)}</div><div class="name">${m.name}</div><div class="sub">HP:${st.maxHp} ATK:${st.atk}</div></div>`;
   }).join('');
 }
@@ -110,7 +120,7 @@ function renderCaptured() {
   const el = document.getElementById('captured-list');
   if (!el || captured.length === 0) return;
   el.innerHTML = captured.map((m, i) => {
-    const disp = getSpeciesDisplay(m.name, m.icon), inParty = party.includes(m.id);
+    const disp = getMonsterVisual(m), inParty = party.includes(m.id);
     return `<div class="slot-box ${m.type}" onclick="openMonModal(${i})"><div class="lvl"><span>[${m.rarity}] Lv.${m.lv}</span>${inParty ? '<span class="badge-tag">編成中</span>' : ''}</div><div class="icon">${renderSprite(disp, 36)}</div><div class="name">${m.name}</div><div class="sub">ATK:${m.atk} DEF:${m.def || 4}</div></div>`;
   }).join('');
 }
@@ -118,7 +128,7 @@ function renderCaptured() {
 function openMonModal(idx) {
   selectedMonIdx = idx;
   const m = captured.slice(idx, idx + 1).pop(); if (!m) return;
-  const disp = getSpeciesDisplay(m.name, m.icon), sk = getMonsterSkill(m.name), tr = getMonsterTrait(m.traitId), st = getMonStats(m);
+  const disp = getMonsterVisual(m), sk = getMonsterSkill(m.name), tr = getMonsterTrait(m.traitId), st = getMonStats(m);
   document.getElementById('modal-mon-sprite').innerHTML = renderSprite(disp, 64, '12px');
   document.getElementById('modal-mon-name').textContent = m.name;
   document.getElementById('modal-mon-rarity').textContent = `レア度: ${m.rarity} / ${m.type === 'sea' ? '🌊 海洋族' : '🌲 陸上族'}`;
@@ -159,4 +169,146 @@ function levelUpMonFromModal() {
   m.def = (m.def || 4) + Math.floor(2 + m.lv * 0.8);
   if (!state[mode].inBattle) resetBattleAllies();
   renderParty(); renderCaptured(); updateUI(); triggerAutoSave(); openMonModal(selectedMonIdx);
+}
+// 「〇〇の画像」見た目カスタマイズ選択モーダル用ロジック
+let skinPickerState = { monIdx: -1, selectedSkinIdx: -1, selectedBgIdx: -1, individualOnly: false };
+
+function openSkinPickerModal() {
+  const m = captured.slice(selectedMonIdx, selectedMonIdx + 1).pop();
+  if (!m) return;
+  if (!speciesSkins[m.name]) {
+    speciesSkins[m.name] = { list: [], activeIdx: -1, defaultIcon: m.icon };
+  }
+  const spData = speciesSkins[m.name];
+  let initialSkinIdx = spData.activeIdx;
+  if (m.customSkin) {
+    const foundIdx = spData.list.indexOf(m.customSkin);
+    if (foundIdx !== -1) initialSkinIdx = foundIdx;
+  }
+
+  skinPickerState = {
+    monIdx: selectedMonIdx,
+    selectedSkinIdx: initialSkinIdx,
+    selectedBgIdx: (typeof m.customBgIdx === 'number') ? m.customBgIdx : (spData.activeBgIdx ?? -1),
+    individualOnly: Boolean(m.customSkin)
+  };
+
+  document.getElementById('skin-picker-title').textContent = `${m.name}の画像`;
+  const chk = document.getElementById('skin-individual-chk');
+  if (chk) chk.checked = skinPickerState.individualOnly;
+
+  renderSkinPickerOptions();
+  document.getElementById('skin-picker-modal').style.display = 'flex';
+}
+
+function closeSkinPickerModal() {
+  document.getElementById('skin-picker-modal').style.display = 'none';
+}
+
+function selectPickerSkin(idx) {
+  skinPickerState.selectedSkinIdx = idx;
+  renderSkinPickerOptions();
+}
+
+function selectPickerBg(idx) {
+  skinPickerState.selectedBgIdx = idx;
+  renderSkinPickerOptions();
+}
+
+function renderSkinPickerOptions() {
+  const m = captured.slice(skinPickerState.monIdx, skinPickerState.monIdx + 1).pop();
+  if (!m) return;
+  const spData = speciesSkins[m.name] || { list: [], activeIdx: -1, defaultIcon: m.icon };
+  const defVisual = typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual(m.name, m.icon) : m.icon;
+
+  // 1. 画像一覧（一番左：デフォルト、2番目以降：AI生成画像）
+  const imgRow = document.getElementById('skin-picker-images');
+  if (imgRow) {
+    const defSelected = skinPickerState.selectedSkinIdx === -1 ? 'selected' : '';
+    let html = `
+      <div class="picker-thumb ${defSelected}" onclick="selectPickerSkin(-1)">
+        ${renderSprite(defVisual, 44, '6px')}
+      </div>
+    `;
+    html += spData.list.map((imgData, idx) => {
+      const sel = skinPickerState.selectedSkinIdx === idx ? 'selected' : '';
+      return `
+        <div class="picker-thumb ${sel}" onclick="selectPickerSkin(${idx})">
+          <span class="picker-star">⭐</span>
+          ${renderSprite(imgData, 44, '6px')}
+        </div>
+      `;
+    }).join('');
+    imgRow.innerHTML = html;
+  }
+
+  // 2. 背景一覧（なし / AI生成背景）
+  const bgRow = document.getElementById('skin-picker-bgs');
+  if (bgRow) {
+    const noneSel = skinPickerState.selectedBgIdx === -1 ? 'selected' : '';
+    let bgHtml = `<div class="picker-thumb ${noneSel}" onclick="selectPickerBg(-1)" style="font-size:11px;font-weight:bold;color:#546e7a;">なし</div>`;
+    bgHtml += (aiBackgrounds || []).map((bg, idx) => {
+      const sel = skinPickerState.selectedBgIdx === idx ? 'selected' : '';
+      return `
+        <div class="picker-thumb ${sel}" onclick="selectPickerBg(${idx})">
+          <span class="picker-star">⭐</span>
+          <img src="${bg.img}" style="width:44px;height:44px;border-radius:6px;object-fit:cover;">
+        </div>
+      `;
+    }).join('');
+    bgRow.innerHTML = bgHtml;
+  }
+
+  // 3. 中央の大型プレビュー（キャラ立ち絵＋背景合成）
+  const previewBox = document.getElementById('skin-picker-preview');
+  if (previewBox) {
+    const chosenVisual = (skinPickerState.selectedSkinIdx >= 0 && spData.list[skinPickerState.selectedSkinIdx])
+      ? spData.list[skinPickerState.selectedSkinIdx]
+      : defVisual;
+    const chosenBg = (skinPickerState.selectedBgIdx >= 0 && aiBackgrounds[skinPickerState.selectedBgIdx])
+      ? aiBackgrounds[skinPickerState.selectedBgIdx].img
+      : null;
+
+    previewBox.style.backgroundImage = chosenBg ? `url(${chosenBg})` : 'none';
+    previewBox.style.backgroundColor = chosenBg ? 'transparent' : '#f1f5f9';
+    previewBox.innerHTML = chosenVisual.startsWith('data:image') || chosenVisual.startsWith('/')
+      ? `<img src="${chosenVisual}" style="width:140px;height:140px;object-fit:contain;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.35));">`
+      : `<span style="font-size:84px;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.25));">${chosenVisual}</span>`;
+  }
+}
+
+function applySkinPicker() {
+  const m = captured.slice(skinPickerState.monIdx, skinPickerState.monIdx + 1).pop();
+  if (!m) return;
+  const spData = speciesSkins[m.name] || { list: [], activeIdx: -1, defaultIcon: m.icon };
+  const isIndiv = document.getElementById('skin-individual-chk')?.checked || false;
+
+  const chosenImg = (skinPickerState.selectedSkinIdx >= 0 && spData.list[skinPickerState.selectedSkinIdx])
+    ? spData.list[skinPickerState.selectedSkinIdx]
+    : null;
+
+  if (isIndiv) {
+    // この個体だけに設定する
+    m.customSkin = chosenImg;
+    m.customBgIdx = skinPickerState.selectedBgIdx;
+  } else {
+    // 種族全体に設定する（個体専用の上書きは解除）
+    m.customSkin = null;
+    m.customBgIdx = -1;
+    spData.activeIdx = skinPickerState.selectedSkinIdx;
+    spData.activeBgIdx = skinPickerState.selectedBgIdx;
+  }
+
+  if (!state[mode].inBattle && typeof resetBattleAllies === 'function') resetBattleAllies();
+  renderParty();
+  renderCaptured();
+  if (typeof renderCafe === 'function') renderCafe();
+  if (typeof renderSpeciesGallery === 'function') renderSpeciesGallery();
+  if (typeof updateIconPreview === 'function') updateIconPreview(false);
+  updateUI();
+  triggerAutoSave(true);
+
+  closeSkinPickerModal();
+  openMonModal(skinPickerState.monIdx);
+  showToast(`✨ ${m.name}の見た目を変更しました！`);
 }
