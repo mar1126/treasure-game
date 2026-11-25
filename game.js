@@ -1,9 +1,9 @@
 let userId = localStorage.getItem('treasure_uid') || ('H-' + Math.random().toString(36).substring(2, 10).toUpperCase());
 localStorage.setItem('treasure_uid', userId);
 let playerName = 'ハンター';
-let gold = 200, gem = 1000, level = 1, upCost = 50, mode = 'land';
-let landTankTier = 0; // 0: 未所持, 1〜6: 陸戦車ランク
-let seaShipTier = 0;  // 0: 未所持, 1〜6: 海探索船ランク
+let gold = 200, gem = 1000, mode = 'land';
+let landTankTier = 0, landTankLv = 1, landUpCost = 50; // 陸戦車ランク・レベル・強化費
+let seaShipTier = 0, seaShipLv = 1, seaUpCost = 50;    // 海探索船ランク・レベル・強化費
 let vehicleParts = { land: { cannon: null, engine: null }, sea: { cannon: null, engine: null } };
 
 let cafeLv = 1, cafeCost = 80, staff = new Array(3).fill(null), gardenItems = [];
@@ -57,8 +57,10 @@ function syncStamina() {
 let saveTimer = null, lastCloudSyncAt = 0;
 function triggerAutoSave(immediate = false) {
   const payload = {
-    savedAt: Date.now(), playerName, gold, gem, level, upCost, mode,
-    landTankTier, seaShipTier, vehicleParts,
+    savedAt: Date.now(), playerName, gold, gem, mode,
+    landTankTier, landTankLv, landUpCost,
+    seaShipTier, seaShipLv, seaUpCost,
+    vehicleParts,
     stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked,
     cafeLv, cafeCost, staff, gardenItems, party, state,
     captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig
@@ -84,10 +86,16 @@ function triggerAutoSave(immediate = false) {
 function applySaveData(data) {
   if (!data) return;
   playerName = data.playerName || 'ハンター';
-  gold = data.gold ?? 200; gem = data.gem ?? 1000; level = data.level ?? 1; upCost = data.upCost ?? 50;
+  gold = data.gold ?? 200; gem = data.gem ?? 1000;
   mode = data.mode || 'land';
+
   landTankTier = Number(data.landTankTier) || 0;
+  landTankLv = Number(data.landTankLv) || 1;
+  landUpCost = Number(data.landUpCost) || 50;
+
   seaShipTier = Number(data.seaShipTier) || 0;
+  seaShipLv = Number(data.seaShipLv) || Number(data.level) || 1;
+  seaUpCost = Number(data.seaUpCost) || Number(data.upCost) || 50;
   if (data.vehicleParts) vehicleParts = data.vehicleParts;
 
   autoUnlocked = Boolean(data.autoUnlocked);
@@ -163,7 +171,7 @@ async function initCloudLoad() {
 }
 
 window.addEventListener('beforeunload', () => {
-  const payload = { savedAt: Date.now(), playerName, gold, gem, level, upCost, mode, landTankTier, seaShipTier, vehicleParts, stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, cafeLv, cafeCost, staff, gardenItems, party, state, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
+  const payload = { savedAt: Date.now(), playerName, gold, gem, mode, landTankTier, landTankLv, landUpCost, seaShipTier, seaShipLv, seaUpCost, vehicleParts, stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, cafeLv, cafeCost, staff, gardenItems, party, state, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
   localStorage.setItem('treasure_save_' + userId, JSON.stringify(payload));
 });
 
@@ -269,14 +277,15 @@ function updateUI() {
 
   const upBtn = document.getElementById('vehicle-upgrade-btn');
   if (upBtn) {
-    const hasAnyVehicle = (landTankTier > 0 || seaShipTier > 0);
-    if (!hasAnyVehicle) {
-      upBtn.textContent = '🚜 戦車・探索船 未所持（ショップで購入しよう！）';
+    const eq = typeof getEquippedVehicle === 'function' ? getEquippedVehicle(mode) : null;
+    if (!eq) {
+      const label = mode === 'land' ? '🚜 陸地用の戦車 未所持（ショップで購入！）' : '⛵ 海域用の探索船 未所持（ショップで購入！）';
+      upBtn.textContent = label;
       upBtn.style.background = '#90a4ae';
     } else {
-      const eq = typeof getEquippedVehicle === 'function' ? getEquippedVehicle(mode) : null;
-      const vLabel = eq ? `${eq.icon} ${eq.name}` : '戦車・探索船';
-      upBtn.innerHTML = `${vLabel}を強化 Lv.<span id="ally-lv">${level}</span>（費用: <span id="up-cost">${upCost.toLocaleString()}</span> G）`;
+      const vLv = typeof getVehicleLevel === 'function' ? getVehicleLevel(mode) : 1;
+      const vCost = typeof getVehicleUpCost === 'function' ? getVehicleUpCost(mode) : 50;
+      upBtn.innerHTML = `${eq.icon} ${eq.name}を強化 Lv.${vLv}（費用: ${vCost.toLocaleString()} G）`;
       upBtn.style.background = '#ff7043';
     }
   }
