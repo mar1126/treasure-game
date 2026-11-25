@@ -7,30 +7,49 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 10px 12px; height: 255px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; transition: background 0.4s; }
+    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 10px 12px; height: 268px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; transition: background 0.4s; }
     .battle-area.land-mode { background: linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%); }
     .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; z-index: 2; }
     .area-badge { background: rgba(255,255,255,0.25); padding: 4px 12px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); }
     .mode-btn { background: #ff7043; color: white; border: 2px solid #fff; padding: 4px 12px; border-radius: 15px; font-weight: bold; font-size: 12px; cursor: pointer; }
     .enemy-section { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; margin-top: 2px; }
-    .enemy-unit { text-align: center; width: 160px; position: relative; }
+    .enemy-unit { text-align: center; width: 170px; position: relative; transition: transform 0.15s; }
     .ally-section { display: flex; flex-direction: column; align-items: center; width: 100%; }
-    .ally-hp-wrap { width: 100%; max-width: 310px; margin-bottom: 5px; }
-    .units-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; max-width: 310px; }
-    .unit { text-align: center; background: rgba(255,255,255,0.2); border-radius: 10px; padding: 4px; border: 1px solid rgba(255,255,255,0.45); }
-    .unit-sprite { font-size: 30px; height: 34px; display: flex; align-items: center; justify-content: center; transition: transform 0.1s; }
-    .hp-text { font-size: 10px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.65); }
-    .bar-bg { background: rgba(0,0,0,0.45); height: 6px; border-radius: 3px; overflow: hidden; margin-top: 2px; }
+    .units-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; width: 100%; max-width: 330px; }
+    .unit { text-align: center; background: rgba(255,255,255,0.22); border-radius: 10px; padding: 5px 4px; border: 1px solid rgba(255,255,255,0.45); position: relative; transition: transform 0.15s, opacity 0.2s, box-shadow 0.15s; }
+    .unit.dead { opacity: 0.38; filter: grayscale(100%); }
+    .unit.atk-motion { animation: allyAttack 0.35s ease-out; box-shadow: 0 0 14px #ffeb3b; border-color: #ffeb3b; z-index: 10; }
+    .enemy-unit.atk-motion { animation: enemyAttack 0.35s ease-out; z-index: 10; }
+    .unit.hit-motion, .enemy-unit.hit-motion { animation: unitHit 0.25s ease-in-out; }
+    @keyframes allyAttack {
+      0% { transform: translateY(0) scale(1); }
+      40% { transform: translateY(-20px) scale(1.12); }
+      100% { transform: translateY(0) scale(1); }
+    }
+    @keyframes enemyAttack {
+      0% { transform: translateY(0) scale(1); }
+      40% { transform: translateY(20px) scale(1.15); }
+      100% { transform: translateY(0) scale(1); }
+    }
+    @keyframes unitHit {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+    .unit-sprite { font-size: 28px; height: 32px; display: flex; align-items: center; justify-content: center; }
+    .hp-text { font-size: 10px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-bg { background: rgba(0,0,0,0.45); height: 5px; border-radius: 3px; overflow: hidden; margin-top: 2px; }
     .hp-fill { background: #ff7043; height: 100%; width: 100%; transition: width 0.15s; }
     .ally-hp-fill { background: #66bb6a; height: 100%; width: 100%; transition: width 0.15s; }
-    .start-battle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #ff7043; color: #fff; border: 2px solid #fff; padding: 7px 18px; border-radius: 18px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.35); z-index: 5; white-space: nowrap; }
-    .dmg-popup { position: absolute; font-weight: 900; font-size: 18px; color: #ffeb3b; text-shadow: 0 2px 4px rgba(0,0,0,0.85), 0 0 2px #000; pointer-events: none; z-index: 20; animation: floatDmg 0.85s ease-out forwards; white-space: nowrap; }
-    .dmg-popup.crit { font-size: 23px; color: #ff5252; }
-    .dmg-popup.ally-dmg { font-size: 16px; color: #ff8a80; }
+    .ct-fill { background: #ffd54f; height: 100%; width: 0%; transition: width 0.18s linear; }
+    .start-battle-btn { position: absolute; top: 48%; left: 50%; transform: translate(-50%, -50%); background: #ff7043; color: #fff; border: 2px solid #fff; padding: 7px 18px; border-radius: 18px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.35); z-index: 5; white-space: nowrap; }
+    .dmg-popup { position: absolute; font-weight: 900; font-size: 18px; color: #ffeb3b; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000; pointer-events: none; z-index: 25; animation: floatDmg 0.8s ease-out forwards; white-space: nowrap; }
+    .dmg-popup.crit { font-size: 22px; color: #ff5252; }
+    .dmg-popup.ally-dmg { font-size: 15px; color: #ff8a80; }
     @keyframes floatDmg {
       0% { opacity: 1; transform: translate(-50%, 0) scale(0.85); }
       25% { opacity: 1; transform: translate(-50%, -10px) scale(1.15); }
-      100% { opacity: 0; transform: translate(-50%, -32px) scale(1.0); }
+      100% { opacity: 0; transform: translate(-50%, -30px) scale(1.0); }
     }
     .capture-msg { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #ffd54f; padding: 5px 14px; border-radius: 12px; font-size: 12px; font-weight: bold; display: none; white-space: nowrap; z-index: 15; }
     .status-bar { background: #ffffff; border-bottom: 1px solid #d0e8f2; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: bold; gap: 4px; }
@@ -50,7 +69,6 @@
     .slot-box { border: 1px solid #e0f2f1; border-radius: 10px; padding: 7px; text-align: center; background: #f8fdff; cursor: pointer; position: relative; }
     .slot-box.land { background: #f1f8e9; border-color: #c5e1a5; }
     .slot-box.staff { background: #fff8e1; border: 2px dashed #ffb74d; }
-    .slot-box.selected { border: 2px solid #ff7043; background: #fff3e0; }
     .slot-box .lvl { font-size: 10px; color: #ff7043; font-weight: bold; display: flex; justify-content: space-between; }
     .slot-box .icon { font-size: 28px; margin: 4px 0; height: 38px; display: flex; align-items: center; justify-content: center; }
     .slot-box .name { font-size: 11px; font-weight: bold; }
@@ -103,23 +121,32 @@
         <div class="hp-text"><span id="enemy-name">オクトパス</span> (<span id="enemy-hp-text">100</span>)</div>
         <div class="bar-bg"><div class="hp-fill" id="enemy-hp-bar"></div></div>
         <div class="unit-sprite" id="enemy-sprite" style="font-size:44px;height:48px;margin-top:4px;">🐙</div>
+        <div class="bar-bg" style="height:4px;width:90px;margin:2px auto 0;"><div class="ct-fill" id="enemy-ct-bar"></div></div>
       </div>
     </div>
 
     <button class="start-battle-btn" id="start-battle-btn" onclick="startBattle(event)">⚔️ バトル開始 (⚡1)</button>
 
     <div class="ally-section">
-      <div class="ally-hp-wrap" id="ally-unit-box">
-        <div style="display:flex;justify-content:space-between;" class="hp-text">
-          <span>🛡️ 味方HP</span>
-          <span><span id="ally-hp-text">100</span> / <span id="ally-max-hp-text">100</span></span>
-        </div>
-        <div class="bar-bg"><div class="ally-hp-fill" id="ally-hp-bar"></div></div>
-      </div>
       <div class="units-grid">
-        <div class="unit" id="ally-slot-0"><div class="unit-sprite">⛵</div><div class="hp-text">船 ATK:10</div></div>
-        <div class="unit" id="ally-slot-1"><div class="unit-sprite">⬜</div><div class="hp-text">空き枠</div></div>
-        <div class="unit" id="ally-slot-2"><div class="unit-sprite">⬜</div><div class="hp-text">空き枠</div></div>
+        <div class="unit" id="ally-slot-0">
+          <div class="unit-sprite">⛵</div>
+          <div class="hp-text">船 Lv.1</div>
+          <div class="bar-bg"><div class="ally-hp-fill" id="ally-hp-0"></div></div>
+          <div class="bar-bg" style="height:4px;"><div class="ct-fill" id="ally-ct-0"></div></div>
+        </div>
+        <div class="unit" id="ally-slot-1">
+          <div class="unit-sprite">⬜</div>
+          <div class="hp-text">空き枠</div>
+          <div class="bar-bg"><div class="ally-hp-fill" id="ally-hp-1" style="width:0%"></div></div>
+          <div class="bar-bg" style="height:4px;"><div class="ct-fill" id="ally-ct-1"></div></div>
+        </div>
+        <div class="unit" id="ally-slot-2">
+          <div class="unit-sprite">⬜</div>
+          <div class="hp-text">空き枠</div>
+          <div class="bar-bg"><div class="ally-hp-fill" id="ally-hp-2" style="width:0%"></div></div>
+          <div class="bar-bg" style="height:4px;"><div class="ct-fill" id="ally-ct-2"></div></div>
+        </div>
       </div>
     </div>
   </div>
@@ -139,20 +166,19 @@
     </div>
   </div>
   <div class="main-content">
-    <!-- タブ1: 船・育成 -->
     <div class="tab-pane active" id="tab-ship">
       <div class="card">
         <div class="card-title">
-          <span>⚔️ バトルパーティ編成 (3枠)</span>
-          <span>総攻撃力: <span id="power-disp">10</span></span>
+          <span>⚔️ バトルパーティ編成 (最大2体+船)</span>
+          <span>総戦力: <span id="power-disp">10</span></span>
         </div>
         <div class="grid-3" id="party-slots" style="margin-bottom:10px;">
+          <div class="slot-box"><div class="lvl">船(固定)</div><div class="icon">⛵</div><div class="name">探索船</div><div class="sub">Lv.1</div></div>
           <div class="slot-box"><div class="lvl">枠1</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>
           <div class="slot-box"><div class="lvl">枠2</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>
-          <div class="slot-box"><div class="lvl">枠3</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>
         </div>
         <button class="btn-coral" onclick="upgradeUnit()">
-          探索船を改造・全体強化 Lv.<span id="ally-lv">1</span>（費用: <span id="up-cost">50</span> G）
+          探索船を改造・強化 Lv.<span id="ally-lv">1</span>（費用: <span id="up-cost">50</span> G）
         </button>
       </div>
 
@@ -169,7 +195,6 @@
       </div>
     </div>
 
-    <!-- タブ2: カフェ箱庭 -->
     <div class="tab-pane" id="tab-cafe">
       <div class="card">
         <div class="card-title">
@@ -196,7 +221,6 @@
       </div>
     </div>
 
-    <!-- タブ3: AIアトリエ -->
     <div class="tab-pane" id="tab-ai">
       <div class="card">
         <div class="card-title">
@@ -209,7 +233,6 @@
           <button class="sub-tab-btn" onclick="switchAiSub('stamp', this)">💬 スタンプ</button>
         </div>
 
-        <!-- サブ1: モンスター着せ替え -->
         <div class="ai-sub-pane active" id="ai-sub-mon">
           <select class="inp" id="ai-species-sel" onchange="renderSpeciesGallery()"><option value="">未捕獲</option></select>
           <textarea class="inp" id="ai-mon-prompt" maxlength="200" oninput="updateCharCount('mon')" placeholder="例：海賊の帽子をかぶったかっこいい姿、黄金の鎧など"></textarea>
@@ -219,14 +242,12 @@
           <div class="grid-3" id="species-skin-gallery" style="margin-top:10px;"></div>
         </div>
 
-        <!-- サブ2: AI背景 -->
         <div class="ai-sub-pane" id="ai-sub-bg">
           <textarea class="inp" id="ai-bg-prompt" maxlength="200" oninput="updateCharCount('bg')" placeholder="例：夕焼けのトロピカルビーチ、神秘的な深海神殿"></textarea>
           <div class="char-count"><span id="bg-count">0</span> / <span id="bg-max">200</span>文字</div>
           <label class="extend-box"><input type="checkbox" id="bg-ext" onchange="toggleExtend('bg')"> 長文プロンプト拡張（500文字 / 250💎）</label>
           <button class="btn-blue" onclick="generateAI('bg')">🖼️ アイコン背景を生成（<span id="bg-cost">200</span> 💎）</button>
         </div>
-        <!-- サブ3: AIスタンプ -->
         <div class="ai-sub-pane" id="ai-sub-stamp">
           <select class="inp" id="stamp-species-sel"><option value="🐬 イルカ">🐬 イルカ(相棒)</option></select>
           <input class="inp" id="stamp-text" maxlength="12" placeholder="スタンプ文字（例：よろしく！、やったー！）">
@@ -239,7 +260,6 @@
       </div>
     </div>
 
-    <!-- タブ4: チャット -->
     <div class="tab-pane" id="tab-chat">
       <div class="card">
         <div class="card-title">
@@ -256,31 +276,23 @@
       </div>
     </div>
 
-    <!-- タブ5: マイページ -->
     <div class="tab-pane" id="tab-rank">
       <div class="card">
         <div class="card-title"><span>👤 プロフィール＆アイコン編集</span></div>
         <div style="font-size:11px;color:#607d8b;margin-bottom:6px;">あなたのID: <b id="my-user-id">---</b></div>
         <input class="inp" id="player-name" maxlength="12" value="ハンター" onchange="changePlayerName()" placeholder="プレイヤー名">
-
-        <div class="preview-wrap">
-          <div id="icon-preview-box"><div id="icon-char-layer">🐬</div></div>
-        </div>
-
+        <div class="preview-wrap"><div id="icon-preview-box"><div id="icon-char-layer">🐬</div></div></div>
         <select class="inp" id="icon-char-sel" onchange="updateIconPreview()"><option value="デフォルト">🐬 デフォルト</option></select>
         <select class="inp" id="icon-bg-sel" onchange="updateIconPreview()"><option value="-1">デフォルト(水色グラデ)</option></select>
-
         <div class="slider-row"><span>拡大率</span><input type="range" id="icon-scale" min="0.5" max="2.0" step="0.1" value="1.0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
         <div class="slider-row"><span>横位置</span><input type="range" id="icon-x" min="-40" max="40" step="2" value="0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
         <div class="slider-row"><span>縦位置</span><input type="range" id="icon-y" min="-40" max="40" step="2" value="0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
         <div class="slider-row"><span>回転角度</span><input type="range" id="icon-rot" min="-180" max="180" step="5" value="0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
       </div>
-
       <div class="card">
         <div class="card-title"><span>🏆 ランキング</span></div>
         <div id="ranking-list" style="font-size:12px;">読み込み中...</div>
       </div>
-
       <div class="card">
         <div class="card-title"><span>☁️ データ引き継ぎ（ID復元）</span></div>
         <div style="display:flex;gap:6px;">
@@ -291,7 +303,6 @@
     </div>
   </div>
 
-  <!-- モンスター詳細モーダル -->
   <div class="modal-overlay" id="mon-modal" onclick="closeMonModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
       <div style="display:flex;align-items:center;gap:12px;">
@@ -303,7 +314,7 @@
       </div>
       <table class="stat-table">
         <tr><td>レベル</td><td id="modal-mon-lv"></td></tr>
-        <tr><td>攻撃力</td><td id="modal-mon-atk"></td></tr>
+        <tr><td>ステータス</td><td id="modal-mon-atk"></td></tr>
         <tr><td>得意地形</td><td id="modal-mon-terrain"></td></tr>
         <tr><td>固有スキル</td><td id="modal-mon-skill"></td></tr>
         <tr><td>個体特性</td><td id="modal-mon-trait"></td></tr>
@@ -324,9 +335,9 @@
     <button class="nav-item" onclick="switchTab('chat', this)"><span class="nav-icon">💬</span>チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">👤</span>マイページ</button>
   </nav>
-  <script src="/skills.js?v=3"></script>
-  <script src="/game.js?v=3"></script>
-  <script src="/social.js?v=3"></script>
+  <script src="/skills.js?v=4"></script>
+  <script src="/game.js?v=4"></script>
+  <script src="/social.js?v=4"></script>
   <script>initCloudLoad();</script>
 </body>
 </html>
