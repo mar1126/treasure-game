@@ -102,7 +102,12 @@
     .shop-buy-btn { background: #ff7043; color: #fff; border: none; padding: 10px 12px; border-radius: 10px; font-weight: bold; font-size: 11px; cursor: pointer; min-width: 88px; box-shadow: 0 2px 6px rgba(255,112,67,0.3); }
     .shop-buy-btn.done { background: #ffccbc; color: #bf360c; box-shadow: none; cursor: default; }
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 999; padding: 16px; }
-    .modal-card { background: #ffffff; border-radius: 16px; padding: 16px; width: 100%; max-width: 360px; border: 3px solid #4fc3f7; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+    .modal-card { background: #ffffff; border-radius: 16px; padding: 16px; width: 100%; max-width: 360px; border: 3px solid #4fc3f7; box-shadow: 0 10px 25px rgba(0,0,0,0.3); max-height: 90vh; overflow-y: auto; }
+    .picker-row { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 8px; margin-bottom: 8px; }
+    .picker-thumb { width: 56px; height: 56px; flex-shrink: 0; border-radius: 10px; border: 2px solid #cfd8dc; background: #ffffff; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; font-size: 28px; }
+    .picker-thumb.selected { border: 2.5px solid #ff7043; box-shadow: 0 0 0 2px rgba(255,112,67,0.25); }
+    .picker-star { position: absolute; top: 2px; left: 3px; font-size: 10px; line-height: 1; }
+    .picker-preview-box { width: 190px; height: 190px; margin: 10px auto 14px; border-radius: 14px; border: 2px solid #cfd8dc; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; overflow: hidden; }
     .stat-table { width: 100%; font-size: 12px; margin: 10px 0; border-collapse: collapse; }
     .stat-table td { padding: 6px 4px; border-bottom: 1px solid #eceff1; vertical-align: top; }
     .stat-table td:first-child { width: 85px; color: #607d8b; font-weight: bold; }
@@ -180,6 +185,7 @@
       </div>
     </div>
   </div>
+
   <div class="status-bar">
     <div class="profile-mini">
       <div class="mini-avatar" id="hud-my-icon">🦊</div>
@@ -264,7 +270,6 @@
         <div id="shop-list">読み込み中...</div>
       </div>
     </div>
-
     <div class="tab-pane" id="tab-ai">
       <div class="card">
         <div class="card-title">
@@ -292,6 +297,7 @@
           <label class="extend-box"><input type="checkbox" id="bg-ext" onchange="toggleExtend('bg')"> 長文プロンプト拡張（500文字 / 250💎）</label>
           <button class="btn-blue" onclick="generateAI('bg')">🖼️ アイコン背景を生成（<span id="bg-cost">200</span> 💎）</button>
         </div>
+
         <div class="ai-sub-pane" id="ai-sub-stamp">
           <select class="inp" id="stamp-species-sel"><option value="🦊 フォックス">🦊 フォックス(相棒)</option></select>
           <input class="inp" id="stamp-text" maxlength="12" placeholder="スタンプ文字（例：よろしく！、やったー！）">
@@ -347,14 +353,18 @@
     </div>
   </div>
 
+  <!-- モンスター詳細モーダル -->
   <div class="modal-overlay" id="mon-modal" onclick="closeMonModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <div id="modal-mon-sprite" style="font-size:48px;"></div>
-        <div>
-          <div id="modal-mon-name" style="font-size:16px;font-weight:bold;"></div>
-          <div id="modal-mon-rarity" style="font-size:11px;color:#ff7043;font-weight:bold;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div id="modal-mon-sprite" style="font-size:48px;"></div>
+          <div>
+            <div id="modal-mon-name" style="font-size:16px;font-weight:bold;"></div>
+            <div id="modal-mon-rarity" style="font-size:11px;color:#ff7043;font-weight:bold;"></div>
+          </div>
         </div>
+        <button onclick="openSkinPickerModal()" style="background:#fff3e0;color:#e65100;border:1.5px solid #ffb74d;padding:6px 10px;border-radius:10px;font-size:11px;font-weight:bold;cursor:pointer;white-space:nowrap;">🎨 画像変更</button>
       </div>
       <table class="stat-table">
         <tr><td>レベル</td><td id="modal-mon-lv"></td></tr>
@@ -372,6 +382,30 @@
     </div>
   </div>
 
+  <!-- 「〇〇の画像」見た目カスタマイズモーダル -->
+  <div class="modal-overlay" id="skin-picker-modal" onclick="closeSkinPickerModal()" style="z-index:1100;">
+    <div class="modal-card" onclick="event.stopPropagation()" style="border-color:#ff7043;">
+      <div id="skin-picker-title" style="font-size:17px;font-weight:bold;color:#263238;margin-bottom:10px;">モンスターの画像</div>
+      <div style="font-size:12px;font-weight:bold;color:#546e7a;margin-bottom:4px;">画像</div>
+      <div class="picker-row" id="skin-picker-images"></div>
+
+      <div style="font-size:12px;font-weight:bold;color:#546e7a;margin-bottom:4px;">背景</div>
+      <div class="picker-row" id="skin-picker-bgs"></div>
+
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#263238;margin:8px 0;cursor:pointer;">
+        <input type="checkbox" id="skin-individual-chk" style="width:16px;height:16px;">
+        <span>この個体だけに設定する</span>
+      </label>
+
+      <div class="picker-preview-box" id="skin-picker-preview"></div>
+
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
+        <button class="btn-coral" onclick="applySkinPicker()">この画像にする</button>
+        <button class="btn-gray" style="background:#eceff1;color:#37474f;" onclick="closeSkinPickerModal()">閉じる</button>
+      </div>
+    </div>
+  </div>
+
   <nav class="bottom-nav">
     <button class="nav-item active" onclick="switchTab('ship', this)"><span class="nav-icon">⚔️</span>編成・強化</button>
     <button class="nav-item" onclick="switchTab('cafe', this)"><span class="nav-icon">🍰</span>カフェ</button>
@@ -380,16 +414,16 @@
     <button class="nav-item" onclick="switchTab('chat', this)"><span class="nav-icon">💬</span>チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">👤</span>マイページ</button>
   </nav>
-  <script src="/monsters.js?v=17"></script>
-  <script src="/traits.js?v=17"></script>
-  <script src="/skills.js?v=17"></script>
-  <script src="/vehicle.js?v=17"></script>
-  <script src="/party.js?v=17"></script>
-  <script src="/cafe.js?v=17"></script>
-  <script src="/shop.js?v=17"></script>
-  <script src="/stage.js?v=17"></script>
-  <script src="/game.js?v=17"></script>
-  <script src="/social.js?v=17"></script>
+  <script src="/monsters.js?v=18"></script>
+  <script src="/traits.js?v=18"></script>
+  <script src="/skills.js?v=18"></script>
+  <script src="/vehicle.js?v=18"></script>
+  <script src="/party.js?v=18"></script>
+  <script src="/cafe.js?v=18"></script>
+  <script src="/shop.js?v=18"></script>
+  <script src="/stage.js?v=18"></script>
+  <script src="/game.js?v=18"></script>
+  <script src="/social.js?v=18"></script>
   <script>initCloudLoad();</script>
 </body>
 </html>
