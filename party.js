@@ -4,20 +4,20 @@ function ensureStarterMonster() {
   if (captured.length === 0) {
     const starter = {
       id: 'M_STARTER',
-      icon: '🐬',
-      name: 'イルカ',
-      type: 'sea',
+      icon: '🦊',
+      name: 'フォックス',
+      type: 'land',
       lv: 1,
       rarity: 'R',
       maxHp: 90,
-      atk: 15,
+      atk: 16,
       def: 5,
-      ct: 1.9,
-      traitId: 'sea_lord'
+      ct: 1.7,
+      traitId: 'land_lord'
     };
     captured.push(starter);
-    if (!speciesSkins['イルカ']) {
-      speciesSkins['イルカ'] = { list: [], activeIdx: -1, defaultIcon: '🐬' };
+    if (!speciesSkins['フォックス']) {
+      speciesSkins['フォックス'] = { list: [], activeIdx: -1, defaultIcon: '🦊' };
     }
   }
 }
