@@ -236,6 +236,8 @@ function updateUI() {
   document.getElementById('gold').textContent = gold.toLocaleString();
   document.getElementById('gem').textContent = gem.toLocaleString();
   document.getElementById('floor-text').textContent = mode === 'sea' ? `🌊 海域 ${cur.area}-${cur.wave}` : `🌲 陸地 ${cur.area}-${cur.wave}`;
+  if (typeof renderStageBackground === 'function') renderStageBackground();
+
   const startBtn = document.getElementById('start-battle-btn');
   if (cur.inBattle) { document.getElementById('enemy-name').textContent = `⚔️ ${eStats.name}`; if (startBtn) startBtn.style.display = 'none'; }
   else { document.getElementById('enemy-name').textContent = `${eStats.name} (待機中)`; if (startBtn) startBtn.style.display = 'inline-block'; }
