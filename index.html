@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+  <script>
+    window.onerror = function(msg, url, line) {
+      alert("エラー発生: " + msg + "\n場所: " + url + " (" + line + "行目)");
+    };
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>オーシャン＆ランド・トレジャー</title>
