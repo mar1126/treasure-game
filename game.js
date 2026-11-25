@@ -1,648 +1,349 @@
-let userId = localStorage.getItem('treasure_uid') || ('H-' + Math.random().toString(36).substring(2, 10).toUpperCase());
-localStorage.setItem('treasure_uid', userId);
-let playerName = 'ハンター';
-let gold = 200, gem = 1000, baseAtk = 10, level = 1, upCost = 50, mode = 'sea';
-let cafeLv = 1, cafeCost = 80, staff = [null, null, null], gardenItems = [];
-let party = [null, null]; // 枠0は船(固定)、枠1・2に仲間モンスターを最大2体編成
-let selectedMonIdx = -1;
-
-// スタミナ設定（最大30・1分に1回復・バトル開始で1消費）
-const MAX_STAMINA = 30;
-const STAMINA_RECOVERY_MS = 60 * 1000;
-let stamina = MAX_STAMINA;
-let staminaUpdatedAt = Date.now();
-
-// バトル状態（敵CT・攻撃力も管理）
-let state = {
-  sea: { area: 1, wave: 1, maxHp: 100, hp: 100, idx: 0, inBattle: false, enemyCt: 0 },
-  land: { area: 1, wave: 1, maxHp: 120, hp: 120, idx: 0, inBattle: false, enemyCt: 0 }
-};
-
-// バトル中の味方3枠の個別リアルタイム状態（HP・最大HP・ATK・DEF・CT・最大CT）
-let battleAllies = [
-  { hp: 100, maxHp: 100, atk: 10, def: 4, ct: 0, maxCt: 2.0 },
-  null,
-  null
-];
-
-const seaMonsters = [
-  { icon: '🐙', name: 'オクトパス', ct: 2.2 },
-  { icon: '🦈', name: 'シャーク', ct: 1.8 },
-  { icon: '🦀', name: 'クラブ', ct: 2.6 },
-  { icon: '🐡', name: 'ハリセンボン', ct: 2.0 },
-  { icon: '🦑', name: 'ダイオウイカ', ct: 1.9 },
-  { icon: '🐳', name: 'ホエール', ct: 2.8 }
-];
-const landMonsters = [
-  { icon: '🦊', name: 'フォックス', ct: 1.7 },
-  { icon: '🐗', name: 'ボア', ct: 2.1 },
-  { icon: '🦎', name: 'リザード', ct: 1.9 },
-  { icon: '🦉', name: 'オウル', ct: 1.6 },
-  { icon: '🐻', name: 'グリズリー', ct: 2.7 },
-  { icon: '🐉', name: 'ワイバーン', ct: 2.3 }
-];
-
-let captured = [], speciesSkins = {}, aiBackgrounds = [], aiStamps = [];
-let iconConfig = { species: 'デフォルト', bgIdx: -1, scale: 1.0, x: 0, y: 0, rotate: 0 };
-
-// 船の個別ステータス計算
-function getShipStats() {
-  return {
-    name: '探索船',
-    icon: '⛵',
-    lv: level,
-    maxHp: 80 + level * 25,
-    atk: baseAtk,
-    def: 3 + level * 2,
-    ct: 2.0
-  };
-}
-
-// モンスターの個別実効ステータス計算（HP・ATK・DEF・CT）
-function getMonStats(m) {
-  let mult = (m.type === mode) ? 1.2 : 1.0;
-  if (m.traitId === 'sea_lord' && mode === 'sea') mult += 0.4;
-  if (m.traitId === 'land_lord' && mode === 'land') mult += 0.4;
-  const maxHp = m.maxHp || (50 + m.lv * 18);
-  const def = m.def || (2 + m.lv * 2);
-  const ct = m.ct || 2.2;
-  return {
-    name: m.name,
-    icon: m.icon,
-    lv: m.lv,
-    maxHp,
-    atk: Math.floor(m.atk * mult),
-    def,
-    ct
-  };
-}
-
-// バトル用ユニット配列の初期化（戦闘開始時・編成変更時にHPとCTをリセット）
-function resetBattleAllies() {
-  const ship = getShipStats();
-  battleAllies[0] = { ...ship, hp: ship.maxHp, ct: 0 };
-  for (let i = 0; i < 2; i++) {
-    const m = captured.find(x => x.id === party[i]);
-    if (m) {
-      const st = getMonStats(m);
-      battleAllies[i + 1] = { ...st, monRef: m, hp: st.maxHp, ct: 0 };
-    } else {
-      battleAllies[i + 1] = null;
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>オーシャン＆ランド・トレジャー</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 10px 12px; height: 268px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; transition: background 0.4s; }
+    .battle-area.land-mode { background: linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%); }
+    .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; z-index: 2; }
+    .area-badge { background: rgba(255,255,255,0.25); padding: 4px 12px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); }
+    .mode-btn { background: #ff7043; color: white; border: 2px solid #fff; padding: 4px 12px; border-radius: 15px; font-weight: bold; font-size: 12px; cursor: pointer; }
+    .enemy-section { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; margin-top: 2px; }
+    .enemy-unit { text-align: center; width: 170px; position: relative; transition: transform 0.15s; }
+    .ally-section { display: flex; flex-direction: column; align-items: center; width: 100%; }
+    .units-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; width: 100%; max-width: 330px; }
+    .unit { text-align: center; background: rgba(255,255,255,0.22); border-radius: 10px; padding: 5px 4px; border: 1px solid rgba(255,255,255,0.45); position: relative; transition: transform 0.15s, opacity 0.2s, box-shadow 0.15s; }
+    .unit.dead { opacity: 0.38; filter: grayscale(100%); }
+    .unit.atk-motion { animation: allyAttack 0.35s ease-out; box-shadow: 0 0 14px #ffeb3b; border-color: #ffeb3b; z-index: 10; }
+    .enemy-unit.atk-motion { animation: enemyAttack 0.35s ease-out; z-index: 10; }
+    .unit.hit-motion, .enemy-unit.hit-motion { animation: unitHit 0.25s ease-in-out; }
+    @keyframes allyAttack {
+      0% { transform: translateY(0) scale(1); }
+      40% { transform: translateY(-20px) scale(1.12); }
+      100% { transform: translateY(0) scale(1); }
     }
-  }
-}
-
-// 敵の攻撃力・防御力・CT取得
-function getEnemyStats() {
-  const cur = state[mode];
-  const list = mode === 'sea' ? seaMonsters : landMonsters;
-  const baseMon = list[cur.idx % list.length];
-  const baseAtkVal = mode === 'sea' ? 8 : 10;
-  return {
-    name: baseMon.name,
-    icon: baseMon.icon,
-    atk: Math.floor(baseAtkVal * Math.pow(1.22, cur.area - 1) + (cur.wave - 1) * 2),
-    def: Math.floor((cur.area - 1) * 2 + (cur.wave - 1) * 0.5),
-    ct: baseMon.ct || 2.2
-  };
-}
-// 1分ごとに1回復する計算
-function syncStamina() {
-  if (stamina >= MAX_STAMINA) {
-    stamina = MAX_STAMINA;
-    staminaUpdatedAt = Date.now();
-    return;
-  }
-  const now = Date.now();
-  const elapsed = now - staminaUpdatedAt;
-  const recovered = Math.floor(elapsed / STAMINA_RECOVERY_MS);
-  if (recovered > 0) {
-    stamina = Math.min(MAX_STAMINA, stamina + recovered);
-    staminaUpdatedAt = (stamina >= MAX_STAMINA) ? now : staminaUpdatedAt + (recovered * STAMINA_RECOVERY_MS);
-  }
-}
-
-// セーブ処理
-let saveTimer = null;
-let lastCloudSyncAt = 0;
-const CLOUD_SYNC_INTERVAL_MS = 15000;
-
-function triggerAutoSave(immediate = false) {
-  const savedAt = Date.now();
-  const payload = {
-    savedAt, playerName, gold, gem, baseAtk, level, upCost, mode,
-    stamina, staminaUpdatedAt,
-    cafeLv, cafeCost, staff, gardenItems, party, state,
-    captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig
-  };
-  const jsonStr = JSON.stringify(payload);
-  localStorage.setItem('treasure_save_' + userId, jsonStr);
-
-  const badge = document.getElementById('save-indicator');
-  clearTimeout(saveTimer);
-
-  const doSync = async () => {
-    lastCloudSyncAt = Date.now();
-    if (badge) badge.textContent = '⏳ 同期中...';
-    try {
-      const res = await fetch('/api/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, user_name: playerName, save_json: jsonStr })
-      });
-      if (!res.ok) throw new Error('Save failed');
-      if (badge) badge.textContent = '☁️ 自動保存済';
-    } catch (e) {
-      if (badge) badge.textContent = '📱 端末保存済';
+    @keyframes enemyAttack {
+      0% { transform: translateY(0) scale(1); }
+      40% { transform: translateY(20px) scale(1.15); }
+      100% { transform: translateY(0) scale(1); }
     }
-  };
-
-  const timeSinceLastSync = Date.now() - lastCloudSyncAt;
-  if (immediate || timeSinceLastSync >= CLOUD_SYNC_INTERVAL_MS) {
-    doSync();
-  } else {
-    if (badge) badge.textContent = '📱 端末保存済';
-    saveTimer = setTimeout(doSync, CLOUD_SYNC_INTERVAL_MS - timeSinceLastSync);
-  }
-}
-
-function applySaveData(data) {
-  if (!data) return;
-  playerName = data.playerName || 'ハンター';
-  gold = data.gold ?? 200; gem = data.gem ?? 1000; baseAtk = data.baseAtk ?? 10; level = data.level ?? 1; upCost = data.upCost ?? 50; mode = data.mode || 'sea';
-  stamina = data.stamina ?? MAX_STAMINA;
-  staminaUpdatedAt = data.staminaUpdatedAt || Date.now();
-  syncStamina();
-
-  cafeLv = data.cafeLv ?? 1; cafeCost = data.cafeCost ?? 80; staff = data.staff || [null, null, null]; gardenItems = data.gardenItems || [];
-  // 旧3枠データ互換（最大2枠へ調整）
-  const rawParty = data.party || [null, null];
-  party = [rawParty[0] ?? null, rawParty[1] ?? null];
-
-  if (data.state) {
-    state = data.state;
-    if (state.sea) { state.sea.inBattle = false; state.sea.enemyCt = 0; }
-    if (state.land) { state.land.inBattle = false; state.land.enemyCt = 0; }
-  }
-  captured = (data.captured || []).map((m, idx) => {
-    const baseData = [...seaMonsters, ...landMonsters].find(x => x.name === m.name);
-    return {
-      id: m.id || ('M' + idx), icon: m.icon, name: m.name, type: m.type,
-      lv: m.lv || 1, rarity: m.rarity || 'N',
-      maxHp: m.maxHp || (50 + (m.lv || 1) * 18),
-      atk: m.atk || 8,
-      def: m.def || (2 + (m.lv || 1) * 2),
-      ct: m.ct || (baseData ? baseData.ct : 2.2),
-      traitId: m.traitId || 'gold_up'
-    };
-  });
-  speciesSkins = data.speciesSkins || {}; aiBackgrounds = data.aiBackgrounds || []; aiStamps = data.aiStamps || [];
-  if (data.iconConfig) iconConfig = data.iconConfig;
-
-  const pNameEl = document.getElementById('player-name');
-  if (pNameEl) pNameEl.value = playerName;
-  const hudNameEl = document.getElementById('hud-name');
-  if (hudNameEl) hudNameEl.textContent = playerName;
-
-  if (document.getElementById('icon-scale')) {
-    document.getElementById('icon-scale').value = iconConfig.scale;
-    document.getElementById('icon-x').value = iconConfig.x;
-    document.getElementById('icon-y').value = iconConfig.y;
-    document.getElementById('icon-rot').value = iconConfig.rotate;
-  }
-
-  const bg = document.getElementById('battle-bg'), btn = document.getElementById('mode-switch-btn');
-  if (bg && btn) {
-    if (mode === 'land') { bg.classList.add('land-mode'); btn.textContent = '🌊 海へ戻る'; }
-    else { bg.classList.remove('land-mode'); btn.textContent = '🌲 陸へ行く'; }
-  }
-  resetBattleAllies();
-  renderParty(); renderCaptured(); renderCafe(); updateSelectOptions();
-  if (document.getElementById('icon-char-sel')) {
-    document.getElementById('icon-char-sel').value = iconConfig.species;
-    document.getElementById('icon-bg-sel').value = iconConfig.bgIdx;
-  }
-  renderSpeciesGallery(); renderStamps(); updateIconPreview(false); updateUI();
-}
-async function initCloudLoad() {
-  const idEl = document.getElementById('my-user-id');
-  if (idEl) idEl.textContent = userId;
-
-  let localData = null;
-  const localStr = localStorage.getItem('treasure_save_' + userId);
-  if (localStr) {
-    try { localData = JSON.parse(localStr); applySaveData(localData); } catch (e) {}
-  }
-
-  try {
-    const res = await fetch(`/api/save?user_id=${encodeURIComponent(userId)}`);
-    const row = await res.json();
-    if (row && row.save_json) {
-      const cloudData = JSON.parse(row.save_json);
-      if (!localData || (cloudData.savedAt || 0) > (localData.savedAt || 0)) {
-        applySaveData(cloudData);
-      }
+    @keyframes unitHit {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
     }
-  } catch (e) {}
-}
-
-window.addEventListener('beforeunload', () => {
-  const payload = {
-    savedAt: Date.now(), playerName, gold, gem, baseAtk, level, upCost, mode,
-    stamina, staminaUpdatedAt, cafeLv, cafeCost, staff, gardenItems, party, state,
-    captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig
-  };
-  localStorage.setItem('treasure_save_' + userId, JSON.stringify(payload));
-});
-
-function getSpeciesDisplay(name, defaultIcon) {
-  const data = speciesSkins[name];
-  return (data && data.activeIdx >= 0 && data.list[data.activeIdx]) ? data.list[data.activeIdx] : defaultIcon;
-}
-function renderSprite(displayVal, size = 32, round = '8px') {
-  return (displayVal && displayVal.startsWith('data:image')) ? `<img src="${displayVal}" style="width:${size}px;height:${size}px;border-radius:${round};object-fit:cover;vertical-align:middle;">` : displayVal;
-}
-function getTotalPower() {
-  let p = getShipStats().atk + Math.floor(getShipStats().def / 2);
-  party.forEach(monId => {
-    const m = captured.find(x => x.id === monId);
-    if (m) {
-      const st = getMonStats(m);
-      p += st.atk + Math.floor(st.def / 2);
+    .unit-sprite { font-size: 28px; height: 32px; display: flex; align-items: center; justify-content: center; }
+    .hp-text { font-size: 10px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-bg { background: rgba(0,0,0,0.45); height: 5px; border-radius: 3px; overflow: hidden; margin-top: 2px; }
+    .hp-fill { background: #ff7043; height: 100%; width: 100%; transition: width 0.15s; }
+    .ally-hp-fill { background: #66bb6a; height: 100%; width: 100%; transition: width 0.15s; }
+    .ct-fill { background: #ffd54f; height: 100%; width: 0%; transition: width 0.18s linear; }
+    .start-battle-btn { position: absolute; top: 48%; left: 50%; transform: translate(-50%, -50%); background: #ff7043; color: #fff; border: 2px solid #fff; padding: 7px 18px; border-radius: 18px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.35); z-index: 5; white-space: nowrap; }
+    .dmg-popup { position: absolute; font-weight: 900; font-size: 18px; color: #ffeb3b; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000; pointer-events: none; z-index: 25; animation: floatDmg 0.8s ease-out forwards; white-space: nowrap; }
+    .dmg-popup.crit { font-size: 22px; color: #ff5252; }
+    .dmg-popup.ship-dmg { font-size: 20px; color: #40c4ff; }
+    .dmg-popup.ally-dmg { font-size: 15px; color: #ff8a80; }
+    @keyframes floatDmg {
+      0% { opacity: 1; transform: translate(-50%, 0) scale(0.85); }
+      25% { opacity: 1; transform: translate(-50%, -10px) scale(1.15); }
+      100% { opacity: 0; transform: translate(-50%, -30px) scale(1.0); }
     }
-  });
-  return p;
-}
-function getCafeIncome() {
-  const active = staff.filter(s => s !== null);
-  if (active.length === 0) return 0;
-  const cafeTraitBonus = active.filter(s => s.traitId === 'cafe_star').length * 0.35;
-  return Math.floor(active.length * 6 * cafeLv * (1 + gardenItems.length * 0.15 + cafeTraitBonus));
-}
-
-// 攻撃・被弾モーション再生
-function triggerMotion(elementId, className) {
-  const el = document.getElementById(elementId);
-  if (!el) return;
-  el.classList.remove(className);
-  void el.offsetWidth;
-  el.classList.add(className);
-}
-
-// ダメージ数字ポップアップ表示
-function showDamagePopup(targetId, text, typeClass = '') {
-  const targetEl = document.getElementById(targetId);
-  const battleBg = document.getElementById('battle-bg');
-  if (!targetEl || !battleBg) return;
-
-  const rect = targetEl.getBoundingClientRect();
-  const bgRect = battleBg.getBoundingClientRect();
-  const popup = document.createElement('div');
-  popup.className = `dmg-popup ${typeClass}`;
-  popup.textContent = text;
-
-  const offsetX = (Math.random() - 0.5) * 28;
-  popup.style.left = `${(rect.left - bgRect.left) + (rect.width / 2) + offsetX}px`;
-  popup.style.top = `${(rect.top - bgRect.top) + 8}px`;
-
-  battleBg.appendChild(popup);
-  setTimeout(() => popup.remove(), 800);
-}
-
-function updateUI() {
-  syncStamina();
-  const stDisp = document.getElementById('stamina-disp');
-  const stTimer = document.getElementById('stamina-timer');
-  if (stDisp) stDisp.textContent = stamina;
-  if (stTimer) {
-    if (stamina >= MAX_STAMINA) {
-      stTimer.textContent = 'MAX';
-    } else {
-      const remainSec = Math.max(1, Math.ceil((STAMINA_RECOVERY_MS - (Date.now() - staminaUpdatedAt)) / 1000));
-      const m = String(Math.floor(remainSec / 60)).padStart(2, '0');
-      const s = String(remainSec % 60).padStart(2, '0');
-      stTimer.textContent = `(${m}:${s})`;
+    .ship-shot { position: absolute; font-size: 24px; pointer-events: none; z-index: 22; left: 50%; bottom: 85px; animation: cannonFly 0.4s ease-in forwards; }
+    @keyframes cannonFly {
+      0% { opacity: 1; transform: translate(-50%, 0) scale(0.8); }
+      100% { opacity: 0.9; transform: translate(-50%, -105px) scale(1.3); }
     }
-  }
+    .capture-msg { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #ffd54f; padding: 5px 14px; border-radius: 12px; font-size: 12px; font-weight: bold; display: none; white-space: nowrap; z-index: 15; }
+    .status-bar { background: #ffffff; border-bottom: 1px solid #d0e8f2; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: bold; gap: 4px; }
+    .profile-mini { display: flex; align-items: center; gap: 5px; min-width: 0; }
+    .mini-avatar { width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; display: flex; align-items: center; justify-content: center; font-size: 15px; border: 2px solid #ff7043; overflow: hidden; }
+    .save-badge { font-size: 9px; color: #00897b; background: #e0f2f1; padding: 2px 5px; border-radius: 8px; white-space: nowrap; }
+    .currency { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+    .stamina-box { background: #e8f5e9; border: 1px solid #a5d6a7; padding: 3px 6px; border-radius: 12px; color: #2e7d32; white-space: nowrap; }
+    .gold-box { background: #fff8e7; border: 1px solid #ffe082; padding: 3px 6px; border-radius: 12px; color: #d98200; white-space: nowrap; }
+    .gem-box { background: #e1f5fe; border: 1px solid #81d4fa; padding: 3px 6px; border-radius: 12px; color: #0277bd; white-space: nowrap; }
+    .main-content { flex: 1; overflow-y: auto; padding: 12px; padding-bottom: 85px; }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+    .card { background: #ffffff; border: 1px solid #dceef5; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+    .card-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; color: #0277bd; display: flex; justify-content: space-between; align-items: center; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .slot-box { border: 1px solid #e0f2f1; border-radius: 10px; padding: 7px; text-align: center; background: #f8fdff; cursor: pointer; position: relative; }
+    .slot-box.land { background: #f1f8e9; border-color: #c5e1a5; }
+    .slot-box.staff { background: #fff8e1; border: 2px dashed #ffb74d; }
+    .slot-box .lvl { font-size: 10px; color: #ff7043; font-weight: bold; display: flex; justify-content: space-between; }
+    .slot-box .icon { font-size: 28px; margin: 4px 0; height: 38px; display: flex; align-items: center; justify-content: center; }
+    .slot-box .name { font-size: 11px; font-weight: bold; }
+    .slot-box .sub { font-size: 10px; color: #546e7a; }
+    .badge-tag { font-size: 9px; background: #0288d1; color: white; padding: 1px 4px; border-radius: 4px; }
+    .btn-coral { background: #ff7043; color: white; border: none; padding: 10px 14px; border-radius: 10px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%; }
+    .btn-blue { background: #0288d1; color: white; border: none; padding: 10px 14px; border-radius: 10px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%; }
+    .btn-gray { background: #90a4ae; color: white; border: none; padding: 8px 12px; border-radius: 10px; font-weight: bold; font-size: 12px; cursor: pointer; width: 100%; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 999; padding: 16px; }
+    .modal-card { background: #ffffff; border-radius: 16px; padding: 16px; width: 100%; max-width: 360px; border: 3px solid #4fc3f7; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+    .stat-table { width: 100%; font-size: 12px; margin: 10px 0; border-collapse: collapse; }
+    .stat-table td { padding: 6px 4px; border-bottom: 1px solid #eceff1; vertical-align: top; }
+    .stat-table td:first-child { width: 85px; color: #607d8b; font-weight: bold; }
+    .stat-table td:last-child { font-weight: bold; color: #0277bd; }
+    .sub-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; background: #e1f5fe; padding: 4px; border-radius: 10px; }
+    .sub-tab-btn { border: none; background: transparent; padding: 8px 4px; border-radius: 8px; font-size: 12px; font-weight: bold; color: #0277bd; cursor: pointer; }
+    .sub-tab-btn.active { background: #ffffff; color: #ff7043; }
+    .ai-sub-pane { display: none; }
+    .ai-sub-pane.active { display: block; }
+    .inp { width: 100%; padding: 9px; margin-bottom: 8px; border: 1px solid #b0bec5; border-radius: 8px; font-size: 13px; }
+    textarea.inp { min-height: 85px; resize: vertical; line-height: 1.4; }
+    .char-count { font-size: 11px; color: #607d8b; text-align: right; margin-top: -4px; margin-bottom: 8px; }
+    .extend-box { display: flex; align-items: center; gap: 6px; font-size: 12px; background: #fff8e1; padding: 8px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ffe082; color: #d84315; font-weight: bold; }
+    .garden-field { background: linear-gradient(180deg, #b3e5fc 0%, #fff9c4 45%, #c8e6c9 100%); border: 2px solid #81d4fa; border-radius: 12px; padding: 10px; min-height: 110px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; margin-bottom: 10px; }
+    .garden-cell { background: rgba(255,255,255,0.6); border-radius: 8px; height: 46px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+    .preview-wrap { display: flex; justify-content: center; margin: 10px 0; }
+    #icon-preview-box { width: 120px; height: 120px; border-radius: 16px; border: 4px solid #ff7043; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; background-position: center; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .slider-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin: 6px 0; }
+    .slider-row input { width: 65%; }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: #ffffff; border-top: 1px solid #d0e8f2; display: flex; justify-content: space-around; align-items: center; z-index: 100; }
+    .nav-item { background: none; border: none; color: #78909c; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; flex: 1; }
+    .nav-item.active { color: #ff7043; }
+    .nav-icon { font-size: 20px; }
+    .chat-box { height: 220px; overflow-y: auto; background: #f8fdff; border: 1px solid #dceef5; border-radius: 10px; padding: 8px; margin-bottom: 8px; font-size: 12px; }
+    .chat-msg { margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #eceff1; }
+  </style>
+</head>
+<body>
+  <div class="battle-area" id="battle-bg">
+    <div class="battle-header">
+      <div class="area-badge" id="floor-text">🌊 海域 1-1</div>
+      <div>🍰 +<span id="cafe-income-hud">0</span>G/秒</div>
+      <button class="mode-btn" id="mode-switch-btn" onclick="toggleMode(event)">🌲 陸へ行く</button>
+    </div>
 
-  const cur = state[mode];
-  const eStats = getEnemyStats();
-  document.getElementById('gold').textContent = gold.toLocaleString();
-  document.getElementById('gem').textContent = gem.toLocaleString();
-  document.getElementById('floor-text').textContent = mode === 'sea' ? `🌊 海域 ${cur.area}-${cur.wave}` : `🌲 陸地 ${cur.area}-${cur.wave}`;
+    <div class="capture-msg" id="capture-msg"></div>
 
-  const startBtn = document.getElementById('start-battle-btn');
-  if (cur.inBattle) {
-    document.getElementById('enemy-name').textContent = `⚔️ ${eStats.name}`;
-    if (startBtn) startBtn.style.display = 'none';
-  } else {
-    document.getElementById('enemy-name').textContent = `${eStats.name} (待機中)`;
-    if (startBtn) startBtn.style.display = 'inline-block';
-  }
+    <div class="enemy-section">
+      <div class="enemy-unit" id="enemy-unit-box">
+        <div class="hp-text"><span id="enemy-name">オクトパス</span> (<span id="enemy-hp-text">100</span>)</div>
+        <div class="bar-bg"><div class="hp-fill" id="enemy-hp-bar"></div></div>
+        <div class="unit-sprite" id="enemy-sprite" style="font-size:44px;height:48px;margin-top:4px;">🐙</div>
+        <div class="bar-bg" style="height:4px;width:90px;margin:2px auto 0;"><div class="ct-fill" id="enemy-ct-bar"></div></div>
+      </div>
+    </div>
 
-  document.getElementById('enemy-sprite').textContent = eStats.icon;
-  document.getElementById('enemy-hp-text').textContent = Math.max(0, cur.hp);
-  document.getElementById('enemy-hp-bar').style.width = `${Math.max(0, (cur.hp / cur.maxHp) * 100)}%`;
-  const enemyCtBar = document.getElementById('enemy-ct-bar');
-  if (enemyCtBar) enemyCtBar.style.width = `${Math.min(100, (cur.enemyCt / eStats.ct) * 100)}%`;
+    <button class="start-battle-btn" id="start-battle-btn" onclick="startBattle(event)">⚔️ バトル開始 (⚡1)</button>
 
-  // 味方3枠の個別HP・CT表示更新
-  for (let i = 0; i < 3; i++) {
-    const el = document.getElementById(`ally-slot-${i}`);
-    if (!el) continue;
-    const unit = battleAllies[i];
-    if (unit) {
-      el.classList.toggle('dead', unit.hp <= 0);
-      const disp = i === 0 ? '⛵' : getSpeciesDisplay(unit.name, unit.icon);
-      const hpPct = Math.max(0, (unit.hp / unit.maxHp) * 100);
-      const ctPct = unit.hp > 0 ? Math.min(100, (unit.ct / unit.maxCt) * 100) : 0;
-      el.innerHTML = `
-        <div class="unit-sprite">${renderSprite(disp, 28, '6px')}</div>
-        <div class="hp-text">${unit.name} ${Math.max(0, unit.hp)}/${unit.maxHp}</div>
-        <div class="bar-bg"><div class="ally-hp-fill" style="width:${hpPct}%"></div></div>
-        <div class="bar-bg" style="height:4px;"><div class="ct-fill" style="width:${ctPct}%"></div></div>
-      `;
-    } else {
-      el.classList.remove('dead');
-      el.innerHTML = `
-        <div class="unit-sprite">⬜</div>
-        <div class="hp-text">空き枠</div>
-        <div class="bar-bg"><div class="ally-hp-fill" style="width:0%"></div></div>
-        <div class="bar-bg" style="height:4px;"><div class="ct-fill" style="width:0%"></div></div>
-      `;
-    }
-  }
+    <div class="ally-section">
+      <div class="units-grid">
+        <div class="unit" id="ally-slot-0">
+          <div class="unit-sprite">⬜</div>
+          <div class="hp-text">空き枠</div>
+          <div class="bar-bg"><div class="ally-hp-fill" id="ally-hp-0" style="width:0%"></div></div>
+          <div class="bar-bg" style="height:4px;"><div class="ct-fill" id="ally-ct-0"></div></div>
+        </div>
+        <div class="unit" id="ally-slot-1">
+          <div class="unit-sprite">⬜</div>
+          <div class="hp-text">空き枠</div>
+          <div class="bar-bg"><div class="ally-hp-fill" id="ally-hp-1" style="width:0%"></div></div>
+          <div class="bar-bg" style="height:4px;"><div class="ct-fill" id="ally-ct-1"></div></div>
+        </div>
+        <div class="unit" id="ally-slot-2">
+          <div class="unit-sprite">⬜</div>
+          <div class="hp-text">空き枠</div>
+          <div class="bar-bg"><div class="ally-hp-fill" id="ally-hp-2" style="width:0%"></div></div>
+          <div class="bar-bg" style="height:4px;"><div class="ct-fill" id="ally-ct-2"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-  const allyLvEl = document.getElementById('ally-lv');
-  if (allyLvEl) allyLvEl.textContent = level;
-  document.getElementById('power-disp').textContent = getTotalPower();
-  document.getElementById('up-cost').textContent = upCost.toLocaleString();
+  <div class="status-bar">
+    <div class="profile-mini">
+      <div class="mini-avatar" id="hud-my-icon">🐬</div>
+      <div>
+        <div id="hud-name" style="font-size:11px;">ハンター</div>
+        <div class="save-badge" id="save-indicator">☁️ 自動保存済</div>
+      </div>
+    </div>
+    <div class="currency">
+      <div class="stamina-box">⚡ <span id="stamina-disp">30</span>/30 <span id="stamina-timer" style="font-size:9px;">MAX</span></div>
+      <div class="gold-box">🪙 <span id="gold">200</span> G</div>
+      <div class="gem-box">💎 <span id="gem">1,000</span></div>
+    </div>
+  </div>
+  <div class="main-content">
+    <div class="tab-pane active" id="tab-ship">
+      <div class="card">
+        <div class="card-title">
+          <span>⚔️ バトルパーティ編成 (最大3体)</span>
+          <span>総戦力: <span id="power-disp">10</span></span>
+        </div>
+        <div class="grid-3" id="party-slots" style="margin-bottom:10px;">
+          <div class="slot-box"><div class="lvl">枠1</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>
+          <div class="slot-box"><div class="lvl">枠2</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>
+          <div class="slot-box"><div class="lvl">枠3</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>
+        </div>
+        <button class="btn-coral" onclick="upgradeUnit()">
+          ⛵ 探索船・海域援護砲撃を強化 Lv.<span id="ally-lv">1</span>（費用: <span id="up-cost">50</span> G）
+        </button>
+      </div>
 
-  const inc = getCafeIncome();
-  document.getElementById('cafe-income-hud').textContent = inc;
-  const cafeRateEl = document.getElementById('cafe-rate');
-  if (cafeRateEl) cafeRateEl.textContent = inc;
-  const cafeLvEl = document.getElementById('cafe-lv');
-  if (cafeLvEl) cafeLvEl.textContent = cafeLv;
-  const cafeCostEl = document.getElementById('cafe-cost');
-  if (cafeCostEl) cafeCostEl.textContent = cafeCost.toLocaleString();
-  const gardenBonusEl = document.getElementById('garden-bonus');
-  if (gardenBonusEl) gardenBonusEl.textContent = gardenItems.length * 15;
-}
-function toggleMode(e) {
-  e.stopPropagation(); mode = mode === 'sea' ? 'land' : 'sea';
-  const bg = document.getElementById('battle-bg'), btn = document.getElementById('mode-switch-btn');
-  if (mode === 'land') { bg.classList.add('land-mode'); btn.textContent = '🌊 海へ戻る'; } else { bg.classList.remove('land-mode'); btn.textContent = '🌲 陸へ行く'; }
-  if (!state[mode].inBattle) resetBattleAllies();
-  updateUI(); triggerAutoSave();
-}
-function showToast(text) {
-  const el = document.getElementById('capture-msg');
-  if (!el) return;
-  el.textContent = text; el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 1800);
-}
+      <div class="card">
+        <div class="card-title">
+          <span>🐾 仲間モンスター一覧</span>
+          <span style="font-size:11px;color:#546e7a;">敵を倒すと確率で仲間になる！</span>
+        </div>
+        <div class="grid-3" id="captured-list">
+          <p style="grid-column:span 3;font-size:12px;color:#78909c;text-align:center;padding:12px 0;">
+            バトルに勝利して仲間を増やそう！
+          </p>
+        </div>
+      </div>
+    </div>
 
-// 敵を倒した時に確率（35%）で自動仲間加入（個別HP/ATK/DEF/CT付き）
-function tryAutoRecruit(baseMon, curArea) {
-  if (Math.random() >= 0.35) return false;
-  const rRoll = Math.random();
-  const rarity = rRoll < 0.08 ? 'SSR' : (rRoll < 0.28 ? 'SR' : (rRoll < 0.6 ? 'R' : 'N'));
-  const mult = { N: 1, R: 1.4, SR: 2.0, SSR: 3.0 }[rarity];
-  const trait = getRandomTrait();
-  const newMon = {
-    id: 'M' + Date.now() + Math.floor(Math.random() * 99),
-    icon: baseMon.icon, name: baseMon.name, type: mode, lv: 1, rarity,
-    maxHp: Math.floor((55 + curArea * 15) * mult),
-    atk: Math.floor((7 + curArea * 3) * mult),
-    def: Math.floor((3 + curArea * 1.5) * mult),
-    ct: baseMon.ct || 2.2,
-    traitId: trait.id
-  };
-  captured.push(newMon);
-  if (!speciesSkins[baseMon.name]) speciesSkins[baseMon.name] = { list: [], activeIdx: -1, defaultIcon: baseMon.icon };
-  const emptySlot = party.findIndex(x => x === null);
-  if (emptySlot !== -1) party[emptySlot] = newMon.id;
-  resetBattleAllies();
-  renderParty(); renderCaptured(); updateSelectOptions(); renderSpeciesGallery();
-  showToast(`✨ [${rarity}] ${baseMon.name}が起き上がり仲間になった！`);
-  return true;
-}
+    <div class="tab-pane" id="tab-cafe">
+      <div class="card">
+        <div class="card-title">
+          <span>🍰 リゾートカフェ経営 Lv.<span id="cafe-lv">1</span></span>
+          <span>+<span id="cafe-rate">0</span> G/秒</span>
+        </div>
+        <div class="garden-field" id="garden-grid"></div>
+        <div style="font-size:11px;color:#546e7a;margin-bottom:8px;">
+          店員配置（タップで外す / 家具ボーナス: +<span id="garden-bonus">0</span>%）
+        </div>
+        <div class="grid-3" id="staff-slots" style="margin-bottom:10px;"></div>
+        <button class="btn-coral" onclick="upgradeCafe()">
+          カフェ拡張アップグレード（費用: <span id="cafe-cost">80</span> G）
+        </button>
+      </div>
 
-function renderParty() {
-  const el = document.getElementById('party-slots');
-  if (!el) return;
-  const ship = getShipStats();
-  let html = `<div class="slot-box"><div class="lvl"><span>船(固定)</span><span>Lv.${ship.lv}</span></div><div class="icon">⛵</div><div class="name">探索船</div><div class="sub">HP:${ship.maxHp} ATK:${ship.atk}</div></div>`;
-  html += party.map((monId, slotIdx) => {
-    const m = captured.find(x => x.id === monId);
-    if (!m) return `<div class="slot-box"><div class="lvl">枠${slotIdx + 1}</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>`;
-    const disp = getSpeciesDisplay(m.name, m.icon), idx = captured.findIndex(x => x.id === monId), st = getMonStats(m);
-    return `<div class="slot-box ${m.type}" onclick="openMonModal(${idx})"><div class="lvl"><span>[${m.rarity}] Lv.${m.lv}</span><span>CT:${st.ct}s</span></div><div class="icon">${renderSprite(disp, 36)}</div><div class="name">${m.name}</div><div class="sub">HP:${st.maxHp} ATK:${st.atk}</div></div>`;
-  }).join('');
-  el.innerHTML = html;
-}
+      <div class="card">
+        <div class="card-title"><span>🌴 ガーデン装飾ショップ（各+15%）</span></div>
+        <div class="grid-3">
+          <div class="slot-box" onclick="buyDecor('🌴', 100)"><div class="icon">🌴</div><div class="name">ヤシの木</div><div class="sub">100 G</div></div>
+          <div class="slot-box" onclick="buyDecor('🌺', 250)"><div class="icon">🌺</div><div class="name">ハイビスカス</div><div class="sub">250 G</div></div>
+          <div class="slot-box" onclick="buyDecor('⛲', 600)"><div class="icon">⛲</div><div class="name">噴水</div><div class="sub">600 G</div></div>
+        </div>
+      </div>
+    </div>
 
-function renderCaptured() {
-  const el = document.getElementById('captured-list');
-  if (!el || captured.length === 0) return;
-  el.innerHTML = captured.map((m, i) => {
-    const disp = getSpeciesDisplay(m.name, m.icon), inParty = party.includes(m.id);
-    return `<div class="slot-box ${m.type}" onclick="openMonModal(${i})"><div class="lvl"><span>[${m.rarity}] Lv.${m.lv}</span>${inParty ? '<span class="badge-tag">編成中</span>' : ''}</div><div class="icon">${renderSprite(disp, 36)}</div><div class="name">${m.name}</div><div class="sub">ATK:${m.atk} DEF:${m.def || 4}</div></div>`;
-  }).join('');
-}
+    <div class="tab-pane" id="tab-ai">
+      <div class="card">
+        <div class="card-title">
+          <span>🎨 AIアトリエ</span>
+          <span id="ai-status" style="font-size:11px;color:#ff7043;">準備OK</span>
+        </div>
+        <div class="sub-tabs">
+          <button class="sub-tab-btn active" onclick="switchAiSub('mon', this)">🐾 着せ替え</button>
+          <button class="sub-tab-btn" onclick="switchAiSub('bg', this)">🖼️ 背景</button>
+          <button class="sub-tab-btn" onclick="switchAiSub('stamp', this)">💬 スタンプ</button>
+        </div>
 
-function openMonModal(idx) {
-  selectedMonIdx = idx;
-  const m = captured[idx]; if (!m) return;
-  const disp = getSpeciesDisplay(m.name, m.icon), sk = getMonsterSkill(m.name), tr = getMonsterTrait(m.traitId), st = getMonStats(m);
-  document.getElementById('modal-mon-sprite').innerHTML = renderSprite(disp, 64, '12px');
-  document.getElementById('modal-mon-name').textContent = m.name;
-  document.getElementById('modal-mon-rarity').textContent = `レア度: ${m.rarity} / ${m.type === 'sea' ? '🌊 海洋族' : '🌲 陸上族'}`;
-  document.getElementById('modal-mon-lv').textContent = `Lv.${m.lv}`;
-  document.getElementById('modal-mon-atk').innerHTML = `HP:${st.maxHp} / ATK:${st.atk}<br>DEF:${st.def} / CT:${st.ct}秒`;
-  document.getElementById('modal-mon-terrain').textContent = m.type === 'sea' ? '🌊 海（海戦で攻撃+20%）' : '🌲 陸（陸戦で攻撃+20%）';
-  document.getElementById('modal-mon-skill').innerHTML = `<b>${sk.name}</b><br><span style="font-size:11px;color:#546e7a;font-weight:normal;">${sk.desc}</span>`;
-  document.getElementById('modal-mon-trait').innerHTML = `<b>${tr.name}</b><br><span style="font-size:11px;color:#546e7a;font-weight:normal;">${tr.desc}</span>`;
-  document.getElementById('modal-party-btn').textContent = party.includes(m.id) ? '❌ パーティから外す' : '⚔️ バトルパーティに編成する';
-  document.getElementById('modal-lvup-btn').textContent = `⬆️ 個別強化する（費用: ${m.lv * 30} G）`;
-  document.getElementById('mon-modal').style.display = 'flex';
-}
-function closeMonModal() { document.getElementById('mon-modal').style.display = 'none'; }
+        <div class="ai-sub-pane active" id="ai-sub-mon">
+          <select class="inp" id="ai-species-sel" onchange="renderSpeciesGallery()"><option value="">未捕獲</option></select>
+          <textarea class="inp" id="ai-mon-prompt" maxlength="200" oninput="updateCharCount('mon')" placeholder="例：海賊の帽子をかぶったかっこいい姿、黄金の鎧など"></textarea>
+          <div class="char-count"><span id="mon-count">0</span> / <span id="mon-max">200</span>文字</div>
+          <label class="extend-box"><input type="checkbox" id="mon-ext" onchange="toggleExtend('mon')"> 長文プロンプト拡張（500文字 / 250💎）</label>
+          <button class="btn-coral" onclick="generateAI('monster')">✨ スキンを生成（<span id="mon-cost">200</span> 💎）</button>
+          <div class="grid-3" id="species-skin-gallery" style="margin-top:10px;"></div>
+        </div>
 
-function togglePartyFromModal() {
-  const m = captured[selectedMonIdx]; if (!m) return;
-  const pIdx = party.indexOf(m.id);
-  if (pIdx !== -1) { party[pIdx] = null; showToast(`${m.name}をパーティから外しました`); }
-  else {
-    const empty = party.findIndex(x => x === null);
-    if (empty === -1) return alert('パーティ（2枠）がいっぱいです！');
-    party[empty] = m.id; showToast(`⚔️ ${m.name}をパーティに編成！`);
-  }
-  if (!state[mode].inBattle) resetBattleAllies();
-  renderParty(); renderCaptured(); updateUI(); triggerAutoSave(); openMonModal(selectedMonIdx);
-}
+        <div class="ai-sub-pane" id="ai-sub-bg">
+          <textarea class="inp" id="ai-bg-prompt" maxlength="200" oninput="updateCharCount('bg')" placeholder="例：夕焼けのトロピカルビーチ、神秘的な深海神殿"></textarea>
+          <div class="char-count"><span id="bg-count">0</span> / <span id="bg-max">200</span>文字</div>
+          <label class="extend-box"><input type="checkbox" id="bg-ext" onchange="toggleExtend('bg')"> 長文プロンプト拡張（500文字 / 250💎）</label>
+          <button class="btn-blue" onclick="generateAI('bg')">🖼️ アイコン背景を生成（<span id="bg-cost">200</span> 💎）</button>
+        </div>
+        <div class="ai-sub-pane" id="ai-sub-stamp">
+          <select class="inp" id="stamp-species-sel"><option value="🐬 イルカ">🐬 イルカ(相棒)</option></select>
+          <input class="inp" id="stamp-text" maxlength="12" placeholder="スタンプ文字（例：よろしく！、やったー！）">
+          <textarea class="inp" id="ai-stamp-prompt" maxlength="200" oninput="updateCharCount('stamp')" placeholder="例：キラキラした笑顔で手を振るデフォルメイラスト"></textarea>
+          <div class="char-count"><span id="stamp-count">0</span> / <span id="stamp-max">200</span>文字</div>
+          <label class="extend-box"><input type="checkbox" id="stamp-ext" onchange="toggleExtend('stamp')"> 長文プロンプト拡張（500文字 / 250💎）</label>
+          <button class="btn-coral" onclick="generateAI('stamp')">💬 スタンプを生成（<span id="stamp-cost">200</span> 💎）</button>
+          <div class="grid-3" id="stamp-gallery" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    </div>
 
-function levelUpMonFromModal() {
-  const m = captured[selectedMonIdx]; if (!m) return;
-  const cost = m.lv * 30;
-  if (gold < cost) return alert('ゴールド不足！');
-  gold -= cost;
-  m.lv++;
-  m.maxHp = (m.maxHp || 68) + Math.floor(14 + m.lv * 3);
-  m.atk += Math.floor(4 + m.lv * 1.5);
-  m.def = (m.def || 4) + Math.floor(2 + m.lv * 0.8);
-  if (!state[mode].inBattle) resetBattleAllies();
-  renderParty(); renderCaptured(); updateUI(); triggerAutoSave(); openMonModal(selectedMonIdx);
-}
+    <div class="tab-pane" id="tab-chat">
+      <div class="card">
+        <div class="card-title">
+          <span>💬 みんなとチャット</span>
+          <button onclick="loadChat()" style="background:#e1f5fe;border:none;padding:3px 8px;border-radius:6px;font-size:11px;color:#0277bd;font-weight:bold;">🔄 更新</button>
+        </div>
+        <div class="chat-box" id="chat-messages">読み込み中...</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <input class="inp" id="chat-input" maxlength="100" placeholder="メッセージを入力（100文字まで）" style="margin-bottom:0;">
+          <button class="btn-blue" onclick="sendChat()" style="width:72px;">送信</button>
+        </div>
+        <div style="font-size:11px;color:#546e7a;margin-bottom:6px;">AIスタンプ送信（タップで即送信）</div>
+        <div class="grid-3" id="chat-stamp-bar"></div>
+      </div>
+    </div>
 
-function assignStaffFromModal() { assignStaff(selectedMonIdx); closeMonModal(); }
-function assignStaff(idx) {
-  const mon = captured[idx], emptyIdx = staff.findIndex(s => s === null);
-  if (emptyIdx !== -1) { staff[emptyIdx] = mon; showToast(`🍰 ${mon.name}を店員に配属！`); renderCafe(); updateUI(); triggerAutoSave(); }
-  else showToast('店員枠がいっぱいです');
-}
-function removeStaff(slotIdx) { if (staff[slotIdx]) { staff[slotIdx] = null; renderCafe(); updateUI(); triggerAutoSave(); } }
-function renderCafe() {
-  const roles = ['店長', 'ホール', 'キッチン'];
-  const staffEl = document.getElementById('staff-slots');
-  if (staffEl) {
-    staffEl.innerHTML = staff.map((s, i) => !s
-      ? `<div class="slot-box staff"><div class="lvl">${roles[i]}</div><div class="icon">➕</div><div class="name">空き枠</div></div>`
-      : `<div class="slot-box staff" onclick="removeStaff(${i})"><div class="lvl">${roles[i]}</div><div class="icon">${renderSprite(getSpeciesDisplay(s.name, s.icon), 36)}</div><div class="name">${s.name}</div></div>`).join('');
-  }
-  const gardenEl = document.getElementById('garden-grid');
-  if (gardenEl) {
-    gardenEl.innerHTML = Array(8).fill('').map((_, i) => `<div class="garden-cell">${gardenItems[i] || (staff[i] ? renderSprite(getSpeciesDisplay(staff[i].name, staff[i].icon), 28) : '')}</div>`).join('');
-  }
-}
-function upgradeCafe() { if (gold >= cafeCost) { gold -= cafeCost; cafeLv++; cafeCost = Math.floor(cafeCost * 1.6); updateUI(); triggerAutoSave(); } else alert('ゴールド不足'); }
-function buyDecor(icon, cost) { if (gardenItems.length >= 8) return alert('満杯です'); if (gold >= cost) { gold -= cost; gardenItems.push(icon); renderCafe(); updateUI(); triggerAutoSave(); } else alert('ゴールド不足'); }
-// バトル開始処理（スタミナ1消費＋個別HP/CTリセット）
-function startBattle(e) {
-  if (e) e.stopPropagation();
-  const cur = state[mode];
-  if (cur.inBattle) return;
+    <div class="tab-pane" id="tab-rank">
+      <div class="card">
+        <div class="card-title"><span>👤 プロフィール＆アイコン編集</span></div>
+        <div style="font-size:11px;color:#607d8b;margin-bottom:6px;">あなたのID: <b id="my-user-id">---</b></div>
+        <input class="inp" id="player-name" maxlength="12" value="ハンター" onchange="changePlayerName()" placeholder="プレイヤー名">
+        <div class="preview-wrap"><div id="icon-preview-box"><div id="icon-char-layer">🐬</div></div></div>
+        <select class="inp" id="icon-char-sel" onchange="updateIconPreview()"><option value="デフォルト">🐬 デフォルト</option></select>
+        <select class="inp" id="icon-bg-sel" onchange="updateIconPreview()"><option value="-1">デフォルト(水色グラデ)</option></select>
+        <div class="slider-row"><span>拡大率</span><input type="range" id="icon-scale" min="0.5" max="2.0" step="0.1" value="1.0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
+        <div class="slider-row"><span>横位置</span><input type="range" id="icon-x" min="-40" max="40" step="2" value="0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
+        <div class="slider-row"><span>縦位置</span><input type="range" id="icon-y" min="-40" max="40" step="2" value="0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
+        <div class="slider-row"><span>回転角度</span><input type="range" id="icon-rot" min="-180" max="180" step="5" value="0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span>🏆 ランキング</span></div>
+        <div id="ranking-list" style="font-size:12px;">読み込み中...</div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span>☁️ データ引き継ぎ（ID復元）</span></div>
+        <div style="display:flex;gap:6px;">
+          <input class="inp" id="import-id-input" placeholder="引き継ぎIDを入力" style="margin-bottom:0;">
+          <button class="btn-gray" onclick="loadFromCloudById()" style="width:80px;">復元</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-  syncStamina();
-  if (stamina < 1) {
-    showToast('⚡ スタミナ不足！（1分で1回復）');
-    updateUI();
-    return;
-  }
+  <div class="modal-overlay" id="mon-modal" onclick="closeMonModal()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div id="modal-mon-sprite" style="font-size:48px;"></div>
+        <div>
+          <div id="modal-mon-name" style="font-size:16px;font-weight:bold;"></div>
+          <div id="modal-mon-rarity" style="font-size:11px;color:#ff7043;font-weight:bold;"></div>
+        </div>
+      </div>
+      <table class="stat-table">
+        <tr><td>レベル</td><td id="modal-mon-lv"></td></tr>
+        <tr><td>ステータス</td><td id="modal-mon-atk"></td></tr>
+        <tr><td>得意地形</td><td id="modal-mon-terrain"></td></tr>
+        <tr><td>固有スキル</td><td id="modal-mon-skill"></td></tr>
+        <tr><td>個体特性</td><td id="modal-mon-trait"></td></tr>
+      </table>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button class="btn-coral" id="modal-party-btn" onclick="togglePartyFromModal()"></button>
+        <button class="btn-blue" id="modal-lvup-btn" onclick="levelUpMonFromModal()"></button>
+        <button class="btn-gray" onclick="assignStaffFromModal()">🍰 カフェ店員に配属する</button>
+        <button class="btn-gray" style="background:#cfd8dc;color:#37474f;" onclick="closeMonModal()">閉じる</button>
+      </div>
+    </div>
+  </div>
 
-  if (stamina === MAX_STAMINA) staminaUpdatedAt = Date.now();
-  stamina -= 1;
-  resetBattleAllies();
-  cur.hp = cur.maxHp;
-  cur.enemyCt = 0;
-  cur.inBattle = true;
-  triggerAutoSave();
-  updateUI();
-}
-
-// 0.2秒刻みのリアルタイムCT進行バトルループ
-let tickCount = 0;
-setInterval(() => {
-  tickCount++;
-  if (tickCount % 5 === 0) {
-    gold += getCafeIncome(); // カフェ収入は1秒ごと
-  }
-
-  const cur = state[mode];
-  if (!cur.inBattle) {
-    if (tickCount % 5 === 0) updateUI();
-    return;
-  }
-
-  const dt = 0.2;
-  const eStats = getEnemyStats();
-
-  // 1. 味方3枠の個別CT加算＆行動処理
-  for (let i = 0; i < 3; i++) {
-    const u = battleAllies[i];
-    if (!u || u.hp <= 0) continue;
-    u.ct += dt;
-    if (u.ct >= u.maxCt) {
-      u.ct = 0;
-      let rawAtk = u.atk;
-      let isCrit = false;
-
-      if (i > 0 && u.monRef) {
-        const sk = getMonsterSkill(u.name);
-        const bonusRate = u.monRef.traitId === 'crit_master' ? 0.1 : 0;
-        if (Math.random() < (sk.rate + bonusRate)) {
-          rawAtk = Math.floor(rawAtk * sk.mult);
-          isCrit = true;
-        }
-      }
-
-      const dmg = Math.max(1, rawAtk - Math.floor(eStats.def / 2));
-      cur.hp -= dmg;
-
-      // 攻撃＆被弾モーション＋数字ポップアップ
-      triggerMotion(`ally-slot-${i}`, 'atk-motion');
-      triggerMotion('enemy-unit-box', 'hit-motion');
-      showDamagePopup('enemy-unit-box', isCrit ? `💥-${dmg}` : `-${dmg}`, isCrit ? 'crit' : '');
-
-      // 撃破判定
-      if (cur.hp <= 0) {
-        const goldTraitCount = party.map(id => captured.find(x => x.id === id)).filter(m => m && m.traitId === 'gold_up').length;
-        const rewardGold = Math.floor(cur.area * 25 * (1 + goldTraitCount * 0.3));
-        gold += rewardGold;
-
-        const recruited = tryAutoRecruit(eStats, cur.area);
-        if (!recruited) showToast(`🎉 討伐完了！+${rewardGold}G`);
-
-        cur.wave++; cur.idx++;
-        if (cur.wave > 5) { cur.wave = 1; cur.area++; }
-        cur.maxHp = Math.floor((mode === 'sea' ? 100 : 120) * Math.pow(1.3, cur.area - 1));
-        cur.hp = cur.maxHp;
-        cur.enemyCt = 0;
-        cur.inBattle = false;
-        resetBattleAllies();
-        triggerAutoSave();
-        updateUI();
-        return;
-      }
-    }
-  }
-
-  // 2. 敵のCT加算＆反撃処理
-  cur.enemyCt += dt;
-  if (cur.enemyCt >= eStats.ct) {
-    cur.enemyCt = 0;
-    const aliveIndices = [0, 1, 2].filter(idx => battleAllies[idx] && battleAllies[idx].hp > 0);
-    if (aliveIndices.length > 0) {
-      const targetIdx = aliveIndices[Math.floor(Math.random() * aliveIndices.length)];
-      const targetUnit = battleAllies[targetIdx];
-      const dmg = Math.max(1, eStats.atk - Math.floor(targetUnit.def / 2));
-      targetUnit.hp -= dmg;
-
-      triggerMotion('enemy-unit-box', 'atk-motion');
-      triggerMotion(`ally-slot-${targetIdx}`, 'hit-motion');
-      showDamagePopup(`ally-slot-${targetIdx}`, `-${dmg}`, 'ally-dmg');
-
-      // 全滅判定
-      const stillAlive = [0, 1, 2].some(idx => battleAllies[idx] && battleAllies[idx].hp > 0);
-      if (!stillAlive) {
-        cur.hp = cur.maxHp;
-        cur.enemyCt = 0;
-        cur.inBattle = false;
-        resetBattleAllies();
-        showToast('💀 全滅…船と仲間を強化しよう！');
-        triggerAutoSave();
-      }
-    }
-  }
-
-  updateUI();
-}, 200);
-
-function upgradeUnit() {
-  if (gold >= upCost) {
-    gold -= upCost; level++; baseAtk += 8; upCost = Math.floor(upCost * 1.4);
-    if (!state[mode].inBattle) resetBattleAllies();
-    renderParty(); updateUI(); triggerAutoSave();
-  } else alert('ゴールド不足');
-}
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="switchTab('ship', this)"><span class="nav-icon">⚓</span>船・育成</button>
+    <button class="nav-item" onclick="switchTab('cafe', this)"><span class="nav-icon">🍰</span>カフェ箱庭</button>
+    <button class="nav-item" onclick="switchTab('ai', this)"><span class="nav-icon">🎨</span>AIアトリエ</button>
+    <button class="nav-item" onclick="switchTab('chat', this)"><span class="nav-icon">💬</span>チャット</button>
+    <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">👤</span>マイページ</button>
+  </nav>
+  <script src="/skills.js?v=5"></script>
+  <script src="/game.js?v=5"></script>
+  <script src="/social.js?v=5"></script>
+  <script>initCloudLoad();</script>
+</body>
+</html>
