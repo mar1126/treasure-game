@@ -115,7 +115,21 @@ function applySaveData(data) {
   }
   captured = (data.captured || []).map((m, idx) => {
     const baseData = [...seaMonsters, ...landMonsters].find(x => x.name === m.name);
-    return { id: m.id || ('M' + idx), icon: m.icon, name: m.name, type: m.type, lv: m.lv || 1, rarity: m.rarity || 'N', maxHp: m.maxHp || (55 + (m.lv || 1) * 18), atk: m.atk || 8, def: m.def || (3 + (m.lv || 1) * 2), ct: Number(m.ct) || (baseData ? baseData.ct : 2.1), traitId: m.traitId || 'gold_up' };
+    return {
+      id: m.id || ('M' + idx),
+      icon: m.icon,
+      name: m.name,
+      type: m.type,
+      lv: m.lv || 1,
+      rarity: m.rarity || 'N',
+      maxHp: m.maxHp || (55 + (m.lv || 1) * 18),
+      atk: m.atk || 8,
+      def: m.def || (3 + (m.lv || 1) * 2),
+      ct: Number(m.ct) || (baseData ? baseData.ct : 2.1),
+      traitId: m.traitId || 'gold_up',
+      customSkin: m.customSkin || null,
+      customBgIdx: (typeof m.customBgIdx === 'number') ? m.customBgIdx : -1
+    };
   });
   speciesSkins = data.speciesSkins || {}; aiBackgrounds = data.aiBackgrounds || []; aiStamps = data.aiStamps || [];
   if (data.iconConfig) iconConfig = data.iconConfig;
@@ -176,13 +190,19 @@ window.addEventListener('beforeunload', () => {
 });
 
 function getSpeciesDisplay(name, defaultIcon) {
+  const defVisual = typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual(name, defaultIcon) : defaultIcon;
   const data = speciesSkins[name];
-  if (!data || data.activeIdx < 0) return defaultIcon;
-  return data.list.slice(data.activeIdx, data.activeIdx + 1).pop() || defaultIcon;
+  if (!data || data.activeIdx < 0) return defVisual;
+  return data.list.slice(data.activeIdx, data.activeIdx + 1).pop() || defVisual;
 }
+
 function renderSprite(displayVal, size = 32, round = '8px') {
-  return (displayVal && displayVal.startsWith('data:image')) ? `<img src="${displayVal}" style="width:${size}px;height:${size}px;border-radius:${round};object-fit:cover;vertical-align:middle;">` : displayVal;
+  if (displayVal && (displayVal.startsWith('data:image') || displayVal.startsWith('/'))) {
+    return `<img src="${displayVal}" style="width:${size}px;height:${size}px;border-radius:${round};object-fit:contain;vertical-align:middle;">`;
+  }
+  return displayVal;
 }
+
 function getTotalPower() {
   let p = typeof getVehicleSupportAtk === 'function' ? getVehicleSupportAtk(mode) : 0;
   party.forEach(monId => {
@@ -241,7 +261,14 @@ function updateUI() {
   const startBtn = document.getElementById('start-battle-btn');
   if (cur.inBattle) { document.getElementById('enemy-name').textContent = `⚔️ ${eStats.name}`; if (startBtn) startBtn.style.display = 'none'; }
   else { document.getElementById('enemy-name').textContent = `${eStats.name} (待機中)`; if (startBtn) startBtn.style.display = 'inline-block'; }
-  document.getElementById('enemy-sprite').textContent = eStats.icon;
+
+  const enemySpriteEl = document.getElementById('enemy-sprite');
+  if (enemySpriteEl) {
+    const enemyDisp = getSpeciesDisplay(eStats.name, eStats.icon);
+    const enemyHtml = renderSprite(enemyDisp, 48, '8px');
+    if (enemySpriteEl.innerHTML !== enemyHtml) enemySpriteEl.innerHTML = enemyHtml;
+  }
+
   document.getElementById('enemy-hp-text').textContent = Math.max(0, cur.hp);
   document.getElementById('enemy-hp-bar').style.width = `${Math.max(0, (cur.hp / cur.maxHp) * 100)}%`;
 
@@ -260,8 +287,10 @@ function updateUI() {
 
     if (unit) {
       el.classList.toggle('dead', unit.hp <= 0);
-      const disp = getSpeciesDisplay(unit.name, unit.icon);
-      const nextHtml = renderSprite(disp, 28, '6px');
+      const disp = (unit.monRef && typeof getMonsterVisual === 'function')
+        ? getMonsterVisual(unit.monRef)
+        : getSpeciesDisplay(unit.name, unit.icon);
+      const nextHtml = renderSprite(disp, 30, '6px');
       if (spriteEl.innerHTML !== nextHtml) spriteEl.innerHTML = nextHtml;
       spriteEl.style.opacity = '1';
       textEl.style.opacity = '1';
