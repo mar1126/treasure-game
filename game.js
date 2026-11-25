@@ -6,8 +6,8 @@ let cafeLv = 1, cafeCost = 80, staff = [null, null, null], gardenItems = [];
 let party = [null, null, null];
 let selectedMonIdx = -1;
 let state = { sea: { area: 1, wave: 1, maxHp: 100, hp: 100, idx: 0 }, land: { area: 1, wave: 1, maxHp: 120, hp: 120, idx: 0 } };
-const seaMonsters = [{ icon: '🐙', name: 'オクトパス', skill: '墨噴射' }, { icon: '🦈', name: 'シャーク', skill: '鋭い牙' }, { icon: '🦀', name: 'クラブ', skill: '硬い甲羅' }, { icon: '🐡', name: 'ハリセンボン', skill: '毒針連打' }, { icon: '🦑', name: 'ダイオウイカ', skill: '深海の圧力' }, { icon: '🐳', name: 'ホエール', skill: '巨大津波' }];
-const landMonsters = [{ icon: '🦊', name: 'フォックス', skill: '狐火' }, { icon: '🐗', name: 'ボア', skill: '猛突進' }, { icon: '🦎', name: 'リザード', skill: '尻尾斬り' }, { icon: '🦉', name: 'オウル', skill: '夜目の狙撃' }, { icon: '🐻', name: 'グリズリー', skill: '剛腕の一撃' }, { icon: '🐉', name: 'ワイバーン', skill: '竜の咆哮' }];
+const seaMonsters = [{ icon: '🐙', name: 'オクトパス' }, { icon: '🦈', name: 'シャーク' }, { icon: '🦀', name: 'クラブ' }, { icon: '🐡', name: 'ハリセンボン' }, { icon: '🦑', name: 'ダイオウイカ' }, { icon: '🐳', name: 'ホエール' }];
+const landMonsters = [{ icon: '🦊', name: 'フォックス' }, { icon: '🐗', name: 'ボア' }, { icon: '🦎', name: 'リザード' }, { icon: '🦉', name: 'オウル' }, { icon: '🐻', name: 'グリズリー' }, { icon: '🐉', name: 'ワイバーン' }];
 let captured = [], speciesSkins = {}, aiBackgrounds = [], aiStamps = [];
 let iconConfig = { species: 'デフォルト', bgIdx: -1, scale: 1.0, x: 0, y: 0, rotate: 0 };
 
@@ -35,7 +35,10 @@ function applySaveData(data) {
   cafeLv = data.cafeLv ?? 1; cafeCost = data.cafeCost ?? 80; staff = data.staff || [null, null, null]; gardenItems = data.gardenItems || [];
   party = data.party || [null, null, null];
   if (data.state) state = data.state;
-  captured = (data.captured || []).map((m, idx) => ({ id: m.id || ('M' + idx), icon: m.icon, name: m.name, type: m.type, lv: m.lv || 1, rarity: m.rarity || 'N', atk: m.atk || 8, skill: m.skill || '突撃' }));
+  captured = (data.captured || []).map((m, idx) => ({
+    id: m.id || ('M' + idx), icon: m.icon, name: m.name, type: m.type,
+    lv: m.lv || 1, rarity: m.rarity || 'N', atk: m.atk || 8, traitId: m.traitId || 'gold_up'
+  }));
   speciesSkins = data.speciesSkins || {}; aiBackgrounds = data.aiBackgrounds || []; aiStamps = data.aiStamps || [];
   if (data.iconConfig) iconConfig = data.iconConfig;
 
@@ -71,17 +74,25 @@ function getSpeciesDisplay(name, defaultIcon) {
 function renderSprite(displayVal, size = 32, round = '8px') {
   return (displayVal && displayVal.startsWith('data:image')) ? `<img src="${displayVal}" style="width:${size}px;height:${size}px;border-radius:${round};object-fit:cover;vertical-align:middle;">` : displayVal;
 }
+function getMonEffectiveAtk(m) {
+  let mult = (m.type === mode) ? 1.2 : 1.0;
+  if (m.traitId === 'sea_lord' && mode === 'sea') mult += 0.4;
+  if (m.traitId === 'land_lord' && mode === 'land') mult += 0.4;
+  return Math.floor(m.atk * mult);
+}
 function getTotalAtk() {
   let partyAtk = 0;
   party.forEach(monId => {
     const m = captured.find(x => x.id === monId);
-    if (m) partyAtk += Math.floor(m.atk * (m.type === mode ? 1.2 : 1.0));
+    if (m) partyAtk += getMonEffectiveAtk(m);
   });
   return baseAtk + partyAtk;
 }
 function getCafeIncome() {
-  const activeStaff = staff.filter(s => s !== null).length;
-  return activeStaff === 0 ? 0 : Math.floor(activeStaff * 6 * cafeLv * (1 + gardenItems.length * 0.15));
+  const active = staff.filter(s => s !== null);
+  if (active.length === 0) return 0;
+  const cafeTraitBonus = active.filter(s => s.traitId === 'cafe_star').length * 0.35;
+  return Math.floor(active.length * 6 * cafeLv * (1 + gardenItems.length * 0.15 + cafeTraitBonus));
 }
 function updateUI() {
   const cur = state[mode], list = mode === 'sea' ? seaMonsters : landMonsters, mon = list[cur.idx % list.length];
@@ -104,12 +115,13 @@ function updateUI() {
 
   for (let i = 0; i < 3; i++) {
     const el = document.getElementById(`ally-slot-${i}`);
+    if (!el) continue;
     const m = captured.find(x => x.id === party[i]);
     if (m) {
       const disp = getSpeciesDisplay(m.name, m.icon);
-      el.innerHTML = `<div class="unit-sprite">${renderSprite(disp, 38, '8px')}</div><div class="hp-text">Lv.${m.lv} ATK:${m.atk}</div>`;
+      el.innerHTML = `<div class="unit-sprite">${renderSprite(disp, 36, '8px')}</div><div class="hp-text">${m.name} Lv.${m.lv}</div>`;
     } else {
-      el.innerHTML = `<div class="unit-sprite">${i === 0 ? '🚤' : '➕'}</div><div class="hp-text">${i === 0 ? '探索船 ATK:' + baseAtk : '未編成'}</div>`;
+      el.innerHTML = `<div class="unit-sprite">${i === 0 ? '⛵' : '⬜'}</div><div class="hp-text">${i === 0 ? '船 ATK:' + baseAtk : '空き枠'}</div>`;
     }
   }
 }
@@ -132,7 +144,8 @@ function tryCapture(e) {
     const rRoll = Math.random();
     const rarity = rRoll < 0.08 ? 'SSR' : (rRoll < 0.28 ? 'SR' : (rRoll < 0.6 ? 'R' : 'N'));
     const mult = { N: 1, R: 1.4, SR: 2.0, SSR: 3.0 }[rarity];
-    const newMon = { id: 'M' + Date.now() + Math.floor(Math.random()*99), icon: mon.icon, name: mon.name, type: mode, lv: 1, rarity, atk: Math.floor((6 + cur.area * 3) * mult), skill: mon.skill };
+    const trait = getRandomTrait();
+    const newMon = { id: 'M' + Date.now() + Math.floor(Math.random()*99), icon: mon.icon, name: mon.name, type: mode, lv: 1, rarity, atk: Math.floor((6 + cur.area * 3) * mult), traitId: trait.id };
     captured.push(newMon);
     if (!speciesSkins[mon.name]) speciesSkins[mon.name] = { list: [], activeIdx: -1, defaultIcon: mon.icon };
     const emptySlot = party.findIndex(x => x === null);
@@ -146,7 +159,7 @@ function renderParty() {
     const m = captured.find(x => x.id === monId);
     if (!m) return `<div class="slot-box"><div class="lvl">枠${slotIdx + 1}</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>`;
     const disp = getSpeciesDisplay(m.name, m.icon), idx = captured.findIndex(x => x.id === monId);
-    return `<div class="slot-box ${m.type}" onclick="openMonModal(${idx})"><div class="lvl"><span>[${m.rarity}] Lv.${m.lv}</span><span>⚔️${m.atk}</span></div><div class="icon">${renderSprite(disp, 36)}</div><div class="name">${m.name}</div></div>`;
+    return `<div class="slot-box ${m.type}" onclick="openMonModal(${idx})"><div class="lvl"><span>[${m.rarity}] Lv.${m.lv}</span><span>⚔️${getMonEffectiveAtk(m)}</span></div><div class="icon">${renderSprite(disp, 36)}</div><div class="name">${m.name}</div></div>`;
   }).join('');
 }
 function renderCaptured() {
@@ -159,16 +172,16 @@ function renderCaptured() {
 function openMonModal(idx) {
   selectedMonIdx = idx;
   const m = captured[idx]; if (!m) return;
-  const disp = getSpeciesDisplay(m.name, m.icon);
+  const disp = getSpeciesDisplay(m.name, m.icon), sk = getMonsterSkill(m.name), tr = getMonsterTrait(m.traitId);
   document.getElementById('modal-mon-sprite').innerHTML = renderSprite(disp, 64, '12px');
   document.getElementById('modal-mon-name').textContent = m.name;
   document.getElementById('modal-mon-rarity').textContent = `レア度: ${m.rarity} / ${m.type === 'sea' ? '🌊 海洋族' : '🌲 陸上族'}`;
   document.getElementById('modal-mon-lv').textContent = `Lv.${m.lv}`;
-  document.getElementById('modal-mon-atk').textContent = `${m.atk}（得意地形で ${Math.floor(m.atk * 1.2)}）`;
+  document.getElementById('modal-mon-atk').textContent = `${m.atk}（現在実効値: ${getMonEffectiveAtk(m)}）`;
   document.getElementById('modal-mon-terrain').textContent = m.type === 'sea' ? '🌊 海（海戦で攻撃+20%）' : '🌲 陸（陸戦で攻撃+20%）';
-  document.getElementById('modal-mon-skill').textContent = m.skill || '突撃';
-  const inParty = party.includes(m.id);
-  document.getElementById('modal-party-btn').textContent = inParty ? '❌ パーティから外す' : '⚔️ バトルパーティに編成する';
+  document.getElementById('modal-mon-skill').innerHTML = `<b>${sk.name}</b><br><span style="font-size:11px;color:#546e7a;font-weight:normal;">${sk.desc}</span>`;
+  document.getElementById('modal-mon-trait').innerHTML = `<b>${tr.name}</b><br><span style="font-size:11px;color:#546e7a;font-weight:normal;">${tr.desc}</span>`;
+  document.getElementById('modal-party-btn').textContent = party.includes(m.id) ? '❌ パーティから外す' : '⚔️ バトルパーティに編成する';
   document.getElementById('modal-lvup-btn').textContent = `⬆️ 個別強化する（費用: ${m.lv * 30} G）`;
   document.getElementById('mon-modal').style.display = 'flex';
 }
@@ -179,15 +192,15 @@ function togglePartyFromModal() {
   if (pIdx !== -1) { party[pIdx] = null; showToast(`${m.name}をパーティから外しました`); }
   else {
     const empty = party.findIndex(x => x === null);
-    if (empty === -1) return alert('パーティ（3枠）がいっぱいです！先に誰かを外してください');
-    party[empty] = m.id; showToast(`⚔️ ${m.name}をパーティに編成しました！`);
+    if (empty === -1) return alert('パーティ（3枠）がいっぱいです！');
+    party[empty] = m.id; showToast(`⚔️ ${m.name}をパーティに編成！`);
   }
   renderParty(); renderCaptured(); updateUI(); triggerAutoSave(); openMonModal(selectedMonIdx);
 }
 function levelUpMonFromModal() {
   const m = captured[selectedMonIdx]; if (!m) return;
   const cost = m.lv * 30;
-  if (gold < cost) return alert('ゴールドが足りません！');
+  if (gold < cost) return alert('ゴールド不足！');
   gold -= cost; m.lv++; m.atk += Math.floor(4 + m.lv * 1.5);
   renderParty(); renderCaptured(); updateUI(); triggerAutoSave(); openMonModal(selectedMonIdx);
 }
@@ -207,16 +220,33 @@ function renderCafe() {
 }
 function upgradeCafe() { if (gold >= cafeCost) { gold -= cafeCost; cafeLv++; cafeCost = Math.floor(cafeCost * 1.6); updateUI(); triggerAutoSave(); } else alert('ゴールド不足'); }
 function buyDecor(icon, cost) { if (gardenItems.length >= 8) return alert('満杯です'); if (gold >= cost) { gold -= cost; gardenItems.push(icon); renderCafe(); updateUI(); triggerAutoSave(); } else alert('ゴールド不足'); }
-function damageEnemy(dmg) {
-  const cur = state[mode]; cur.hp -= dmg;
+function damageEnemy(dmg, isAuto = false) {
+  const cur = state[mode];
+  let finalDmg = dmg;
+  if (!isAuto) {
+    for (const monId of party) {
+      const m = captured.find(x => x.id === monId);
+      if (!m) continue;
+      const sk = getMonsterSkill(m.name);
+      const bonusRate = m.traitId === 'crit_master' ? 0.1 : 0;
+      if (Math.random() < (sk.rate + bonusRate)) {
+        finalDmg = Math.floor(finalDmg * sk.mult);
+        showToast(`⚡ ${m.name}の【${sk.name}】発動！(${finalDmg}ダメージ)`);
+        break;
+      }
+    }
+  }
+  cur.hp -= finalDmg;
   if (cur.hp <= 0) {
-    gold += cur.area * 25; cur.wave++; cur.idx++;
+    const goldTraitCount = party.map(id => captured.find(x => x.id === id)).filter(m => m && m.traitId === 'gold_up').length;
+    gold += Math.floor(cur.area * 25 * (1 + goldTraitCount * 0.3));
+    cur.wave++; cur.idx++;
     if (cur.wave > 5) { cur.wave = 1; cur.area++; }
     cur.maxHp = Math.floor((mode === 'sea' ? 100 : 120) * Math.pow(1.3, cur.area - 1)); cur.hp = cur.maxHp;
     triggerAutoSave();
   }
   updateUI();
 }
-function tapAttack() { damageEnemy(getTotalAtk()); }
-setInterval(() => { damageEnemy(Math.floor(getTotalAtk() / 2) || 1); gold += getCafeIncome(); updateUI(); }, 1000);
+function tapAttack() { damageEnemy(getTotalAtk(), false); }
+setInterval(() => { damageEnemy(Math.floor(getTotalAtk() / 2) || 1, true); gold += getCafeIncome(); updateUI(); }, 1000);
 function upgradeUnit() { if (gold >= upCost) { gold -= upCost; level++; baseAtk += 8; upCost = Math.floor(upCost * 1.4); updateUI(); triggerAutoSave(); } else alert('ゴールド不足'); }
