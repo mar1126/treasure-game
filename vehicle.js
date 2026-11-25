@@ -1,4 +1,4 @@
-// 探索船・戦車 援護砲撃＆パーツ拡張システム (ship.js)
+// 乗り物（戦車・探索船）援護砲撃＆パーツ拡張システム (vehicle.js)
 const BASE_VEHICLE_SUPPORT_CT = 3.0; // 基本援護砲撃間隔（3.0秒）
 
 const VEHICLES = {
@@ -20,14 +20,9 @@ const VEHICLES = {
   ]
 };
 
-// 将来のパーツ実装用フック（主砲・エンジン・照準器などの装備データ）
-// 例: vehicleParts = { land: { cannon: null, engine: null }, sea: { cannon: null, engine: null } }
 function getVehiclePartsBonus(targetMode = mode) {
   const parts = (typeof vehicleParts !== 'undefined' && vehicleParts[targetMode]) ? vehicleParts[targetMode] : {};
-  let flatAtk = 0;
-  let multAtk = 1.0;
-  let ctReduce = 0;
-
+  let flatAtk = 0, multAtk = 1.0, ctReduce = 0;
   if (parts.cannon) {
     flatAtk += Number(parts.cannon.flatAtk) || 0;
     multAtk += Number(parts.cannon.multAtk) || 0;
@@ -50,11 +45,20 @@ function getEquippedVehicle(targetMode = mode) {
   return list.slice(tier - 1, tier).pop() || null;
 }
 
+function getVehicleLevel(targetMode = mode) {
+  return targetMode === 'sea' ? (seaShipLv || 1) : (landTankLv || 1);
+}
+
+function getVehicleUpCost(targetMode = mode) {
+  return targetMode === 'sea' ? (seaUpCost || 50) : (landUpCost || 50);
+}
+
 function getVehicleSupportAtk(targetMode = mode) {
   const veh = getEquippedVehicle(targetMode);
   if (!veh) return 0;
+  const vLv = getVehicleLevel(targetMode);
   const bonus = getVehiclePartsBonus(targetMode);
-  const baseVal = veh.power + (level - 1) * Math.max(8, Math.floor(veh.power * 0.08)) + bonus.flatAtk;
+  const baseVal = veh.power + (vLv - 1) * Math.max(8, Math.floor(veh.power * 0.08)) + bonus.flatAtk;
   return Math.floor(baseVal * bonus.multAtk);
 }
 
@@ -95,13 +99,21 @@ function processShipSupport(cur, eStats, dt) {
 }
 
 function upgradeUnit() {
-  if ((seaShipTier || 0) <= 0 && (landTankTier || 0) <= 0) {
-    return alert('まずは「🏪 ショップ」の乗り物タブから戦車または船を購入してください！');
+  const veh = getEquippedVehicle(mode);
+  if (!veh) {
+    const label = mode === 'land' ? '陸地用の戦車' : '海域用の船';
+    return alert(`まずは「🏪 ショップ」の戦車・船タブから${label}を購入してください！`);
   }
-  if (gold >= upCost) {
-    gold -= upCost;
-    level++;
-    upCost = Math.floor(upCost * 1.45);
+  const cost = getVehicleUpCost(mode);
+  if (gold >= cost) {
+    gold -= cost;
+    if (mode === 'sea') {
+      seaShipLv++;
+      seaUpCost = Math.floor(seaUpCost * 1.45);
+    } else {
+      landTankLv++;
+      landUpCost = Math.floor(landUpCost * 1.45);
+    }
     updateUI();
     triggerAutoSave();
   } else {
