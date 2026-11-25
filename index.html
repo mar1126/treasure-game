@@ -9,9 +9,12 @@
     body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
     .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 10px 12px; height: 268px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; transition: background 0.4s; overflow: hidden; }
     .battle-area.land-mode { background: linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%); }
-    .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; z-index: 2; }
-    .area-badge { background: rgba(255,255,255,0.25); padding: 4px 12px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); }
-    .mode-btn { background: #ff7043; color: white; border: 2px solid #fff; padding: 4px 12px; border-radius: 15px; font-weight: bold; font-size: 12px; cursor: pointer; }
+    .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 11px; z-index: 2; gap: 4px; }
+    .area-badge { background: rgba(255,255,255,0.25); padding: 4px 10px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); white-space: nowrap; }
+    .mode-btn { background: #ff7043; color: white; border: 2px solid #fff; padding: 4px 10px; border-radius: 15px; font-weight: bold; font-size: 11px; cursor: pointer; white-space: nowrap; }
+    .auto-btn { background: #546e7a; color: white; border: 2px solid #fff; padding: 4px 9px; border-radius: 15px; font-weight: bold; font-size: 11px; cursor: pointer; white-space: nowrap; }
+    .auto-btn.unlocked { background: #00897b; }
+    .auto-btn.active { background: #ffca28; color: #263238; box-shadow: 0 0 10px #ffea00; }
     .enemy-section { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; margin-top: 2px; }
     .enemy-unit { text-align: center; width: 170px; position: relative; }
     .ally-section { display: flex; flex-direction: column; align-items: center; width: 100%; }
@@ -41,7 +44,7 @@
     .bar-bg { background: rgba(0,0,0,0.45); height: 5px; border-radius: 3px; overflow: hidden; margin-top: 2px; }
     .hp-fill { background: #ff7043; height: 100%; width: 100%; transition: width 0.15s; }
     .ally-hp-fill { background: #66bb6a; height: 100%; width: 100%; transition: width 0.15s; }
-    .ct-fill { background: #ffea00; height: 100%; width: 0%; transition: width 0.18s linear; box-shadow: 0 0 4px #ffea00; }
+    .ct-fill { background: #ffea00; height: 100%; width: 0%; box-shadow: 0 0 4px #ffea00; }
     .start-battle-btn { position: absolute; top: 48%; left: 50%; transform: translate(-50%, -50%); background: #ff7043; color: #fff; border: 2px solid #fff; padding: 7px 18px; border-radius: 18px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.35); z-index: 30; white-space: nowrap; }
     .fx-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 20; }
     .dmg-popup { position: absolute; font-weight: 900; font-size: 18px; color: #ffeb3b; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000; pointer-events: none; animation: floatDmg 0.8s ease-out forwards; white-space: nowrap; }
@@ -119,7 +122,10 @@
     <div class="battle-header">
       <div class="area-badge" id="floor-text">🌊 海域 1-1</div>
       <div>🍰 +<span id="cafe-income-hud">0</span>G/秒</div>
-      <button class="mode-btn" id="mode-switch-btn" onclick="toggleMode(event)">🌲 陸へ行く</button>
+      <div style="display:flex;gap:4px;">
+        <button class="auto-btn" id="auto-battle-btn" onclick="toggleAutoBattle(event)">🤖 オート(1500💎)</button>
+        <button class="mode-btn" id="mode-switch-btn" onclick="toggleMode(event)">🌲 陸へ行く</button>
+      </div>
     </div>
 
     <div class="capture-msg" id="capture-msg"></div>
@@ -343,12 +349,12 @@
     <button class="nav-item" onclick="switchTab('chat', this)"><span class="nav-icon">💬</span>チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">👤</span>マイページ</button>
   </nav>
-  <script src="/skills.js?v=10"></script>
-  <script src="/ship.js?v=10"></script>
-  <script src="/party.js?v=10"></script>
-  <script src="/cafe.js?v=10"></script>
-  <script src="/game.js?v=10"></script>
-  <script src="/social.js?v=10"></script>
+  <script src="/skills.js?v=11"></script>
+  <script src="/ship.js?v=11"></script>
+  <script src="/party.js?v=11"></script>
+  <script src="/cafe.js?v=11"></script>
+  <script src="/game.js?v=11"></script>
+  <script src="/social.js?v=11"></script>
   <script>initCloudLoad();</script>
 </body>
 </html>
