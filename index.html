@@ -86,12 +86,15 @@
     .btn-coral { background: #ff7043; color: white; border: none; padding: 10px 14px; border-radius: 10px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%; }
     .btn-blue { background: #0288d1; color: white; border: none; padding: 10px 14px; border-radius: 10px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%; }
     .btn-gray { background: #90a4ae; color: white; border: none; padding: 8px 12px; border-radius: 10px; font-weight: bold; font-size: 12px; cursor: pointer; width: 100%; }
+    .shop-sub-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 12px; background: #e1f5fe; padding: 4px; border-radius: 10px; }
+    .shop-sub-btn { border: none; background: transparent; padding: 8px 4px; border-radius: 8px; font-size: 12px; font-weight: bold; color: #0277bd; cursor: pointer; }
+    .shop-sub-btn.active { background: #ffffff; color: #ff7043; }
     .shop-item-card { border: 1.5px solid #cfd8dc; border-radius: 12px; padding: 12px; margin-bottom: 10px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
     .shop-item-info { flex: 1; min-width: 0; }
     .shop-item-title { font-size: 13px; font-weight: bold; color: #263238; margin-bottom: 4px; }
     .shop-item-desc { font-size: 11px; color: #546e7a; line-height: 1.4; }
     .shop-item-action { flex-shrink: 0; }
-    .shop-buy-btn { background: #ff7043; color: #fff; border: none; padding: 10px 14px; border-radius: 10px; font-weight: bold; font-size: 12px; cursor: pointer; min-width: 84px; box-shadow: 0 2px 6px rgba(255,112,67,0.3); }
+    .shop-buy-btn { background: #ff7043; color: #fff; border: none; padding: 10px 12px; border-radius: 10px; font-weight: bold; font-size: 11px; cursor: pointer; min-width: 88px; box-shadow: 0 2px 6px rgba(255,112,67,0.3); }
     .shop-buy-btn.done { background: #ffccbc; color: #bf360c; box-shadow: none; cursor: default; }
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 999; padding: 16px; }
     .modal-card { background: #ffffff; border-radius: 16px; padding: 16px; width: 100%; max-width: 360px; border: 3px solid #4fc3f7; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
@@ -123,15 +126,15 @@
   </style>
 </head>
 <body>
-  <div class="battle-area" id="battle-bg">
+  <div class="battle-area land-mode" id="battle-bg">
     <div class="fx-layer" id="fx-layer"></div>
     <div class="battle-header">
-      <div class="area-badge" id="floor-text">🌊 海域 1-1</div>
+      <div class="area-badge" id="floor-text">🌲 陸地 1-1</div>
       <div>🍰 +<span id="cafe-income-hud">0</span>G/秒</div>
       <div style="display:flex;gap:4px;align-items:center;">
         <button class="hud-toggle-btn" id="hud-auto-btn" onclick="toggleAutoMode(event)">🔄 自動</button>
         <button class="hud-toggle-btn" id="hud-speed-btn" onclick="toggleSpeedMode(event)">▷ 1x</button>
-        <button class="mode-btn" id="mode-switch-btn" onclick="toggleMode(event)">🌲 陸へ行く</button>
+        <button class="mode-btn" id="mode-switch-btn" onclick="toggleMode(event)">🌊 海へ行く</button>
       </div>
     </div>
 
@@ -139,9 +142,9 @@
 
     <div class="enemy-section">
       <div class="enemy-unit" id="enemy-unit-box">
-        <div class="hp-text"><span id="enemy-name">オクトパス</span> (<span id="enemy-hp-text">100</span>)</div>
+        <div class="hp-text"><span id="enemy-name">フォックス</span> (<span id="enemy-hp-text">120</span>)</div>
         <div class="bar-bg"><div class="hp-fill" id="enemy-hp-bar"></div></div>
-        <div class="unit-sprite" id="enemy-sprite" style="font-size:44px;height:48px;margin-top:4px;">🐙</div>
+        <div class="unit-sprite" id="enemy-sprite" style="font-size:44px;height:48px;margin-top:4px;">🦊</div>
         <div class="bar-bg" style="height:4px;width:90px;margin:2px auto 0;"><div class="ct-fill" id="enemy-ct-bar"></div></div>
       </div>
     </div>
@@ -174,7 +177,7 @@
 
   <div class="status-bar">
     <div class="profile-mini">
-      <div class="mini-avatar" id="hud-my-icon">🐬</div>
+      <div class="mini-avatar" id="hud-my-icon">🦊</div>
       <div>
         <div id="hud-name" style="font-size:11px;">ハンター</div>
         <div class="save-badge" id="save-indicator">☁️ 自動保存済</div>
@@ -198,8 +201,8 @@
           <div class="slot-box"><div class="lvl">枠2</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>
           <div class="slot-box"><div class="lvl">枠3</div><div class="icon">➕</div><div class="name">空き枠</div><div class="sub">図鑑から編成</div></div>
         </div>
-        <button class="btn-coral" onclick="upgradeUnit()">
-          ⛵ 探索船・海域援護砲撃を強化 Lv.<span id="ally-lv">1</span>（費用: <span id="up-cost">50</span> G）
+        <button class="btn-coral" id="vehicle-upgrade-btn" onclick="upgradeUnit()">
+          🚜 戦車・探索船を強化 Lv.<span id="ally-lv">1</span>（費用: <span id="up-cost">50</span> G）
         </button>
       </div>
 
@@ -245,8 +248,12 @@
     <div class="tab-pane" id="tab-shop">
       <div class="card">
         <div class="card-title">
-          <span>🏪 ショップ（便利機能＆アイテム）</span>
-          <span style="font-size:11px;color:#0288d1;">💎 ジェム交換所</span>
+          <span>🏪 ショップ</span>
+          <span style="font-size:11px;color:#0288d1;">便利機能＆戦車・船</span>
+        </div>
+        <div class="shop-sub-tabs">
+          <button class="shop-sub-btn active" onclick="switchShopSub('gem', this)">💎 便利機能</button>
+          <button class="shop-sub-btn" onclick="switchShopSub('vehicle', this)">🚜 戦車・船 (G)</button>
         </div>
         <div id="shop-list">読み込み中...</div>
       </div>
@@ -280,7 +287,7 @@
           <button class="btn-blue" onclick="generateAI('bg')">🖼️ アイコン背景を生成（<span id="bg-cost">200</span> 💎）</button>
         </div>
         <div class="ai-sub-pane" id="ai-sub-stamp">
-          <select class="inp" id="stamp-species-sel"><option value="🐬 イルカ">🐬 イルカ(相棒)</option></select>
+          <select class="inp" id="stamp-species-sel"><option value="🦊 フォックス">🦊 フォックス(相棒)</option></select>
           <input class="inp" id="stamp-text" maxlength="12" placeholder="スタンプ文字（例：よろしく！、やったー！）">
           <textarea class="inp" id="ai-stamp-prompt" maxlength="200" oninput="updateCharCount('stamp')" placeholder="例：キラキラした笑顔で手を振るデフォルメイラスト"></textarea>
           <div class="char-count"><span id="stamp-count">0</span> / <span id="stamp-max">200</span>文字</div>
@@ -312,8 +319,8 @@
         <div class="card-title"><span>👤 プロフィール＆アイコン編集</span></div>
         <div style="font-size:11px;color:#607d8b;margin-bottom:6px;">あなたのID: <b id="my-user-id">---</b></div>
         <input class="inp" id="player-name" maxlength="12" value="ハンター" onchange="changePlayerName()" placeholder="プレイヤー名">
-        <div class="preview-wrap"><div id="icon-preview-box"><div id="icon-char-layer">🐬</div></div></div>
-        <select class="inp" id="icon-char-sel" onchange="updateIconPreview()"><option value="デフォルト">🐬 デフォルト</option></select>
+        <div class="preview-wrap"><div id="icon-preview-box"><div id="icon-char-layer">🦊</div></div></div>
+        <select class="inp" id="icon-char-sel" onchange="updateIconPreview()"><option value="デフォルト">🦊 デフォルト</option></select>
         <select class="inp" id="icon-bg-sel" onchange="updateIconPreview()"><option value="-1">デフォルト(水色グラデ)</option></select>
         <div class="slider-row"><span>拡大率</span><input type="range" id="icon-scale" min="0.5" max="2.0" step="0.1" value="1.0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
         <div class="slider-row"><span>横位置</span><input type="range" id="icon-x" min="-40" max="40" step="2" value="0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
@@ -360,20 +367,22 @@
   </div>
 
   <nav class="bottom-nav">
-    <button class="nav-item active" onclick="switchTab('ship', this)"><span class="nav-icon">⚓</span>船・育成</button>
+    <button class="nav-item active" onclick="switchTab('ship', this)"><span class="nav-icon">⚔️</span>編成・強化</button>
     <button class="nav-item" onclick="switchTab('cafe', this)"><span class="nav-icon">🍰</span>カフェ</button>
     <button class="nav-item" onclick="switchTab('shop', this)"><span class="nav-icon">🏪</span>ショップ</button>
     <button class="nav-item" onclick="switchTab('ai', this)"><span class="nav-icon">🎨</span>AI生成</button>
     <button class="nav-item" onclick="switchTab('chat', this)"><span class="nav-icon">💬</span>チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">👤</span>マイページ</button>
   </nav>
-  <script src="/skills.js?v=12"></script>
-  <script src="/ship.js?v=12"></script>
-  <script src="/party.js?v=12"></script>
-  <script src="/cafe.js?v=12"></script>
-  <script src="/shop.js?v=12"></script>
-  <script src="/game.js?v=12"></script>
-  <script src="/social.js?v=12"></script>
+  <script src="/monsters.js?v=13"></script>
+  <script src="/traits.js?v=13"></script>
+  <script src="/skills.js?v=13"></script>
+  <script src="/vehicle.js?v=13"></script>
+  <script src="/party.js?v=13"></script>
+  <script src="/cafe.js?v=13"></script>
+  <script src="/shop.js?v=13"></script>
+  <script src="/game.js?v=13"></script>
+  <script src="/social.js?v=13"></script>
   <script>initCloudLoad();</script>
 </body>
 </html>
