@@ -73,7 +73,10 @@ function switchTab(tabName, btn) {
   document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + tabName).classList.add('active'); btn.classList.add('active');
-  if (tabName === 'rank') loadRanking(); if (tabName === 'cafe') renderCafe(); if (tabName === 'chat') { loadChat(); renderStamps(); }
+  if (tabName === 'rank') loadRanking();
+  if (tabName === 'cafe') renderCafe();
+  if (tabName === 'shop' && typeof renderShop === 'function') renderShop();
+  if (tabName === 'chat') { loadChat(); renderStamps(); }
 }
 function changePlayerName() {
   playerName = document.getElementById('player-name').value || 'ハンター';
@@ -98,22 +101,17 @@ async function sendChat(stampImg = null) {
 function sendStampChat(idx) { if (aiStamps[idx]) sendChat(aiStamps[idx].img); }
 async function loadChat() {
   try {
-    const res = await fetch('/api/chat'); const data = await res.json();
-    document.getElementById('chat-list').innerHTML = data.map(c => {
+    const res = await fetch('/api/chat'); const list = await res.json();
+    document.getElementById('chat-messages').innerHTML = list.map(c => {
       const ic = JSON.parse(c.icon_json || '{"emoji":"🐬","rotate":0}');
-      const content = c.message.startsWith('[STAMP]') ? renderSprite(c.message.replace('[STAMP]', ''), 72, '10px') : c.message;
-      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee;"><div style="width:36px;height:36px;border-radius:8px;background:#e1f5fe;display:flex;align-items:center;justify-content:center;font-size:20px;transform:rotate(${ic.rotate}deg);">${ic.emoji}</div><div><div style="font-size:11px;font-weight:bold;color:#0277bd;">${c.name}</div><div style="font-size:13px;">${content}</div></div></div>`;
-    }).join('');
+      const body = c.message.startsWith('[STAMP]') ? `<img src="${c.message.replace('[STAMP]', '')}" style="width:72px;height:72px;border-radius:10px;display:block;margin-top:4px;">` : c.message;
+      return `<div class="chat-msg"><span style="display:inline-block;transform:rotate(${ic.rotate}deg)">${ic.emoji}</span> <b>${c.user_name}</b>: ${body}</div>`;
+    }).join('') || 'まだメッセージがありません';
   } catch (e) {}
-}
-async function submitRanking() {
-  await fetch('/api/scores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: playerName, score: gold }) });
-  document.getElementById('save-msg').textContent = 'ランキングに登録しました！'; loadRanking();
 }
 async function loadRanking() {
   try {
-    const res = await fetch('/api/scores'); const data = await res.json();
-    document.getElementById('ranking-list').innerHTML = data.map((r, i) => `<li style="padding:6px 0; border-bottom:1px solid #e0f2f1;">${i+1}位: <b>${r.name}</b> - ${r.score.toLocaleString()} G</li>`).join('');
+    const res = await fetch('/api/ranking'); const list = await res.json();
+    document.getElementById('ranking-list').innerHTML = list.map((r, i) => `<div style="padding:6px 0;border-bottom:1px solid #eceff1;"><b>#${i + 1} ${r.user_name}</b> - 🌊海域${r.sea_area} / 🌲陸${r.land_area}</div>`).join('');
   } catch (e) {}
 }
-renderCafe(); updateSelectOptions(); renderSpeciesGallery(); renderStamps(); updateUI(); initCloudLoad();
