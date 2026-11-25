@@ -9,9 +9,9 @@ const MONSTER_TRAITS = [
 
 function getRandomTrait() {
   const idx = Math.floor(Math.random() * MONSTER_TRAITS.length);
-  return MONSTER_TRAITS.slice(idx, idx + 1).pop() || MONSTER_TRAITS[0];
+  return MONSTER_TRAITS.slice(idx, idx + 1).pop() || MONSTER_TRAITS.slice(0, 1).pop();
 }
 
 function getMonsterTrait(traitId) {
-  return MONSTER_TRAITS.find(t => t.id === traitId) || MONSTER_TRAITS[0];
+  return MONSTER_TRAITS.find(t => t.id === traitId) || MONSTER_TRAITS.slice(0, 1).pop();
 }
