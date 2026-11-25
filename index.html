@@ -1,11 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <script>
-    window.onerror = function(msg, url, line) {
-      alert("エラー発生: " + msg + "\n場所: " + url + " (" + line + "行目)");
-    };
-  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>オーシャン＆ランド・トレジャー</title>
@@ -46,8 +41,8 @@
     .bar-bg { background: rgba(0,0,0,0.45); height: 5px; border-radius: 3px; overflow: hidden; margin-top: 2px; }
     .hp-fill { background: #ff7043; height: 100%; width: 100%; transition: width 0.15s; }
     .ally-hp-fill { background: #66bb6a; height: 100%; width: 100%; transition: width 0.15s; }
-    .ct-fill { background: #ffd54f; height: 100%; width: 0%; transition: width 0.18s linear; }
-    .start-battle-btn { position: absolute; top: 48%; left: 50%; transform: translate(-50%, -50%); background: #ff7043; color: #fff; border: 2px solid #fff; padding: 7px 18px; border-radius: 18px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.35); z-index: 5; white-space: nowrap; }
+    .ct-fill { background: #ffea00; height: 100%; width: 0%; transition: width 0.18s linear; box-shadow: 0 0 4px #ffea00; }
+    .start-battle-btn { position: absolute; top: 48%; left: 50%; transform: translate(-50%, -50%); background: #ff7043; color: #fff; border: 2px solid #fff; padding: 7px 18px; border-radius: 18px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.35); z-index: 30; white-space: nowrap; }
     .fx-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 20; }
     .dmg-popup { position: absolute; font-weight: 900; font-size: 18px; color: #ffeb3b; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000; pointer-events: none; animation: floatDmg 0.8s ease-out forwards; white-space: nowrap; }
     .dmg-popup.crit { font-size: 22px; color: #ff5252; }
@@ -138,27 +133,27 @@
       </div>
     </div>
 
-    <button class="start-battle-btn" id="start-battle-btn" onclick="startBattle(event)">⚔️ バトル開始 (⚡1)</button>
+    <button class="start-battle-btn" id="start-battle-btn" onclick="startBattle(event)" ontouchend="startBattle(event)">⚔️ バトル開始 (⚡1)</button>
 
     <div class="ally-section">
       <div class="units-grid">
         <div class="unit" id="ally-slot-0">
-          <div class="unit-sprite">⬜</div>
+          <div class="unit-sprite">＋</div>
           <div class="hp-text">空き枠</div>
           <div class="bar-bg"><div class="ally-hp-fill" id="ally-hp-0" style="width:0%"></div></div>
-          <div class="bar-bg" style="height:4px;"><div class="ct-fill" id="ally-ct-0"></div></div>
+          <div class="bar-bg" style="height:6px;margin-top:2px;"><div class="ct-fill ally-ct-bar" id="ally-ct-0"></div></div>
         </div>
         <div class="unit" id="ally-slot-1">
-          <div class="unit-sprite">⬜</div>
+          <div class="unit-sprite">＋</div>
           <div class="hp-text">空き枠</div>
           <div class="bar-bg"><div class="ally-hp-fill" id="ally-hp-1" style="width:0%"></div></div>
-          <div class="bar-bg" style="height:4px;"><div class="ct-fill" id="ally-ct-1"></div></div>
+          <div class="bar-bg" style="height:6px;margin-top:2px;"><div class="ct-fill ally-ct-bar" id="ally-ct-1"></div></div>
         </div>
         <div class="unit" id="ally-slot-2">
-          <div class="unit-sprite">⬜</div>
+          <div class="unit-sprite">＋</div>
           <div class="hp-text">空き枠</div>
           <div class="bar-bg"><div class="ally-hp-fill" id="ally-hp-2" style="width:0%"></div></div>
-          <div class="bar-bg" style="height:4px;"><div class="ct-fill" id="ally-ct-2"></div></div>
+          <div class="bar-bg" style="height:6px;margin-top:2px;"><div class="ct-fill ally-ct-bar" id="ally-ct-2"></div></div>
         </div>
       </div>
     </div>
@@ -348,12 +343,12 @@
     <button class="nav-item" onclick="switchTab('chat', this)"><span class="nav-icon">💬</span>チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">👤</span>マイページ</button>
   </nav>
-    <script src="/skills.js?v=7"></script>
-  <script src="/ship.js?v=7"></script>
-  <script src="/party.js?v=7"></script>
-  <script src="/cafe.js?v=7"></script>
-  <script src="/game.js?v=7"></script>
-  <script src="/social.js?v=7"></script>
+  <script src="/skills.js?v=10"></script>
+  <script src="/ship.js?v=10"></script>
+  <script src="/party.js?v=10"></script>
+  <script src="/cafe.js?v=10"></script>
+  <script src="/game.js?v=10"></script>
+  <script src="/social.js?v=10"></script>
   <script>initCloudLoad();</script>
 </body>
 </html>
