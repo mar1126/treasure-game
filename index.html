@@ -7,18 +7,39 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 10px 12px; height: 268px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; transition: background 0.4s; overflow: hidden; }
-    .battle-area.land-mode { background: linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%); }
-    .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 11px; z-index: 2; gap: 4px; }
-    .area-badge { background: rgba(255,255,255,0.25); padding: 4px 10px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); white-space: nowrap; }
+    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 10px 12px; height: 268px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; transition: background 0.6s; overflow: hidden; }
+    .battle-area.theme-sunset { background: linear-gradient(180deg, #ff8a65 0%, #f4511e 55%, #4e342e 100%); }
+    .battle-area.theme-night { background: linear-gradient(180deg, #1a237e 0%, #0d47a1 60%, #001021 100%); }
+    .battle-area.land-mode { background: linear-gradient(180deg, #81d4fa 0%, #4fc3f7 48%, #388e3c 100%); }
+    .battle-area.land-mode.theme-sunset { background: linear-gradient(180deg, #ffcc80 0%, #ff7043 50%, #3e2723 100%); }
+    .battle-area.land-mode.theme-night { background: linear-gradient(180deg, #0d1b2a 0%, #1b263b 55%, #0b1912 100%); }
+
+    .stage-art-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
+    .stage-svg { width: 100%; height: 100%; display: block; }
+    .stage-custom-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.92; }
+    .stage-cloud { position: absolute; font-size: 28px; opacity: 0.65; animation: cloudDrift 28s linear infinite; }
+    .stage-cloud.c1 { top: 28px; left: -40px; }
+    .stage-cloud.c2 { top: 52px; left: -120px; font-size: 22px; animation-duration: 38s; animation-delay: 8s; }
+    @keyframes cloudDrift { 0% { transform: translateX(0); } 100% { transform: translateX(480px); } }
+    .stage-tree { position: absolute; bottom: 68px; font-size: 28px; opacity: 0.85; filter: drop-shadow(0 3px 3px rgba(0,0,0,0.35)); }
+    .stage-tree.t1 { left: 10px; }
+    .stage-tree.t2 { right: 12px; font-size: 24px; }
+    .stage-bubble { position: absolute; bottom: 60px; font-size: 16px; opacity: 0.55; animation: bubbleRise 6s ease-in infinite; }
+    .stage-bubble.b1 { left: 18%; }
+    .stage-bubble.b2 { left: 78%; animation-delay: 2.2s; font-size: 13px; }
+    .stage-bubble.b3 { left: 48%; animation-delay: 4.1s; font-size: 19px; }
+    @keyframes bubbleRise { 0% { transform: translateY(0); opacity: 0.1; } 50% { opacity: 0.65; } 100% { transform: translateY(-150px); opacity: 0; } }
+
+    .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 11px; z-index: 4; gap: 4px; position: relative; }
+    .area-badge { background: rgba(0,0,0,0.28); padding: 4px 10px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5); white-space: nowrap; }
     .mode-btn { background: #ff7043; color: white; border: 2px solid #fff; padding: 4px 10px; border-radius: 15px; font-weight: bold; font-size: 11px; cursor: pointer; white-space: nowrap; }
     .hud-toggle-btn { background: rgba(0,0,0,0.45); color: #fff; border: 1.5px solid rgba(255,255,255,0.8); padding: 3px 8px; border-radius: 12px; font-weight: bold; font-size: 11px; cursor: pointer; white-space: nowrap; display: none; }
     .hud-toggle-btn.active { background: #ffca28; color: #263238; border-color: #fff; box-shadow: 0 0 8px #ffea00; }
-    .enemy-section { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; margin-top: 2px; }
+    .enemy-section { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; margin-top: 2px; z-index: 3; }
     .enemy-unit { text-align: center; width: 170px; position: relative; }
-    .ally-section { display: flex; flex-direction: column; align-items: center; width: 100%; }
+    .ally-section { display: flex; flex-direction: column; align-items: center; width: 100%; position: relative; z-index: 3; }
     .units-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; width: 100%; max-width: 330px; }
-    .unit { text-align: center; background: rgba(255,255,255,0.22); border-radius: 10px; padding: 5px 4px; border: 1px solid rgba(255,255,255,0.45); position: relative; transition: opacity 0.2s, box-shadow 0.15s; }
+    .unit { text-align: center; background: rgba(0,0,0,0.28); backdrop-filter: blur(2px); border-radius: 10px; padding: 5px 4px; border: 1px solid rgba(255,255,255,0.45); position: relative; transition: opacity 0.2s, box-shadow 0.15s; }
     .unit.dead { opacity: 0.38; filter: grayscale(100%); }
     .unit.atk-motion { animation: allyAttack 0.35s ease-out; box-shadow: 0 0 14px #ffeb3b; border-color: #ffeb3b; z-index: 10; }
     .enemy-unit.atk-motion { animation: enemyAttack 0.35s ease-out; z-index: 10; }
@@ -127,6 +148,7 @@
 </head>
 <body>
   <div class="battle-area land-mode" id="battle-bg">
+    <div class="stage-art-layer" id="stage-art-layer"></div>
     <div class="fx-layer" id="fx-layer"></div>
     <div class="battle-header">
       <div class="area-badge" id="floor-text">🌲 陸地 1-1</div>
@@ -174,7 +196,6 @@
       </div>
     </div>
   </div>
-
   <div class="status-bar">
     <div class="profile-mini">
       <div class="mini-avatar" id="hud-my-icon">🦊</div>
@@ -189,6 +210,7 @@
       <div class="gem-box">💎 <span id="gem">1,000</span></div>
     </div>
   </div>
+
   <div class="main-content">
     <div class="tab-pane active" id="tab-ship">
       <div class="card">
@@ -374,15 +396,16 @@
     <button class="nav-item" onclick="switchTab('chat', this)"><span class="nav-icon">💬</span>チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">👤</span>マイページ</button>
   </nav>
-    <script src="/monsters.js?v=14"></script>
-  <script src="/traits.js?v=14"></script>
-  <script src="/skills.js?v=14"></script>
-  <script src="/vehicle.js?v=14"></script>
-  <script src="/party.js?v=14"></script>
-  <script src="/cafe.js?v=14"></script>
-  <script src="/shop.js?v=14"></script>
-  <script src="/game.js?v=14"></script>
-  <script src="/social.js?v=14"></script>
+  <script src="/monsters.js?v=15"></script>
+  <script src="/traits.js?v=15"></script>
+  <script src="/skills.js?v=15"></script>
+  <script src="/vehicle.js?v=15"></script>
+  <script src="/party.js?v=15"></script>
+  <script src="/cafe.js?v=15"></script>
+  <script src="/shop.js?v=15"></script>
+  <script src="/stage.js?v=15"></script>
+  <script src="/game.js?v=15"></script>
+  <script src="/social.js?v=15"></script>
   <script>initCloudLoad();</script>
 </body>
 </html>
