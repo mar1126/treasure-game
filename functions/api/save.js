@@ -8,13 +8,39 @@ export async function onRequestGet(context) {
   }
 
   try {
-    const row = await env.DB.prepare(
-      'SELECT user_id, user_name, save_json, updated_at FROM saves WHERE user_id = ?'
-    ).bind(userId).first();
+    // 1. ユーザー専用の Durable Object から取得
+    if (env.USER_DO) {
+      const id = env.USER_DO.idFromName(userId);
+      const stub = env.USER_DO.get(id);
+      const doRes = await stub.fetch('https://do.internal', { method: 'GET' });
+      const doData = await doRes.json();
 
-    return Response.json(row || {});
+      if (doData && doData.save_json) {
+        return Response.json(doData);
+      }
+    }
+
+    // 2. 初回移行用：従来の D1 から読み込んで専用 Durable Object へ自動引っ越し
+    if (env.DB) {
+      const row = await env.DB.prepare(
+        'SELECT user_id, user_name, save_json, updated_at FROM saves WHERE user_id = ?'
+      ).bind(userId).first();
+
+      if (row && row.save_json && env.USER_DO) {
+        const id = env.USER_DO.idFromName(userId);
+        const stub = env.USER_DO.get(id);
+        await stub.fetch('https://do.internal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(row)
+        });
+      }
+      return Response.json(row || {});
+    }
+
+    return Response.json({});
   } catch (e) {
-    return Response.json({ error: 'DB read error', detail: e.message }, { status: 500 });
+    return Response.json({ error: 'Load error', detail: e.message }, { status: 500 });
   }
 }
 
@@ -29,24 +55,43 @@ export async function onRequestPost(context) {
     if (!userId || userId.length > 64 || typeof saveJson !== 'string') {
       return Response.json({ error: 'Invalid payload' }, { status: 400 });
     }
-    // D1行サイズ制限保護（950KB上限）
-    if (saveJson.length > 950000) {
+    if (saveJson.length > 1500000) {
       return Response.json({ error: 'Save data too large' }, { status: 413 });
     }
-    // JSON構文が壊れていないか検証
-    JSON.parse(saveJson);
+    const parsed = JSON.parse(saveJson);
 
-    await env.DB.prepare(`
-      INSERT INTO saves (user_id, user_name, save_json, updated_at)
-      VALUES (?, ?, ?, datetime('now'))
-      ON CONFLICT(user_id) DO UPDATE SET
-        user_name = excluded.user_name,
-        save_json = excluded.save_json,
-        updated_at = datetime('now')
-    `).bind(userId, userName, saveJson).run();
+    // 1. ユーザー専用の Durable Object に競合なしで保存
+    if (env.USER_DO) {
+      const id = env.USER_DO.idFromName(userId);
+      const stub = env.USER_DO.get(id);
+      const doRes = await stub.fetch('https://do.internal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, user_name: userName, save_json: saveJson })
+      });
+      if (!doRes.ok) throw new Error('DO save failed');
+    }
+
+    // 2. ランキング集計用の軽量サマリーだけを D1 にも同期
+    if (env.DB) {
+      const rankSummary = JSON.stringify({
+        state: {
+          sea: { area: parsed?.state?.sea?.area || 1 },
+          land: { area: parsed?.state?.land?.area || 1 }
+        }
+      });
+      await env.DB.prepare(`
+        INSERT INTO saves (user_id, user_name, save_json, updated_at)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(user_id) DO UPDATE SET
+          user_name = excluded.user_name,
+          save_json = excluded.save_json,
+          updated_at = datetime('now')
+      `).bind(userId, userName, rankSummary).run();
+    }
 
     return Response.json({ ok: true });
   } catch (e) {
-    return Response.json({ error: 'DB save error', detail: e.message }, { status: 500 });
+    return Response.json({ error: 'Save error', detail: e.message }, { status: 500 });
   }
 }
