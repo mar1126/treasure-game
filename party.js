@@ -29,11 +29,11 @@ function getMonStats(m) {
   return {
     name: m.name,
     icon: m.icon,
-    lv: m.lv || 1,
-    maxHp: m.maxHp || (55 + (m.lv || 1) * 18),
-    atk: Math.floor((m.atk || 10) * mult),
-    def: m.def || (3 + (m.lv || 1) * 2),
-    ct: m.ct || 2.0
+    lv: Number(m.lv) || 1,
+    maxHp: Number(m.maxHp) || (55 + (Number(m.lv) || 1) * 18),
+    atk: Math.floor((Number(m.atk) || 10) * mult),
+    def: Number(m.def) || (3 + (Number(m.lv) || 1) * 2),
+    ct: Number(m.ct) || 2.0
   };
 }
 
@@ -42,7 +42,6 @@ function resetBattleAllies() {
   if (!Array.isArray(party)) party = new Array(3).fill(null);
   while (party.length < 3) party.push(null);
 
-  // 古いセーブデータのIDズレを修復し、編成枠がすべて空なら手持ちの先頭から自動編成
   const validIds = party.filter(id => id && captured.some(m => m.id === id));
   if (validIds.length === 0 && captured.length > 0) {
     party = new Array(3).fill(null);
@@ -56,7 +55,18 @@ function resetBattleAllies() {
     const m = captured.find(x => x.id === monId);
     if (!m) return null;
     const st = getMonStats(m);
-    return { ...st, monRef: m, hp: st.maxHp, ct: 0 };
+    return {
+      name: st.name,
+      icon: st.icon,
+      lv: st.lv,
+      maxHp: st.maxHp,
+      hp: st.maxHp,
+      atk: st.atk,
+      def: st.def,
+      maxCt: st.ct,
+      ct: 0,
+      monRef: m
+    };
   });
 }
 
@@ -72,7 +82,7 @@ function tryAutoRecruit(baseMon, curArea) {
     maxHp: Math.floor((55 + curArea * 15) * mult),
     atk: Math.floor((7 + curArea * 3) * mult),
     def: Math.floor((3 + curArea * 1.5) * mult),
-    ct: baseMon.ct || 2.1,
+    ct: Number(baseMon.ct) || 2.1,
     traitId: trait.id
   };
   captured.push(newMon);
