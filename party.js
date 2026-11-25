@@ -16,8 +16,6 @@ function ensureStarterMonster() {
       traitId: 'sea_lord'
     };
     captured.push(starter);
-    party = new Array(3).fill(null);
-    party.splice(0, 1, starter.id);
     if (!speciesSkins['イルカ']) {
       speciesSkins['イルカ'] = { list: [], activeIdx: -1, defaultIcon: '🐬' };
     }
@@ -31,11 +29,11 @@ function getMonStats(m) {
   return {
     name: m.name,
     icon: m.icon,
-    lv: m.lv,
-    maxHp: m.maxHp || (55 + m.lv * 18),
-    atk: Math.floor(m.atk * mult),
-    def: m.def || (3 + m.lv * 2),
-    ct: m.ct || 2.1
+    lv: m.lv || 1,
+    maxHp: m.maxHp || (55 + (m.lv || 1) * 18),
+    atk: Math.floor((m.atk || 10) * mult),
+    def: m.def || (3 + (m.lv || 1) * 2),
+    ct: m.ct || 2.0
   };
 }
 
@@ -44,11 +42,13 @@ function resetBattleAllies() {
   if (!Array.isArray(party)) party = new Array(3).fill(null);
   while (party.length < 3) party.push(null);
 
-  // 有効なモンスターが1体も編成されていなければ、手持ちの先頭を自動セット
-  const validCount = party.filter(id => id && captured.some(m => m.id === id)).length;
-  if (validCount === 0 && captured.length > 0) {
-    const firstMon = captured.slice(0, 1).pop();
-    if (firstMon) party.splice(0, 1, firstMon.id);
+  // 古いセーブデータのIDズレを修復し、編成枠がすべて空なら手持ちの先頭から自動編成
+  const validIds = party.filter(id => id && captured.some(m => m.id === id));
+  if (validIds.length === 0 && captured.length > 0) {
+    party = new Array(3).fill(null);
+    captured.slice(0, 3).forEach((m, i) => {
+      party.splice(i, 1, m.id);
+    });
   }
 
   battleAllies = party.slice(0, 3).map(monId => {
