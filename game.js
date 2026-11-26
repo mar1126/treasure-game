@@ -7,6 +7,7 @@ let landTankTier = 0, landTankLv = 1, landUpCost = 500;
 
 let cafeLv = 1, cafeCost = 80, staff = new Array(3).fill(null), gardenItems = [];
 let party = new Array(3).fill(null);
+let maxTrainingSlots = 3;
 let trainingSlots = new Array(3).fill(null);
 let selectedMonIdx = -1;
 let maxCaptured = 50;
@@ -40,12 +41,22 @@ function switchMonsterSubTab(subName) {
   monsterSubTab = subName;
   const listPane = document.getElementById('mon-sub-list');
   const trainPane = document.getElementById('mon-sub-train');
+  const breedPane = document.getElementById('mon-sub-breed');
   const btnList = document.getElementById('tab-btn-mon-list');
   const btnTrain = document.getElementById('tab-btn-mon-train');
+  const btnBreed = document.getElementById('tab-btn-mon-breed');
+
   if (listPane) listPane.style.display = subName === 'list' ? 'block' : 'none';
   if (trainPane) trainPane.style.display = subName === 'train' ? 'block' : 'none';
+  if (breedPane) breedPane.style.display = subName === 'breed' ? 'block' : 'none';
+
   if (btnList) btnList.classList.toggle('active', subName === 'list');
   if (btnTrain) btnTrain.classList.toggle('active', subName === 'train');
+  if (btnBreed) btnBreed.classList.toggle('active', subName === 'breed');
+
+  if (subName === 'breed' && typeof renderBreedTab === 'function') {
+    renderBreedTab();
+  }
 }
 
 function expandMonsterBox(e) {
@@ -60,6 +71,22 @@ function expandMonsterBox(e) {
   updateUI();
   triggerAutoSave(true);
   showToast(`仲間所持枠が ${maxCaptured}体 に拡張されました！`);
+}
+
+function expandTrainingBox(e) {
+  if (e) e.stopPropagation();
+  const curMax = Number(maxTrainingSlots) || 3;
+  if (curMax >= 20) return alert('訓練場の枠はすでに最大（20枠）です！');
+  if (!confirm(`300 GEM を消費して訓練場の枠を +1枠 拡張しますか？\n（現在: ${curMax}枠 → 拡張後: ${curMax + 1}枠）`)) return;
+  if (gem < 300) return alert('ジェムが足りません（300 GEM 必要）');
+  gem -= 300;
+  maxTrainingSlots = Math.min(20, curMax + 1);
+  if (!Array.isArray(trainingSlots)) trainingSlots = [];
+  while (trainingSlots.length < maxTrainingSlots) trainingSlots.push(null);
+  if (typeof renderTraining === 'function') renderTraining();
+  updateUI();
+  triggerAutoSave(true);
+  showToast(`訓練場の枠が ${maxTrainingSlots}枠 に拡張されました！`);
 }
 
 function ensureWaveEnemies() {
