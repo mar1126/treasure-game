@@ -12,6 +12,7 @@ function triggerAutoSave(immediate = false) {
   const payload = {
     savedAt: Date.now(), playerName, gold, gem,
     landTankTier, landTankLv, landUpCost,
+    maxCaptured: Number(maxCaptured) || 50,
     stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, waveStopMode,
     cafeLv, cafeCost, staff, gardenItems,
     unlockedMenus: typeof unlockedMenus !== 'undefined' ? unlockedMenus : ['tea'],
@@ -45,6 +46,7 @@ function applySaveData(data) {
   landTankTier = Number(data.landTankTier) || 0;
   landTankLv = Number(data.landTankLv) || 1;
   landUpCost = Number(data.landUpCost) || 500;
+  maxCaptured = Math.min(300, Math.max(50, Number(data.maxCaptured) || 50));
 
   autoUnlocked = Boolean(data.autoUnlocked);
   speed2xUnlocked = Boolean(data.speed2xUnlocked);
@@ -169,6 +171,6 @@ async function initCloudLoad() {
 
 window.addEventListener('beforeunload', () => {
   const cleanState = { stage: state.stage, floor: state.floor, wave: 1, maxStage: state.maxStage, maxFloorByStage: state.maxFloorByStage };
-  const payload = { savedAt: Date.now(), playerName, gold, gem, landTankTier, landTankLv, landUpCost, stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, waveStopMode, cafeLv, cafeCost, staff, gardenItems, unlockedMenus: typeof unlockedMenus !== 'undefined' ? unlockedMenus : ['tea'], featuredMenuId: typeof featuredMenuId !== 'undefined' ? featuredMenuId : 'tea', party, trainingSlots, state: cleanState, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
+  const payload = { savedAt: Date.now(), playerName, gold, gem, landTankTier, landTankLv, landUpCost, maxCaptured: Number(maxCaptured) || 50, stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, waveStopMode, cafeLv, cafeCost, staff, gardenItems, unlockedMenus: typeof unlockedMenus !== 'undefined' ? unlockedMenus : ['tea'], featuredMenuId: typeof featuredMenuId !== 'undefined' ? featuredMenuId : 'tea', party, trainingSlots, state: cleanState, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
   localStorage.setItem('treasure_save_' + userId, JSON.stringify(payload));
 });
