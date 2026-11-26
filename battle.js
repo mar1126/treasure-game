@@ -129,3 +129,125 @@ function handleWaveClear() {
     setTimeout(() => { if (autoActive && !state.inBattle) startBattle(); }, delay);
   }
 }
+let lastFrameTime = performance.now();
+let cafeSecTimer = 0;
+
+function battleFrameLoop(now) {
+  try {
+    const rawDt = Math.min(0.1, Math.max(0, (now - lastFrameTime) / 1000));
+    lastFrameTime = now;
+
+    cafeSecTimer += rawDt;
+    if (cafeSecTimer >= 1.0) {
+      cafeSecTimer -= 1.0;
+      if (typeof getCafeIncome === 'function') gold += getCafeIncome();
+      if (!state.inBattle) updateUI();
+    }
+
+    if (state.inBattle) {
+      const dt = (speed2xUnlocked && speed2xActive) ? rawDt * 2.0 : rawDt;
+      if ((!battleAllies || battleAllies.every(u => !u)) && typeof resetBattleAllies === 'function') resetBattleAllies();
+      const enemies = ensureWaveEnemies();
+      let needsUiSync = false;
+
+      for (let i = 0; i < 3; i++) {
+        const u = battleAllies.slice(i, i + 1).pop();
+        const ctBar = document.querySelector(`#ally-slot-${i} .ally-ct-bar`);
+        if (!u || u.hp <= 0) { if (ctBar) ctBar.style.width = '0%'; continue; }
+        u.ct = (Number(u.ct) || 0) + dt;
+        const limitCt = Number(u.maxCt) || 2.0;
+
+        if (u.ct >= limitCt) {
+          u.ct = 0;
+          const aliveEnemies = enemies.filter(e => e.hp > 0);
+          if (aliveEnemies.length > 0) {
+            const st = u.monRef && typeof getMonStats === 'function' ? getMonStats(u.monRef) : { bonusSkillRate: 0, bonusSkillDmg: 0, lifesteal: 0, lowHpAtk: 0, elemBoosts: {} };
+            const skillIds = u.monRef?.skills || ['tackle'];
+            const firedSkill = typeof rollOneBattleSkill === 'function' ? rollOneBattleSkill(skillIds, st.bonusSkillRate) : null;
+
+            const atkElem = firedSkill ? (firedSkill.elem || 'none') : 'none';
+            const elemBonus = (atkElem !== 'none' && st.elemBoosts?.[atkElem]) ? st.elemBoosts[atkElem] : 0;
+            const lowHpBonus = (u.hp <= u.maxHp * 0.5) ? (st.lowHpAtk || 0) : 0;
+            const skillMult = firedSkill ? (firedSkill.mult + st.bonusSkillDmg + elemBonus) : 1.0;
+            const targets = (firedSkill && firedSkill.aoe) ? aliveEnemies : [aliveEnemies[Math.floor(Math.random() * aliveEnemies.length)]];
+
+            let totalDealt = 0;
+            targets.forEach(tgt => {
+              const elemMult = typeof getElementMultiplier === 'function' ? getElementMultiplier(atkElem, tgt.elem) : 1.0;
+              const rawDmg = Math.floor((Number(u.atk) || 10) * (1 + lowHpBonus) * skillMult * elemMult);
+              const dmg = Math.max(1, rawDmg - Math.floor((tgt.def || 0) / 2));
+              tgt.hp -= dmg;
+              totalDealt += dmg;
+              triggerMotion(`enemy-slot-${tgt.slot}`, 'hit-motion');
+              const label = elemMult > 1 ? `弱点 -${dmg}` : (elemMult < 1 ? `耐性 -${dmg}` : (firedSkill ? `${firedSkill.name} -${dmg}` : `-${dmg}`));
+              showDamagePopup(`enemy-slot-${tgt.slot}`, label, (firedSkill || elemMult > 1) ? 'crit' : '');
+            });
+
+            const healRate = (st.lifesteal || 0) + (firedSkill?.drain || 0);
+            if (healRate > 0 && totalDealt > 0) u.hp = Math.min(u.maxHp, u.hp + Math.max(1, Math.floor(totalDealt * healRate)));
+
+            triggerMotion(`ally-slot-${i}`, 'atk-motion');
+            needsUiSync = true;
+            if (enemies.every(e => e.hp <= 0)) { handleWaveClear(); requestAnimationFrame(battleFrameLoop); return; }
+          }
+        }
+        if (ctBar) ctBar.style.width = `${Math.min(100, (u.ct / limitCt) * 100)}%`;
+      }
+
+      if (typeof getTankSupportAtk === 'function' && typeof getEquippedTank === 'function' && getEquippedTank()) {
+        state.shipCt = (Number(state.shipCt) || 0) + dt;
+        const vInterval = typeof getTankInterval === 'function' ? getTankInterval() : 3.2;
+        if (state.shipCt >= vInterval) {
+          state.shipCt = 0;
+          const aliveEnemies = enemies.filter(e => e.hp > 0);
+          if (aliveEnemies.length > 0) {
+            const tgt = aliveEnemies[Math.floor(Math.random() * aliveEnemies.length)];
+            const vDmg = Math.max(1, getTankSupportAtk() - Math.floor((tgt.def || 0) / 3));
+            tgt.hp -= vDmg;
+            triggerMotion(`enemy-slot-${tgt.slot}`, 'hit-motion');
+            showDamagePopup(`enemy-slot-${tgt.slot}`, `砲撃 -${vDmg}`, 'ship-dmg');
+            needsUiSync = true;
+            if (enemies.every(e => e.hp <= 0)) { handleWaveClear(); requestAnimationFrame(battleFrameLoop); return; }
+          }
+        }
+      }
+
+      for (let ei = 0; ei < enemies.length; ei++) {
+        const e = enemies[ei];
+        if (!e || e.hp <= 0) continue;
+        e.curCt = (Number(e.curCt) || 0) + dt;
+        const eCtBar = document.querySelector(`#enemy-slot-${e.slot} .e-ct-fill`);
+        if (e.curCt >= (Number(e.ct) || 2.0)) {
+          e.curCt = 0;
+          const aliveAllies = Array.of(0, 1, 2).filter(idx => { const u = battleAllies.slice(idx, idx + 1).pop(); return u && u.hp > 0; });
+          if (aliveAllies.length > 0) {
+            const tIdx = aliveAllies[Math.floor(Math.random() * aliveAllies.length)];
+            const tUnit = battleAllies.slice(tIdx, tIdx + 1).pop();
+            const dmg = Math.max(1, (Number(e.atk) || 8) - Math.floor((Number(tUnit.def) || 0) / 2));
+            tUnit.hp -= dmg;
+            triggerMotion(`enemy-slot-${e.slot}`, 'atk-motion');
+            triggerMotion(`ally-slot-${tIdx}`, 'hit-motion');
+            showDamagePopup(`ally-slot-${tIdx}`, `-${dmg}`, 'ally-dmg');
+            needsUiSync = true;
+
+            if (!Array.of(0, 1, 2).some(idx => { const u = battleAllies.slice(idx, idx + 1).pop(); return u && u.hp > 0; })) {
+              state.inBattle = false; state.wave = 1;
+              state.enemies = typeof getFixedWaveEnemies === 'function' ? getFixedWaveEnemies(state.stage, state.floor, 1) : [];
+              if (autoActive) autoActive = false;
+              if (typeof resetBattleAllies === 'function') resetBattleAllies();
+              showToast('全滅しました…訓練や配合で仲間を強化しよう');
+              triggerAutoSave();
+              needsUiSync = true;
+              break;
+            }
+          }
+        }
+        if (eCtBar) eCtBar.style.width = `${Math.min(100, (e.curCt / (Number(e.ct) || 2.0)) * 100)}%`;
+      }
+
+      if (needsUiSync) updateUI();
+    }
+  } catch (err) { console.error(err); }
+  requestAnimationFrame(battleFrameLoop);
+}
+requestAnimationFrame(battleFrameLoop);
