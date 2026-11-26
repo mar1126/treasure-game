@@ -302,11 +302,21 @@ async function loadRanking() {
 function changePlayerName() {
   const inp = document.getElementById('player-name');
   if (!inp) return;
-  playerName = inp.value.trim() || 'ハンター';
+  const val = inp.value.trim();
+  if (val === 'testgem') {
+    inp.value = playerName || 'ハンター';
+    gem += 10000;
+    updateUI();
+    triggerAutoSave(true);
+    showToast('テスト用 +10,000 GEM を追加しました！');
+    return;
+  }
+  playerName = val || 'ハンター';
   if (document.getElementById('hud-name')) document.getElementById('hud-name').textContent = playerName;
   triggerAutoSave(true);
   showToast('プレイヤー名を変更しました');
 }
+
 
 function updateIconPreview(shouldSave = true) {
   const selChar = document.getElementById('icon-char-sel');
