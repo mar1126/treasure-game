@@ -109,8 +109,6 @@
     textarea.inp { min-height: 85px; resize: vertical; line-height: 1.4; }
     .char-count { font-size: 11px; color: #607d8b; text-align: right; margin-top: -4px; margin-bottom: 8px; }
     .extend-box { display: flex; align-items: center; gap: 6px; font-size: 12px; background: #fff8e1; padding: 8px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ffe082; color: #d84315; font-weight: bold; }
-    .garden-field { background: linear-gradient(180deg, #b3e5fc 0%, #fff9c4 45%, #c8e6c9 100%); border: 2px solid #81d4fa; border-radius: 12px; padding: 10px; min-height: 110px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; margin-bottom: 10px; }
-    .garden-cell { background: rgba(255,255,255,0.6); border-radius: 8px; height: 46px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
     .preview-wrap { display: flex; justify-content: center; margin: 10px 0; }
     #icon-preview-box { width: 120px; height: 120px; border-radius: 16px; border: 4px solid #ff7043; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; background-position: center; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
     .slider-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin: 6px 0; }
@@ -251,8 +249,11 @@
           <span>リゾートカフェ経営 Lv.<span id="cafe-lv">1</span></span>
           <span>+<span id="cafe-rate">0</span> G/秒</span>
         </div>
-        <div class="garden-field" id="garden-grid"></div>
-        <div style="font-size:11px;color:#546e7a;margin-bottom:8px;">
+
+        <!-- ライブ店内アニメーションステージ＆VIPタップ接客 -->
+        <div id="cafe-live-stage" style="position:relative;height:148px;border-radius:12px;border:2px solid #81d4fa;overflow:hidden;margin-bottom:10px;background:linear-gradient(180deg,#b3e5fc 0%,#e0f7fa 50%,#dcedc8 51%,#c5e1a5 100%);"></div>
+
+        <div style="font-size:11px;color:#546e7a;margin-bottom:6px;">
           店員配置（タップで外す / 家具ボーナス: +<span id="garden-bonus">0</span>%）
         </div>
         <div class="grid-3" id="staff-slots" style="margin-bottom:10px;"></div>
@@ -261,6 +262,16 @@
         </button>
       </div>
 
+      <!-- メニュー開発＆本日のおすすめ -->
+      <div class="card">
+        <div class="card-title">
+          <span>メニュー開発・本日のおすすめ</span>
+          <span style="font-size:10px;color:#0288d1;">売上倍率UP</span>
+        </div>
+        <div id="cafe-menu-list"></div>
+      </div>
+
+      <!-- インテリア装飾 -->
       <div class="card">
         <div class="card-title"><span>ガーデン装飾ショップ（各+15%）</span></div>
         <div class="grid-3">
@@ -439,20 +450,20 @@
     <button class="nav-item" onclick="switchTab('chat', this)">チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)">マイページ</button>
   </nav>
-  <script src="/monsters.js?v=31"></script>
-  <script src="/traits.js?v=31"></script>
-  <script src="/skills.js?v=31"></script>
-  <script src="/vehicle.js?v=31"></script>
-  <script src="/party.js?v=31"></script>
-  <script src="/breed.js?v=31"></script>
-  <script src="/cafe.js?v=31"></script>
-  <script src="/shop.js?v=31"></script>
-  <script src="/stage.js?v=31"></script>
-  <script src="/game.js?v=31"></script>
-  <script src="/storage.js?v=31"></script>
-  <script src="/battle.js?v=31"></script>
-  <script src="/social.js?v=31"></script>
-   <script>
+  <script src="/monsters.js?v=33"></script>
+  <script src="/traits.js?v=33"></script>
+  <script src="/skills.js?v=33"></script>
+  <script src="/vehicle.js?v=33"></script>
+  <script src="/party.js?v=33"></script>
+  <script src="/breed.js?v=33"></script>
+  <script src="/cafe.js?v=33"></script>
+  <script src="/shop.js?v=33"></script>
+  <script src="/stage.js?v=33"></script>
+  <script src="/game.js?v=33"></script>
+  <script src="/storage.js?v=33"></script>
+  <script src="/battle.js?v=33"></script>
+  <script src="/social.js?v=33"></script>
+  <script>
     function renderTankCardsDirect(curTier) {
       const tanks = [
         { tier: 1, name: '軽装バリスタ車', cost: 5000,     atk: 25,   iv: 3.4, desc: '大型の連射弩弓を積んだ軽快な移動砲台' },
