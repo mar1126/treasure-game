@@ -84,10 +84,10 @@
     .mini-mon-card .m-bot { font-size: 8.5px; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; }
     .mini-mon-card .m-plus { color: #e65100; }
     .mini-mon-card .m-nm { color: #546e7a; font-size: 8px; }
-    .mon-sub-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; border-bottom: 1.5px solid #e1f5fe; padding-bottom: 6px; }
-    .mon-sub-tab { background: none; border: none; padding: 5px 8px; font-size: 12px; font-weight: bold; color: #78909c; cursor: pointer; border-bottom: 2.5px solid transparent; display: inline-flex; align-items: center; gap: 5px; }
+    .mon-sub-bar { display: flex; align-items: center; gap: 2px; margin-bottom: 10px; border-bottom: 1.5px solid #e1f5fe; padding-bottom: 6px; overflow-x: auto; }
+    .mon-sub-tab { background: none; border: none; padding: 5px 6px; font-size: 11px; font-weight: bold; color: #78909c; cursor: pointer; border-bottom: 2.5px solid transparent; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
     .mon-sub-tab.active { color: #ff7043; border-bottom-color: #ff7043; }
-    .box-plus-btn { background: #f1f5f9; border: 1px solid #cbd5e1; color: #334155; font-size: 11px; font-weight: bold; width: 20px; height: 20px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+    .box-plus-btn { background: #f1f5f9; border: 1px solid #cbd5e1; color: #334155; font-size: 10px; font-weight: bold; width: 18px; height: 18px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
     .slot-box { border: 1px solid #e0f2f1; border-radius: 10px; padding: 7px; text-align: center; background: #f8fdff; cursor: pointer; position: relative; }
     .slot-box.staff { background: #fff8e1; border: 2px dashed #ffb74d; }
     .slot-box .lvl { font-size: 10px; color: #ff7043; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
@@ -240,6 +240,10 @@
           </button>
           <button class="mon-sub-tab" id="tab-btn-mon-train" onclick="switchMonsterSubTab('train')">
             <span>訓練場 <span id="train-count-disp">0/3</span></span>
+            <span class="box-plus-btn" onclick="expandTrainingBox(event)">＋</span>
+          </button>
+          <button class="mon-sub-tab" id="tab-btn-mon-breed" onclick="switchMonsterSubTab('breed')">
+            <span>配合</span>
           </button>
         </div>
 
@@ -248,23 +252,14 @@
         </div>
 
         <div id="mon-sub-train" style="display:none;">
-          <div style="font-size:10px;color:#546e7a;margin-bottom:8px;">配置した仲間に戦闘獲得EXPの10%が分配されます（タップで解除）</div>
+          <div style="font-size:10px;color:#546e7a;margin-bottom:8px;">配置した仲間に戦闘獲得EXPの10%が分配されます（タップで解除 / ［＋］で枠拡張）</div>
           <div class="grid-5" id="training-slots"></div>
         </div>
-      </div>
-    </div>
 
-    <div class="tab-pane" id="tab-breed">
-      <div class="card">
-        <div class="card-title">
-          <span>モンスター配合（Lv.10以上）</span>
-          <span style="font-size:10px;color:#546e7a;">上限Lv+5 / 継承選択</span>
+        <div id="mon-sub-breed" style="display:none;">
+          <div id="breed-top-slots"></div>
+          <div class="grid-5" id="breed-mon-grid"></div>
         </div>
-        <div style="font-size:11px;color:#546e7a;margin-bottom:4px;">親モンスター 1（Lv.10以上）</div>
-        <select class="inp" id="breed-parent-a" onchange="onChangeBreedParent('A', this.value)"></select>
-        <div style="font-size:11px;color:#546e7a;margin-bottom:4px;">親モンスター 2（Lv.10以上）</div>
-        <select class="inp" id="breed-parent-b" onchange="onChangeBreedParent('B', this.value)"></select>
-        <div id="breed-preview-area"></div>
       </div>
     </div>
     <div class="tab-pane" id="tab-cafe">
@@ -391,6 +386,14 @@
       </div>
     </div>
   </div>
+  <!-- 配合確認モーダル -->
+  <div class="modal-overlay" id="breed-confirm-modal" onclick="closeBreedConfirmModal()" style="z-index:1060;">
+    <div class="modal-card" onclick="event.stopPropagation()" style="border-color:#ff7043;">
+      <div style="font-size:15px;font-weight:bold;color:#e65100;margin-bottom:8px;">モンスター配合確認</div>
+      <div id="breed-confirm-body"></div>
+    </div>
+  </div>
+
   <!-- 過去階層・ステージ移動モーダル -->
   <div class="modal-overlay" id="floor-modal" onclick="closeFloorSelectModal()" style="z-index:1050;">
     <div class="modal-card" onclick="event.stopPropagation()">
@@ -455,27 +458,26 @@
   </div>
 
   <nav class="bottom-nav">
-    <button class="nav-item active" onclick="switchTab('ship', this)">編成・訓練</button>
-    <button class="nav-item" onclick="switchTab('breed', this)">配合</button>
+    <button class="nav-item active" onclick="switchTab('ship', this)">編成・育成</button>
     <button class="nav-item" onclick="switchTab('cafe', this)">カフェ</button>
     <button class="nav-item" onclick="switchTab('shop', this)">ショップ</button>
     <button class="nav-item" onclick="switchTab('ai', this)">AI生成</button>
     <button class="nav-item" onclick="switchTab('chat', this)">チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)">マイページ</button>
   </nav>
-  <script src="/monsters.js?v=35"></script>
-  <script src="/traits.js?v=35"></script>
-  <script src="/skills.js?v=35"></script>
-  <script src="/vehicle.js?v=35"></script>
-  <script src="/party.js?v=35"></script>
-  <script src="/breed.js?v=35"></script>
-  <script src="/cafe.js?v=35"></script>
-  <script src="/shop.js?v=35"></script>
-  <script src="/stage.js?v=35"></script>
-  <script src="/game.js?v=35"></script>
-  <script src="/storage.js?v=35"></script>
-  <script src="/battle.js?v=35"></script>
-  <script src="/social.js?v=35"></script>
+  <script src="/monsters.js?v=36"></script>
+  <script src="/traits.js?v=36"></script>
+  <script src="/skills.js?v=36"></script>
+  <script src="/vehicle.js?v=36"></script>
+  <script src="/party.js?v=36"></script>
+  <script src="/breed.js?v=36"></script>
+  <script src="/cafe.js?v=36"></script>
+  <script src="/shop.js?v=36"></script>
+  <script src="/stage.js?v=36"></script>
+  <script src="/game.js?v=36"></script>
+  <script src="/storage.js?v=36"></script>
+  <script src="/battle.js?v=36"></script>
+  <script src="/social.js?v=36"></script>
   <script>
     function renderTankCardsDirect(curTier) {
       const tanks = [
