@@ -1,6 +1,10 @@
 export async function onRequestGet({ env }) {
   try {
-    await env.DB.prepare(`
+    const db = env.DB || env.TREASURE_DB || env.DATABASE || Object.values(env).find(v => v && typeof v.prepare === 'function');
+    if (!db) {
+      return new Response(JSON.stringify({ error: "D1バインディングが見つかりません: " + Object.keys(env).join(",") }), { status: 500 });
+    }
+    await db.prepare(`
       CREATE TABLE IF NOT EXISTS chat_messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT,
@@ -11,8 +15,8 @@ export async function onRequestGet({ env }) {
       )
     `).run();
 
-    const { results } = await env.DB.prepare(
-      "SELECT id, user_id, user_name, message, stamp_img, created_at FROM chat_messages ORDER BY id DESC LIMIT 30"
+    const { results } = await db.prepare(
+      "SELECT * FROM chat_messages ORDER BY id DESC LIMIT 30"
     ).all();
 
     return new Response(JSON.stringify((results || []).reverse()), {
@@ -28,6 +32,7 @@ export async function onRequestGet({ env }) {
 
 export async function onRequestPost({ request, env }) {
   try {
+    const db = env.DB || env.TREASURE_DB || env.DATABASE || Object.values(env).find(v => v && typeof v.prepare === 'function');
     const body = await request.json();
     const userId = String(body.user_id || "").slice(0, 40);
     const userName = String(body.user_name || "ハンター").slice(0, 20);
@@ -38,18 +43,7 @@ export async function onRequestPost({ request, env }) {
       return new Response(JSON.stringify({ ok: false }), { status: 400 });
     }
 
-    await env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS chat_messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT,
-        user_name TEXT,
-        message TEXT,
-        stamp_img TEXT,
-        created_at INTEGER
-      )
-    `).run();
-
-    await env.DB.prepare(
+    await db.prepare(
       "INSERT INTO chat_messages (user_id, user_name, message, stamp_img, created_at) VALUES (?, ?, ?, ?, ?)"
     ).bind(userId, userName, message, stampImg, Date.now()).run();
 
