@@ -1,90 +1,126 @@
-// ファンタジー戦車・船の装備・強化システム (vehicle.js) - Tier 1〜6 (最高80,000,000G)
-const VEHICLE_MASTER = {
-  land: [
-    { tier: 1, name: '軽装バリスタ車', cost: 5000,     baseAtk: 25,   interval: 3.4, desc: '大型の連射弩弓を積んだ軽快な移動砲台' },
-    { tier: 2, name: '鉄輪キャノン車', cost: 45000,    baseAtk: 80,   interval: 3.2, desc: '大砲を1門搭載した鉄輪補強の砲撃車' },
-    { tier: 3, name: '蒸気装甲車',     cost: 350000,   baseAtk: 250,  interval: 3.0, desc: '魔導蒸気機関で走る装甲板付きの砲撃車両' },
-    { tier: 4, name: '魔導軽戦車',     cost: 2500000,  baseAtk: 780,  interval: 2.9, desc: '魔力弾を放つ旋回砲塔を備えた軽戦車' },
-    { tier: 5, name: '鋼鉄中戦車',     cost: 15000000, baseAtk: 2400, interval: 2.8, desc: '厚い鋼鉄装甲と連装砲を備えた主力戦車' },
-    { tier: 6, name: '重装攻城戦車',   cost: 80000000, baseAtk: 7500, interval: 2.7, desc: '城壁をも砕く大口径砲を積んだ重戦車' }
-  ],
-  sea: [
-    { tier: 1, name: '小型砲艇',           cost: 5000,     baseAtk: 25,   interval: 3.4, desc: '船首に小型砲を積んだ軽快な木造砲艇' },
-    { tier: 2, name: '武装スクーナー船',   cost: 45000,    baseAtk: 80,   interval: 3.2, desc: '軽砲を備えた機動力に優れる二本マスト帆船' },
-    { tier: 3, name: 'ブリガンティン砲艦', cost: 350000,   baseAtk: 250,  interval: 3.0, desc: '船側に大砲を並べた中型戦闘帆船' },
-    { tier: 4, name: '武装ガレオン船',     cost: 2500000,  baseAtk: 780,  interval: 2.9, desc: '重砲を多数搭載した大型の遠洋戦闘船' },
-    { tier: 5, name: '装甲フリゲート艦',   cost: 15000000, baseAtk: 2400, interval: 2.8, desc: '船体を鋼鉄で補強した高速砲撃艦' },
-    { tier: 6, name: '魔導巡洋艦',         cost: 80000000, baseAtk: 7500, interval: 2.7, desc: '魔力砲塔を備えた長距離砲撃艦' }
-  ]
-};
+// 便利機能（ジェム）＆ 戦車（ゴールド）ショップシステム (shop.js)
+let shopSubTab = 'gem';
 
-function getVehicleTier(vType) {
-  return vType === 'land' ? (Number(landTankTier) || 0) : (Number(seaShipTier) || 0);
-}
-function getVehicleLevel(vType) {
-  return vType === 'land' ? (Number(landTankLv) || 1) : (Number(seaShipLv) || 1);
-}
-function getVehicleUpCost(vType) {
-  return vType === 'land' ? (Number(landUpCost) || 500) : (Number(seaUpCost) || 500);
+function getStaminaIntervalMs() {
+  return staminaFastUnlocked ? 20000 : 60000;
 }
 
-function getEquippedVehicle(vType) {
-  const tier = getVehicleTier(vType);
-  if (tier <= 0) return null;
-  const list = VEHICLE_MASTER[vType] || [];
-  return list[Math.min(tier, list.length) - 1] || null;
+function switchShopSub(subName, btn) {
+  shopSubTab = subName;
+  document.querySelectorAll('.shop-sub-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderShop();
 }
 
-function getVehicleSupportAtk(vType) {
-  const eq = getEquippedVehicle(vType);
-  if (!eq) return 0;
-  const lv = getVehicleLevel(vType);
-  return Math.floor(eq.baseAtk * (1 + (lv - 1) * 0.18));
-}
+function renderShop() {
+  const box = document.getElementById('shop-list');
+  if (!box) return;
 
-function getVehicleInterval(vType) {
-  const eq = getEquippedVehicle(vType);
-  return eq ? eq.interval : 3.2;
-}
-
-function buyVehicle(vType, targetTier) {
-  const list = VEHICLE_MASTER[vType] || [];
-  const item = list.find(x => x.tier === targetTier);
-  if (!item) return;
-  const curTier = getVehicleTier(vType);
-  if (targetTier <= curTier) return alert('すでに購入済みです');
-  if (targetTier > curTier + 1) return alert('ひとつ前のランクから順番に購入してください');
-  if (gold < item.cost) return alert(`ゴールドが足りません（${item.cost.toLocaleString()} G 必要）`);
-
-  gold -= item.cost;
-  if (vType === 'land') {
-    landTankTier = targetTier;
-    if (landTankTier === 1) { landTankLv = 1; landUpCost = 500; }
-  } else {
-    seaShipTier = targetTier;
-    if (seaShipTier === 1) { seaShipLv = 1; seaUpCost = 500; }
+  if (shopSubTab === 'tank') {
+    const curTier = typeof getTankTier === 'function' ? getTankTier() : 0;
+    const list = typeof TANK_MASTER !== 'undefined' ? TANK_MASTER : [];
+    box.innerHTML = `
+      <div style="font-size:11px;color:#546e7a;margin-bottom:8px;">
+        購入した戦車は全ステージで自動的に砲撃援護を行います（ランク順に購入可能）。
+      </div>
+      ${list.map(item => {
+        const owned = curTier >= item.tier;
+        const canBuy = curTier === item.tier - 1;
+        let btnHtml = `<button class="shop-buy-btn done" disabled>未解放</button>`;
+        if (owned) btnHtml = `<button class="shop-buy-btn done" disabled>所持済</button>`;
+        else if (canBuy) btnHtml = `<button class="shop-buy-btn" onclick="buyTank(${item.tier})">${item.cost.toLocaleString()} G</button>`;
+        return `
+          <div class="shop-item-card">
+            <div class="shop-item-info">
+              <div class="shop-item-title">Rank ${item.tier}：${item.name}</div>
+              <div class="shop-item-desc">${item.desc}<br>基本砲撃力: <b>${item.baseAtk.toLocaleString()}</b>（${item.interval}秒ごと）</div>
+            </div>
+            <div class="shop-item-action">${btnHtml}</div>
+          </div>
+        `;
+      }).join('')}
+    `;
+    return;
   }
-  updateUI();
-  if (typeof renderShop === 'function') renderShop();
-  triggerAutoSave(true);
-  showToast(`${item.name}を購入しました`);
+
+  const goldReward = typeof getShopGoldAmount === 'function' ? getShopGoldAmount() : 500;
+  box.innerHTML = `
+    <div class="shop-item-card">
+      <div class="shop-item-info">
+        <div class="shop-item-title">階層間オート周回 解放</div>
+        <div class="shop-item-desc">5ウェーブ踏破後も自動で次の階層へ連続出撃できるようになります。</div>
+      </div>
+      <div class="shop-item-action">
+        ${autoUnlocked ? `<button class="shop-buy-btn done" disabled>解放済</button>` : `<button class="shop-buy-btn" onclick="buyShopItem('auto')">1,500 GEM</button>`}
+      </div>
+    </div>
+
+    <div class="shop-item-card">
+      <div class="shop-item-info">
+        <div class="shop-item-title">戦闘スピード2倍速 解放</div>
+        <div class="shop-item-desc">バトルの進行速度を2倍に切り替えられるようになります。</div>
+      </div>
+      <div class="shop-item-action">
+        ${speed2xUnlocked ? `<button class="shop-buy-btn done" disabled>解放済</button>` : `<button class="shop-buy-btn" onclick="buyShopItem('speed2x')">1,000 GEM</button>`}
+      </div>
+    </div>
+
+    <div class="shop-item-card">
+      <div class="shop-item-info">
+        <div class="shop-item-title">スタミナ回復速度 3倍</div>
+        <div class="shop-item-desc">スタミナ1回復にかかる時間が「60秒 → 20秒」に短縮されます。</div>
+      </div>
+      <div class="shop-item-action">
+        ${staminaFastUnlocked ? `<button class="shop-buy-btn done" disabled>解放済</button>` : `<button class="shop-buy-btn" onclick="buyShopItem('stamina_fast')">800 GEM</button>`}
+      </div>
+    </div>
+
+    <div class="shop-item-card">
+      <div class="shop-item-info">
+        <div class="shop-item-title">スタミナ全回復 (+30)</div>
+        <div class="shop-item-desc">現在のスタミナを最大値（30）まで即座に回復します。</div>
+      </div>
+      <div class="shop-item-action">
+        <button class="shop-buy-btn" onclick="buyShopItem('stamina')">50 GEM</button>
+      </div>
+    </div>
+
+    <div class="shop-item-card">
+      <div class="shop-item-info">
+        <div class="shop-item-title">ゴールド支給パック</div>
+        <div class="shop-item-desc">現在の到達ステージに応じた資金（<b>${goldReward.toLocaleString()} G</b>）を獲得します。</div>
+      </div>
+      <div class="shop-item-action">
+        <button class="shop-buy-btn" onclick="buyShopItem('gold')">100 GEM</button>
+      </div>
+    </div>
+  `;
 }
 
-function upgradeUnit() {
-  const eq = getEquippedVehicle(mode);
-  if (!eq) {
-    return alert(mode === 'land' ? '先にショップの「戦車・船」タブから軽装バリスタ車を購入してください' : '先にショップの「戦車・船」タブから小型砲艇を購入してください');
+function buyShopItem(type) {
+  if (type === 'auto') {
+    if (autoUnlocked || gem < 1500) return alert('ジェムが足りません（1,500 GEM 必要）');
+    gem -= 1500; autoUnlocked = true; autoActive = true;
+    showToast('階層間オート周回を解放しました');
+  } else if (type === 'speed2x') {
+    if (speed2xUnlocked || gem < 1000) return alert('ジェムが足りません（1,000 GEM 必要）');
+    gem -= 1000; speed2xUnlocked = true; speed2xActive = true;
+    showToast('戦闘スピード2倍速を解放しました');
+  } else if (type === 'stamina_fast') {
+    if (staminaFastUnlocked || gem < 800) return alert('ジェムが足りません（800 GEM 必要）');
+    syncStamina(); gem -= 800; staminaFastUnlocked = true; staminaUpdatedAt = Date.now();
+    showToast('スタミナ回復速度が3倍になりました');
+  } else if (type === 'stamina') {
+    syncStamina();
+    if (stamina >= MAX_STAMINA) return alert('すでにスタミナは満タンです');
+    if (gem < 50) return alert('ジェムが足りません（50 GEM 必要）');
+    gem -= 50; stamina = MAX_STAMINA; staminaUpdatedAt = Date.now();
+    showToast('スタミナが全回復しました');
+  } else if (type === 'gold') {
+    if (gem < 100) return alert('ジェムが足りません（100 GEM 必要）');
+    const amount = typeof getShopGoldAmount === 'function' ? getShopGoldAmount() : 500;
+    gem -= 100; gold += amount;
+    showToast(`${amount.toLocaleString()} G を獲得しました`);
   }
-  const cost = getVehicleUpCost(mode);
-  if (gold < cost) return alert('ゴールドが足りません');
-  gold -= cost;
-  if (mode === 'land') {
-    landTankLv++;
-    landUpCost = Math.floor(landUpCost * 1.50);
-  } else {
-    seaShipLv++;
-    seaUpCost = Math.floor(seaUpCost * 1.50);
-  }
-  updateUI();
-  triggerAutoSave();
+  updateUI(); renderShop(); triggerAutoSave(true);
 }
