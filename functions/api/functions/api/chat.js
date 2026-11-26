@@ -1,56 +1,65 @@
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-export async function onRequestGet(context) {
-  const { env } = context;
+export async function onRequestGet({ env }) {
   try {
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        user_name TEXT,
+        message TEXT,
+        stamp_img TEXT,
+        created_at INTEGER
+      )
+    `).run();
+
     const { results } = await env.DB.prepare(
-      'SELECT id, user_name, icon_json, message, created_at FROM chats ORDER BY id DESC LIMIT 30'
+      "SELECT id, user_id, user_name, message, stamp_img, created_at FROM chat_messages ORDER BY id DESC LIMIT 30"
     ).all();
 
-    return Response.json((results || []).reverse());
+    return new Response(JSON.stringify((results || []).reverse()), {
+      headers: { "Content-Type": "application/json" }
+    });
   } catch (e) {
-    return Response.json([], { status: 200 });
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 }
 
-export async function onRequestPost(context) {
-  const { request, env } = context;
+export async function onRequestPost({ request, env }) {
   try {
     const body = await request.json();
-    const userName = escapeHtml((body.name || 'ハンター').trim().slice(0, 16));
-    const iconJson = typeof body.icon_json === 'string' ? body.icon_json.slice(0, 300) : '{"emoji":"🦊","rotate":0}';
-    let message = String(body.message || '').trim();
+    const userId = String(body.user_id || "").slice(0, 40);
+    const userName = String(body.user_name || "ハンター").slice(0, 20);
+    const message = String(body.message || "").slice(0, 120);
+    const stampImg = String(body.stamp_img || "");
 
-    if (!message) {
-      return Response.json({ error: 'Empty message' }, { status: 400 });
+    if (!message && !stampImg) {
+      return new Response(JSON.stringify({ ok: false }), { status: 400 });
     }
 
-    if (message.startsWith('[STAMP]data:image/')) {
-      if (message.length > 350000) {
-        return Response.json({ error: 'Stamp image too large' }, { status: 413 });
-      }
-    } else {
-      message = escapeHtml(message.slice(0, 100));
-    }
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        user_name TEXT,
+        message TEXT,
+        stamp_img TEXT,
+        created_at INTEGER
+      )
+    `).run();
 
     await env.DB.prepare(
-      'INSERT INTO chats (user_name, icon_json, message, created_at) VALUES (?, ?, ?, datetime(\'now\'))'
-    ).bind(userName, iconJson, message).run();
+      "INSERT INTO chat_messages (user_id, user_name, message, stamp_img, created_at) VALUES (?, ?, ?, ?, ?)"
+    ).bind(userId, userName, message, stampImg, Date.now()).run();
 
-    // 負荷対策：最新50件より古いメッセージを自動削除
-    await env.DB.prepare(
-      'DELETE FROM chats WHERE id NOT IN (SELECT id FROM chats ORDER BY id DESC LIMIT 50)'
-    ).run();
-
-    return Response.json({ ok: true });
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { "Content-Type": "application/json" }
+    });
   } catch (e) {
-    return Response.json({ error: 'Chat error', detail: e.message }, { status: 500 });
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 }
