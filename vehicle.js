@@ -1,122 +1,90 @@
-// 乗り物（戦車・探索船）援護砲撃＆パーツ拡張システム (vehicle.js)
-const BASE_VEHICLE_SUPPORT_CT = 3.0; // 基本援護砲撃間隔（3.0秒）
-
-const VEHICLES = {
+// ファンタジー戦車・船の装備・強化システム (vehicle.js) - Tier 1〜6
+const VEHICLE_MASTER = {
   land: [
-    { id: 'land_1', name: '装甲バギー', icon: '🚙', power: 35, cost: 1000, desc: '機銃で3秒ごとに陸戦援護射撃を行う' },
-    { id: 'land_2', name: '突撃戦車レオパルト', icon: '🚜', power: 180, cost: 15000, desc: '主砲による本格陸戦援護砲撃' },
-    { id: 'land_3', name: '重戦車ベヒーモス', icon: '🚛', power: 950, cost: 250000, desc: '重装甲と大口径砲で敵を粉砕する' },
-    { id: 'land_4', name: 'レールガン自走砲', icon: '🛰️', power: 5200, cost: 4000000, desc: '超高速電磁砲で陸の敵を撃ち抜く' },
-    { id: 'land_5', name: '移動要塞ガイア', icon: '🏰', power: 28000, cost: 65000000, desc: '圧倒的火力を誇る陸上最強クラスの要塞' },
-    { id: 'land_6', name: '次元殲滅戦車ラグナロク', icon: '🌋', power: 160000, cost: 1000000000, desc: '大陸ごと敵を吹き飛ばす伝説の最終兵器' }
+    { tier: 1, name: '軽装バリスタ車',   cost: 200,    baseAtk: 14,   interval: 3.4, desc: '大型の連射弩弓を積んだ軽快な移動砲台' },
+    { tier: 2, name: '鉄輪キャノン車',   cost: 1200,   baseAtk: 34,   interval: 3.2, desc: '大砲を1門搭載した鉄輪補強の砲撃車' },
+    { tier: 3, name: '蒸気装甲車',       cost: 6000,   baseAtk: 85,   interval: 3.0, desc: '魔導蒸気機関で走る装甲板付きの砲撃車両' },
+    { tier: 4, name: '魔導軽戦車',       cost: 28000,  baseAtk: 210,  interval: 2.9, desc: '魔力弾を放つ旋回砲塔を備えた軽戦車' },
+    { tier: 5, name: '鋼鉄中戦車',       cost: 120000, baseAtk: 520,  interval: 2.8, desc: '厚い鋼鉄装甲と連装砲を備えた主力戦車' },
+    { tier: 6, name: '重装攻城戦車',     cost: 500000, baseAtk: 1300, interval: 2.7, desc: '城壁をも砕く大口径砲を積んだ重戦車' }
   ],
   sea: [
-    { id: 'sea_1', name: '木造の探索船', icon: '⛵', power: 40, cost: 1200, desc: '小型大砲で3秒ごとに海戦援護を行う' },
-    { id: 'sea_2', name: '鋼鉄の砲撃艦', icon: '🚤', power: 220, cost: 20000, desc: '連装砲を搭載した本格戦闘艦' },
-    { id: 'sea_3', name: '駆逐艦トライデント', icon: '🛳️', power: 1200, cost: 350000, desc: '魚雷と主砲で海域の敵を圧倒する' },
-    { id: 'sea_4', name: '戦艦ポセイドン', icon: '🚢', power: 6800, cost: 5500000, desc: '海神の名を冠する巨大戦艦の主砲撃' },
-    { id: 'sea_5', name: '超弩級空母リヴァイアサン', icon: '⚓', power: 36000, cost: 90000000, desc: '艦載機と主砲の総攻撃を浴びせる巨艦' },
-    { id: 'sea_6', name: '海神要塞オケアノス', icon: '🔱', power: 220000, cost: 1500000000, desc: '七つの海を支配する究極の海上機動要塞' }
+    { tier: 1, name: '小型砲艇',             cost: 200,    baseAtk: 14,   interval: 3.4, desc: '船首に小型砲を積んだ軽快な木造砲艇' },
+    { tier: 2, name: '武装スクーナー船',     cost: 1200,   baseAtk: 34,   interval: 3.2, desc: '軽砲を備えた機動力に優れる二本マスト帆船' },
+    { tier: 3, name: 'ブリガンティン砲艦',   cost: 6000,   baseAtk: 85,   interval: 3.0, desc: '船側に大砲を並べた中型戦闘帆船' },
+    { tier: 4, name: '武装ガレオン船',       cost: 28000,  baseAtk: 210,  interval: 2.9, desc: '重砲を多数搭載した大型の遠洋戦闘船' },
+    { tier: 5, name: '装甲フリゲート艦',     cost: 120000, baseAtk: 520,  interval: 2.8, desc: '船体を鋼鉄で補強した高速砲撃艦' },
+    { tier: 6, name: '魔導巡洋艦',           cost: 500000, baseAtk: 1300, interval: 2.7, desc: '魔力砲塔を備えた長距離砲撃艦' }
   ]
 };
 
-function getVehiclePartsBonus(targetMode = mode) {
-  const parts = (typeof vehicleParts !== 'undefined' && vehicleParts[targetMode]) ? vehicleParts[targetMode] : {};
-  let flatAtk = 0, multAtk = 1.0, ctReduce = 0;
-  if (parts.cannon) {
-    flatAtk += Number(parts.cannon.flatAtk) || 0;
-    multAtk += Number(parts.cannon.multAtk) || 0;
-  }
-  if (parts.engine) {
-    ctReduce += Number(parts.engine.ctReduce) || 0;
-  }
-  return { flatAtk, multAtk, ctReduce };
+function getVehicleTier(vType) {
+  return vType === 'land' ? (Number(landTankTier) || 0) : (Number(seaShipTier) || 0);
+}
+function getVehicleLevel(vType) {
+  return vType === 'land' ? (Number(landTankLv) || 1) : (Number(seaShipLv) || 1);
+}
+function getVehicleUpCost(vType) {
+  return vType === 'land' ? (Number(landUpCost) || 50) : (Number(seaUpCost) || 50);
 }
 
-function getVehicleSupportInterval(targetMode = mode) {
-  const bonus = getVehiclePartsBonus(targetMode);
-  return Math.max(0.8, BASE_VEHICLE_SUPPORT_CT - bonus.ctReduce);
-}
-
-function getEquippedVehicle(targetMode = mode) {
-  const tier = targetMode === 'sea' ? (seaShipTier || 0) : (landTankTier || 0);
+function getEquippedVehicle(vType) {
+  const tier = getVehicleTier(vType);
   if (tier <= 0) return null;
-  const list = VEHICLES[targetMode] || [];
-  return list.slice(tier - 1, tier).pop() || null;
+  const list = VEHICLE_MASTER[vType] || [];
+  return list[Math.min(tier, list.length) - 1] || null;
 }
 
-function getVehicleLevel(targetMode = mode) {
-  return targetMode === 'sea' ? (seaShipLv || 1) : (landTankLv || 1);
+function getVehicleSupportAtk(vType) {
+  const eq = getEquippedVehicle(vType);
+  if (!eq) return 0;
+  const lv = getVehicleLevel(vType);
+  return Math.floor(eq.baseAtk * (1 + (lv - 1) * 0.18));
 }
 
-function getVehicleUpCost(targetMode = mode) {
-  return targetMode === 'sea' ? (seaUpCost || 50) : (landUpCost || 50);
+function getVehicleInterval(vType) {
+  const eq = getEquippedVehicle(vType);
+  return eq ? eq.interval : 3.2;
 }
 
-function getVehicleSupportAtk(targetMode = mode) {
-  const veh = getEquippedVehicle(targetMode);
-  if (!veh) return 0;
-  const vLv = getVehicleLevel(targetMode);
-  const bonus = getVehiclePartsBonus(targetMode);
-  const baseVal = veh.power + (vLv - 1) * Math.max(8, Math.floor(veh.power * 0.08)) + bonus.flatAtk;
-  return Math.floor(baseVal * bonus.multAtk);
-}
+function buyVehicle(vType, targetTier) {
+  const list = VEHICLE_MASTER[vType] || [];
+  const item = list.find(x => x.tier === targetTier);
+  if (!item) return;
+  const curTier = getVehicleTier(vType);
+  if (targetTier <= curTier) return alert('すでに購入済みです');
+  if (targetTier > curTier + 1) return alert('ひとつ前のランクから順番に購入してください');
+  if (gold < item.cost) return alert(`ゴールドが足りません（${item.cost.toLocaleString()} G 必要）`);
 
-function fireVehicleCannon(veh) {
-  const fxLayer = document.getElementById('fx-layer') || document.getElementById('battle-bg');
-  if (!fxLayer || !veh) return;
-  const shot = document.createElement('div');
-  shot.className = 'ship-shot';
-  shot.textContent = `${veh.icon}💥`;
-  fxLayer.appendChild(shot);
-  setTimeout(() => shot.remove(), 420);
-}
-
-function processShipSupport(cur, eStats, dt) {
-  const veh = getEquippedVehicle(mode);
-  if (!veh) return false;
-
-  const interval = getVehicleSupportInterval(mode);
-  cur.shipCt = (cur.shipCt || 0) + dt;
-  if (cur.shipCt >= interval) {
-    cur.shipCt = 0;
-    const rawAtk = getVehicleSupportAtk(mode);
-    const dmg = Math.max(1, rawAtk - Math.floor(eStats.def / 2));
-    cur.hp -= dmg;
-
-    fireVehicleCannon(veh);
-    setTimeout(() => {
-      triggerMotion('enemy-unit-box', 'hit-motion');
-      showDamagePopup('enemy-unit-box', `${veh.icon}-${dmg.toLocaleString()}`, 'ship-dmg');
-    }, 250);
-
-    if (cur.hp <= 0) {
-      handleEnemyDefeat(cur, eStats);
-      return true;
-    }
+  gold -= item.cost;
+  if (vType === 'land') {
+    landTankTier = targetTier;
+    if (landTankTier === 1) { landTankLv = 1; landUpCost = 50; }
+  } else {
+    seaShipTier = targetTier;
+    if (seaShipTier === 1) { seaShipLv = 1; seaUpCost = 50; }
   }
-  return false;
+  updateUI();
+  if (typeof renderShop === 'function') renderShop();
+  triggerAutoSave(true);
+  showToast(`${item.name}を購入しました`);
 }
 
 function upgradeUnit() {
-  const veh = getEquippedVehicle(mode);
-  if (!veh) {
-    const label = mode === 'land' ? '陸地用の戦車' : '海域用の船';
-    return alert(`まずは「🏪 ショップ」の戦車・船タブから${label}を購入してください！`);
+  const eq = getEquippedVehicle(mode);
+  if (!eq) {
+    return alert(mode === 'land' ? '先にショップの「戦車・船」タブから軽装バリスタ車を購入してください' : '先にショップの「戦車・船」タブから小型砲艇を購入してください');
   }
   const cost = getVehicleUpCost(mode);
-  if (gold >= cost) {
-    gold -= cost;
-    if (mode === 'sea') {
-      seaShipLv++;
-      seaUpCost = Math.floor(seaUpCost * 1.45);
-    } else {
-      landTankLv++;
-      landUpCost = Math.floor(landUpCost * 1.45);
-    }
-    updateUI();
-    triggerAutoSave();
+  if (gold < cost) return alert('ゴールドが足りません');
+  gold -= cost;
+  if (mode === 'land') {
+    landTankLv++;
+    landUpCost = Math.floor(landUpCost * 1.45);
   } else {
-    alert('ゴールド不足');
+    seaShipLv++;
+    seaUpCost = Math.floor(seaUpCost * 1.45);
   }
+  updateUI();
+  triggerAutoSave();
 }
