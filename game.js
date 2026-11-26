@@ -1,3 +1,10 @@
+window.onerror = function(msg, url, line) {
+  const errBox = document.createElement('div');
+  errBox.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#d32f2f;color:#fff;font-size:11px;padding:8px;z-index:99999;word-break:break-all;';
+  errBox.textContent = 'エラー発生: ' + msg + ' (' + (url || '').split('/').pop() + ':' + line + ')';
+  document.body.appendChild(errBox);
+};
+
 // グローバル変数・基本UI・画面演出・サブタブ管理 (game.js)
 let userId = localStorage.getItem('treasure_uid');
 if (!userId) {
