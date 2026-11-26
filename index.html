@@ -305,17 +305,17 @@
     <div class="tab-pane" id="tab-ai">
       <div class="card">
         <div class="card-title">
-          <span>AIアトリエ</span>
+          <span>アトリエ</span>
           <span id="ai-status" style="font-size:11px;color:#ff7043;">準備OK</span>
         </div>
         <div class="sub-tabs">
-          <button class="sub-tab-btn active" onclick="switchAiSub('mon', this)">着せ替え</button>
+          <button class="sub-tab-btn active" onclick="switchAiSub('mon', this)">スキン</button>
           <button class="sub-tab-btn" onclick="switchAiSub('bg', this)">背景</button>
           <button class="sub-tab-btn" onclick="switchAiSub('stamp', this)">スタンプ</button>
         </div>
 
         <div class="ai-sub-pane active" id="ai-sub-mon">
-          <select class="inp" id="ai-species-sel" onchange="renderSpeciesGallery()"><option value="">未獲得</option></select>
+          <select class="inp" id="ai-species-sel" onchange="renderSpeciesGallery()"><option value="スライム">スライム</option></select>
           <textarea class="inp" id="ai-mon-prompt" maxlength="200" oninput="updateCharCount('mon')" placeholder="例：騎士の鎧を着た姿、王冠をかぶったイラストなど"></textarea>
           <div class="char-count"><span id="mon-count">0</span> / <span id="mon-max">200</span>文字</div>
           <label class="extend-box"><input type="checkbox" id="mon-ext" onchange="toggleExtend('mon')"> 長文プロンプト拡張（500文字 / 250 GEM）</label>
@@ -472,23 +472,23 @@
     <button class="nav-item active" onclick="switchTab('ship', this)">編成・育成</button>
     <button class="nav-item" onclick="switchTab('cafe', this)">カフェ</button>
     <button class="nav-item" onclick="switchTab('shop', this)">ショップ</button>
-    <button class="nav-item" onclick="switchTab('ai', this)">AI生成</button>
+    <button class="nav-item" onclick="switchTab('ai', this)">アトリエ</button>
     <button class="nav-item" onclick="switchTab('chat', this)">チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)">マイページ</button>
   </nav>
-  <script src="/monsters.js?v=38"></script>
-  <script src="/traits.js?v=38"></script>
-  <script src="/skills.js?v=38"></script>
-  <script src="/vehicle.js?v=38"></script>
-  <script src="/party.js?v=38"></script>
-  <script src="/breed.js?v=38"></script>
-  <script src="/cafe.js?v=38"></script>
-  <script src="/shop.js?v=38"></script>
-  <script src="/stage.js?v=38"></script>
-  <script src="/game.js?v=38"></script>
-  <script src="/storage.js?v=38"></script>
-  <script src="/battle.js?v=38"></script>
-  <script src="/social.js?v=38"></script>
+  <script src="/monsters.js?v=39"></script>
+  <script src="/traits.js?v=39"></script>
+  <script src="/skills.js?v=39"></script>
+  <script src="/vehicle.js?v=39"></script>
+  <script src="/party.js?v=39"></script>
+  <script src="/breed.js?v=39"></script>
+  <script src="/cafe.js?v=39"></script>
+  <script src="/shop.js?v=39"></script>
+  <script src="/stage.js?v=39"></script>
+  <script src="/game.js?v=39"></script>
+  <script src="/storage.js?v=39"></script>
+  <script src="/battle.js?v=39"></script>
+  <script src="/social.js?v=39"></script>
   <script>
     function renderTankCardsDirect(curTier) {
       const tanks = [
