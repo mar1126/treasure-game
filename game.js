@@ -1,10 +1,8 @@
 let userId = localStorage.getItem('treasure_uid') || ('H-' + Math.random().toString(36).substring(2, 10).toUpperCase());
 localStorage.setItem('treasure_uid', userId);
 let playerName = 'ハンター';
-let gold = 200, gem = 1000, mode = 'land';
-let landTankTier = 0, landTankLv = 1, landUpCost = 50;
-let seaShipTier = 0, seaShipLv = 1, seaUpCost = 50;
-let vehicleParts = { land: { cannon: null, engine: null }, sea: { cannon: null, engine: null } };
+let gold = 200, gem = 1000;
+let landTankTier = 0, landTankLv = 1, landUpCost = 500;
 
 let cafeLv = 1, cafeCost = 80, staff = new Array(3).fill(null), gardenItems = [];
 let party = new Array(3).fill(null);
@@ -14,12 +12,12 @@ let selectedMonIdx = -1;
 let autoUnlocked = false, autoActive = false;
 let speed2xUnlocked = false, speed2xActive = false;
 let staminaFastUnlocked = false;
+let waveStopMode = false; // false: 階層最後まで(5W連戦), true: 1ウェーブ毎に停止
 
 const MAX_STAMINA = 30;
 let stamina = MAX_STAMINA;
 let staminaUpdatedAt = Date.now();
 
-// ステージ(1〜10)・階層(1〜50)・ウェーブ(1〜5)進行状態
 let state = {
   stage: 1,
   floor: 1,
@@ -35,18 +33,12 @@ let battleAllies = new Array(3).fill(null);
 let captured = [], speciesSkins = {}, aiBackgrounds = [], aiStamps = [];
 let iconConfig = { species: 'デフォルト', bgIdx: -1, scale: 1.0, x: 0, y: 0, rotate: 0 };
 
-function syncActiveVehicleType() {
-  const stgInfo = typeof getStageInfo === 'function' ? getStageInfo(state.stage || 1) : { vehicleType: 'land' };
-  mode = stgInfo.vehicleType || 'land';
-}
-
 function ensureWaveEnemies() {
   if (!state.stage) state.stage = 1;
   if (!state.floor) state.floor = 1;
   if (!state.wave) state.wave = 1;
   if (!state.maxStage) state.maxStage = state.stage;
   if (!state.maxFloorByStage) state.maxFloorByStage = { [state.stage]: state.floor };
-  syncActiveVehicleType();
   if (!Array.isArray(state.enemies) || state.enemies.length === 0) {
     state.enemies = typeof getFixedWaveEnemies === 'function'
       ? getFixedWaveEnemies(state.stage, state.floor, state.wave)
@@ -81,11 +73,9 @@ function triggerAutoSave(immediate = false) {
     maxFloorByStage: state.maxFloorByStage
   };
   const payload = {
-    savedAt: Date.now(), playerName, gold, gem, mode,
+    savedAt: Date.now(), playerName, gold, gem,
     landTankTier, landTankLv, landUpCost,
-    seaShipTier, seaShipLv, seaUpCost,
-    vehicleParts,
-    stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked,
+    stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, waveStopMode,
     cafeLv, cafeCost, staff, gardenItems, party, trainingSlots, state: cleanState,
     captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig
   };
@@ -113,16 +103,12 @@ function applySaveData(data) {
 
   landTankTier = Number(data.landTankTier) || 0;
   landTankLv = Number(data.landTankLv) || 1;
-  landUpCost = Number(data.landUpCost) || 50;
-
-  seaShipTier = Number(data.seaShipTier) || 0;
-  seaShipLv = Number(data.seaShipLv) || Number(data.level) || 1;
-  seaUpCost = Number(data.seaUpCost) || Number(data.upCost) || 50;
-  if (data.vehicleParts) vehicleParts = data.vehicleParts;
+  landUpCost = Number(data.landUpCost) || 500;
 
   autoUnlocked = Boolean(data.autoUnlocked);
   speed2xUnlocked = Boolean(data.speed2xUnlocked);
   staminaFastUnlocked = Boolean(data.staminaFastUnlocked);
+  waveStopMode = Boolean(data.waveStopMode);
   stamina = data.stamina ?? MAX_STAMINA; staminaUpdatedAt = data.staminaUpdatedAt || Date.now(); syncStamina();
   cafeLv = data.cafeLv ?? 1; cafeCost = data.cafeCost ?? 80;
   staff = Array.isArray(data.staff) ? data.staff.slice(0, 3) : new Array(3).fill(null);
@@ -154,8 +140,8 @@ function applySaveData(data) {
   captured = (data.captured || []).map((m, idx) => {
     const sp = typeof getSpeciesData === 'function' ? getSpeciesData(m.name) : { name: 'スライム', elem: 'water', baseHp: 58, baseAtk: 10, baseDef: 3, ct: 1.8 };
     const validName = ALL_MONSTER_SPECIES.some(x => x.name === m.name) ? m.name : sp.name;
-    const initSkills = Array.isArray(m.skills) && m.skills.length > 0 ? m.skills : [typeof getSpeciesInnateSkillId === 'function' ? getSpeciesInnateSkillId(validName) : 'tackle'];
-    const initTraits = Array.isArray(m.traits) && m.traits.length > 0 ? m.traits : [typeof getSpeciesInnateTraitId === 'function' ? getSpeciesInnateTraitId(validName) : 'valor'];
+    const initSkills = Array.from(new Set(Array.isArray(m.skills) && m.skills.length > 0 ? m.skills : [typeof getSpeciesInnateSkillId === 'function' ? getSpeciesInnateSkillId(validName) : 'tackle']));
+    const initTraits = Array.from(new Set(Array.isArray(m.traits) && m.traits.length > 0 ? m.traits : [typeof getSpeciesInnateTraitId === 'function' ? getSpeciesInnateTraitId(validName) : 'valor']));
     return {
       id: m.id || ('M' + idx),
       name: validName,
@@ -235,7 +221,7 @@ async function initCloudLoad() {
 
 window.addEventListener('beforeunload', () => {
   const cleanState = { stage: state.stage, floor: state.floor, wave: 1, maxStage: state.maxStage, maxFloorByStage: state.maxFloorByStage };
-  const payload = { savedAt: Date.now(), playerName, gold, gem, mode, landTankTier, landTankLv, landUpCost, seaShipTier, seaShipLv, seaUpCost, vehicleParts, stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, cafeLv, cafeCost, staff, gardenItems, party, trainingSlots, state: cleanState, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
+  const payload = { savedAt: Date.now(), playerName, gold, gem, landTankTier, landTankLv, landUpCost, stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, waveStopMode, cafeLv, cafeCost, staff, gardenItems, party, trainingSlots, state: cleanState, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
   localStorage.setItem('treasure_save_' + userId, JSON.stringify(payload));
 });
 
@@ -247,7 +233,6 @@ function getSpeciesDisplay(name) {
   return data.list.slice(data.activeIdx, data.activeIdx + 1).pop() || defVisual;
 }
 
-// 立ち絵PNG または 品のある属性紋章アイコンを描画（絵文字は使わない）
 function renderSprite(displayVal, size = 32, round = '8px') {
   if (!displayVal) return '';
   if (displayVal.startsWith('data:image') || displayVal.startsWith('/')) {
@@ -255,15 +240,15 @@ function renderSprite(displayVal, size = 32, round = '8px') {
   }
   if (displayVal.startsWith('EMBLEM:')) {
     const parts = displayVal.split(':');
-    const elInfo = typeof getElementInfo === 'function' ? getElementInfo(parts[1]) : { color: '#546e7a', bg: '#eceff1' };
-    const char = parts[2] || '魔';
+    const elInfo = typeof getElementInfo === 'function' ? getElementInfo(parts) : { color: '#546e7a', bg: '#eceff1' };
+    const char = parts || '魔';
     const fontSize = Math.max(12, Math.floor(size * 0.48));
     return `<span style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;background:${elInfo.bg};color:${elInfo.color};border:2px solid ${elInfo.color};font-weight:900;font-size:${fontSize}px;box-shadow:0 2px 5px rgba(0,0,0,0.2);">${char}</span>`;
   }
   return displayVal;
 }
 function getTotalPower() {
-  let p = typeof getVehicleSupportAtk === 'function' ? getVehicleSupportAtk(mode) : 0;
+  let p = typeof getTankSupportAtk === 'function' ? getTankSupportAtk() : 0;
   party.forEach(monId => {
     const m = captured.find(x => x.id === monId);
     if (m && typeof getMonStats === 'function') { const st = getMonStats(m); p += st.atk + Math.floor(st.def / 2); }
@@ -316,7 +301,6 @@ function jumpToStageFloor(targetStg, targetFlr) {
   state.stage = targetStg;
   state.floor = targetFlr;
   state.wave = 1;
-  syncActiveVehicleType();
   state.enemies = typeof getFixedWaveEnemies === 'function' ? getFixedWaveEnemies(targetStg, targetFlr, 1) : [];
   state.inBattle = false;
   closeFloorSelectModal(); updateUI(); triggerAutoSave();
@@ -324,20 +308,12 @@ function jumpToStageFloor(targetStg, targetFlr) {
   showToast(`Stage${targetStg} ${stgInfo.name} ${targetFlr}-1 に移動しました`);
 }
 
-function returnToTown(e) {
+function toggleWaveStopMode(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
-  if (state.inBattle) {
-    if (!confirm('戦闘を中断して街へ戻りますか？')) return;
-    state.inBattle = false;
-    state.wave = 1;
-    state.enemies = typeof getFixedWaveEnemies === 'function' ? getFixedWaveEnemies(state.stage, state.floor, 1) : [];
-    if (autoActive) autoActive = false;
-    if (typeof resetBattleAllies === 'function') resetBattleAllies();
-  }
-  const shipTabBtn = document.querySelector('.bottom-nav .nav-item');
-  if (typeof switchTab === 'function' && shipTabBtn) switchTab('ship', shipTabBtn);
+  waveStopMode = !waveStopMode;
+  showToast(waveStopMode ? '進行設定: 1ウェーブ毎に停止' : '進行設定: 階層最後まで連戦');
   updateUI();
-  showToast('街へ戻りました');
+  triggerAutoSave();
 }
 
 function updateUI() {
@@ -364,11 +340,14 @@ function updateUI() {
     speedBtn.textContent = speed2xActive ? '2x' : '1x';
     speedBtn.classList.toggle('active', speed2xActive);
   }
+  const waveBtn = document.getElementById('hud-wave-mode-btn');
+  if (waveBtn) {
+    waveBtn.textContent = waveStopMode ? '1W停止' : '階層連戦';
+    waveBtn.classList.toggle('active', !waveStopMode);
+  }
 
   const enemies = ensureWaveEnemies();
-  const stgInfo = typeof getStageInfo === 'function' ? getStageInfo(state.stage) : { name: '緑の草原', vehicleType: 'land' };
-  const bg = document.getElementById('battle-bg');
-  if (bg) bg.classList.toggle('land-mode', stgInfo.vehicleType !== 'sea');
+  const stgInfo = typeof getStageInfo === 'function' ? getStageInfo(state.stage) : { name: '街周辺' };
 
   document.getElementById('gold').textContent = gold.toLocaleString();
   document.getElementById('gem').textContent = gem.toLocaleString();
@@ -441,13 +420,13 @@ function updateUI() {
 
   const upBtn = document.getElementById('vehicle-upgrade-btn');
   if (upBtn) {
-    const eq = typeof getEquippedVehicle === 'function' ? getEquippedVehicle(mode) : null;
+    const eq = typeof getEquippedTank === 'function' ? getEquippedTank() : null;
     if (!eq) {
-      upBtn.textContent = mode === 'land' ? '陸上用の戦車 未所持（ショップで購入）' : '水上用の探索船 未所持（ショップで購入）';
+      upBtn.textContent = '戦車 未所持（ショップの「戦車」タブで購入）';
       upBtn.style.background = '#90a4ae';
     } else {
-      const vLv = typeof getVehicleLevel === 'function' ? getVehicleLevel(mode) : 1;
-      const vCost = typeof getVehicleUpCost === 'function' ? getVehicleUpCost(mode) : 50;
+      const vLv = typeof getTankLevel === 'function' ? getTankLevel() : 1;
+      const vCost = typeof getTankUpCost === 'function' ? getTankUpCost() : 500;
       upBtn.innerHTML = `${eq.name}を強化 Lv.${vLv}（費用: ${vCost.toLocaleString()} G）`;
       upBtn.style.background = '#ff7043';
     }
@@ -497,8 +476,7 @@ function startBattle(e) {
   if (stamina === MAX_STAMINA) staminaUpdatedAt = Date.now();
   stamina -= 1;
 
-  state.wave = 1;
-  state.enemies = typeof getFixedWaveEnemies === 'function' ? getFixedWaveEnemies(state.stage, state.floor, 1) : [];
+  state.enemies = typeof getFixedWaveEnemies === 'function' ? getFixedWaveEnemies(state.stage, state.floor, state.wave) : [];
   if (typeof resetBattleAllies === 'function') resetBattleAllies();
   state.shipCt = 0;
   state.inBattle = true;
@@ -554,22 +532,32 @@ function handleWaveClear() {
   if (typeof renderCaptured === 'function') renderCaptured();
 
   if (state.wave < 5) {
+    state.wave++;
+    state.enemies = typeof getFixedWaveEnemies === 'function' ? getFixedWaveEnemies(state.stage, state.floor, state.wave) : [];
+
+    // 「1W停止」設定のときはここで一旦停止（次のバトル開始ボタンで続きのウェーブへ）
+    if (waveStopMode) {
+      state.inBattle = false;
+      if (autoActive) autoActive = false;
+      if (!recruited) {
+        showToast(anyLevelUp ? `レベルアップ！WAVE ${state.wave}/5 の前で停止しました` : `WAVEクリア（+${finalGold}G / +${totalExp}EXP）`);
+      }
+      triggerAutoSave();
+      updateUI();
+      return;
+    }
+
     syncStamina();
     if (stamina < 1) {
       state.inBattle = false;
-      state.wave = 1;
-      state.enemies = typeof getFixedWaveEnemies === 'function' ? getFixedWaveEnemies(state.stage, state.floor, 1) : [];
       if (autoActive) autoActive = false;
-      if (typeof resetBattleAllies === 'function') resetBattleAllies();
-      showToast(`WAVEクリア(+${finalGold}G) / スタミナ不足のため帰還しました`);
+      showToast(`WAVEクリア(+${finalGold}G) / スタミナ不足のため停止しました`);
       triggerAutoSave();
       updateUI();
       return;
     }
     if (stamina === MAX_STAMINA) staminaUpdatedAt = Date.now();
     stamina -= 1;
-    state.wave++;
-    state.enemies = typeof getFixedWaveEnemies === 'function' ? getFixedWaveEnemies(state.stage, state.floor, state.wave) : [];
     if (!recruited) {
       showToast(anyLevelUp ? `レベルアップ！WAVE ${state.wave}/5 へ` : `WAVE ${state.wave}/5 突入（+${finalGold}G / +${totalExp}EXP）`);
     }
@@ -589,7 +577,6 @@ function handleWaveClear() {
     state.floor = 1;
     state.maxStage = Math.max(state.maxStage || 1, state.stage);
     state.maxFloorByStage[state.stage] = Math.max(state.maxFloorByStage[state.stage] || 1, 1);
-    syncActiveVehicleType();
     const stgInfo = typeof getStageInfo === 'function' ? getStageInfo(state.stage) : { name: `Stage ${state.stage}` };
     showToast(`ステージ踏破！新エリア「${stgInfo.name}」解放`);
   } else {
@@ -601,7 +588,7 @@ function handleWaveClear() {
   triggerAutoSave();
   updateUI();
 
-  if (autoActive) {
+  if (autoActive && !waveStopMode) {
     const delay = speed2xActive ? 350 : 700;
     setTimeout(() => { if (autoActive && !state.inBattle) startBattle(); }, delay);
   }
@@ -671,15 +658,15 @@ function battleFrameLoop(now) {
         if (ctBar) ctBar.style.width = `${Math.min(100, (u.ct / limitCt) * 100)}%`;
       }
 
-      if (typeof getVehicleSupportAtk === 'function' && typeof getEquippedVehicle === 'function' && getEquippedVehicle(mode)) {
+      if (typeof getTankSupportAtk === 'function' && typeof getEquippedTank === 'function' && getEquippedTank()) {
         state.shipCt = (Number(state.shipCt) || 0) + dt;
-        const vInterval = typeof getVehicleInterval === 'function' ? getVehicleInterval(mode) : 3.0;
+        const vInterval = typeof getTankInterval === 'function' ? getTankInterval() : 3.2;
         if (state.shipCt >= vInterval) {
           state.shipCt = 0;
           const aliveEnemies = enemies.filter(e => e.hp > 0);
           if (aliveEnemies.length > 0) {
             const tgt = aliveEnemies[Math.floor(Math.random() * aliveEnemies.length)];
-            const vDmg = Math.max(1, getVehicleSupportAtk(mode) - Math.floor((tgt.def || 0) / 3));
+            const vDmg = Math.max(1, getTankSupportAtk() - Math.floor((tgt.def || 0) / 3));
             tgt.hp -= vDmg;
             triggerMotion(`enemy-slot-${tgt.slot}`, 'hit-motion');
             showDamagePopup(`enemy-slot-${tgt.slot}`, `砲撃 -${vDmg}`, 'ship-dmg');
