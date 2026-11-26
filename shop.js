@@ -1,5 +1,10 @@
-// ショップ・アトリエ管理（白背景透明化＋開発者公式アセット登録対応）(shop.js)
+// ショップ・アトリエ管理（お手本スタンプUI＋白背景透明化＋公式アセット対応）(shop.js)
 let shopSubTab = 'gem';
+let stampBuilderState = {
+  species: '',
+  skinIdx: -1,
+  previewImg: ''
+};
 
 function switchShopSub(sub, btn) {
   shopSubTab = sub;
@@ -22,41 +27,11 @@ function renderShop() {
 
   const goldAmt = typeof getShopGoldAmount === 'function' ? getShopGoldAmount() : 2000;
   const items = [
-    {
-      id: 'stamina',
-      title: 'スタミナ全回復（30回復）',
-      desc: '冒険に必要なスタミナを即座にMAX（30）まで回復します。',
-      cost: 100,
-      done: false
-    },
-    {
-      id: 'gold',
-      title: `ゴールド交換（+${goldAmt.toLocaleString()} G）`,
-      desc: '現在の進行度に応じたゴールドを獲得します。',
-      cost: 100,
-      done: false
-    },
-    {
-      id: 'auto',
-      title: '階層間オート周回解放',
-      desc: '階層クリア後に自動で次の階層へ出撃し続ける周回機能を解放します。',
-      cost: 500,
-      done: Boolean(autoUnlocked)
-    },
-    {
-      id: 'speed2x',
-      title: '戦闘速度 2倍速解放',
-      desc: 'バトルの進行速度を2倍に切り替えられるようになります。',
-      cost: 500,
-      done: Boolean(speed2xUnlocked)
-    },
-    {
-      id: 'staminaFast',
-      title: 'スタミナ回復速度 2倍（30秒で1回復）',
-      desc: 'スタミナの自然回復間隔が60秒から30秒に短縮されます。',
-      cost: 800,
-      done: Boolean(staminaFastUnlocked)
-    }
+    { id: 'stamina', title: 'スタミナ全回復（30回復）', desc: '冒険に必要なスタミナを即座にMAX（30）まで回復します。', cost: 100, done: false },
+    { id: 'gold', title: `ゴールド交換（+${goldAmt.toLocaleString()} G）`, desc: '現在の進行度に応じたゴールドを獲得します。', cost: 100, done: false },
+    { id: 'auto', title: '階層間オート周回解放', desc: '階層クリア後に自動で次の階層へ出撃し続ける周回機能を解放します。', cost: 500, done: Boolean(autoUnlocked) },
+    { id: 'speed2x', title: '戦闘速度 2倍速解放', desc: 'バトルの進行速度を2倍に切り替えられるようになります。', cost: 500, done: Boolean(speed2xUnlocked) },
+    { id: 'staminaFast', title: 'スタミナ回復速度 2倍（30秒で1回復）', desc: 'スタミナの自然回復間隔が60秒から30秒に短縮されます。', cost: 800, done: Boolean(staminaFastUnlocked) }
   ];
 
   box.innerHTML = items.map(it => `
@@ -79,36 +54,26 @@ function buyShopItem(id, cost) {
   if (gem < cost) return alert(`ジェムが足りません（${cost} GEM 必要）`);
   if (id === 'stamina') {
     if (stamina >= MAX_STAMINA) return alert('スタミナはすでにMAXです');
-    gem -= cost;
-    stamina = MAX_STAMINA;
-    staminaUpdatedAt = Date.now();
+    gem -= cost; stamina = MAX_STAMINA; staminaUpdatedAt = Date.now();
     showToast('スタミナが全回復しました！');
   } else if (id === 'gold') {
     const amt = typeof getShopGoldAmount === 'function' ? getShopGoldAmount() : 2000;
-    gem -= cost;
-    gold += amt;
+    gem -= cost; gold += amt;
     showToast(`${amt.toLocaleString()} G を獲得しました！`);
   } else if (id === 'auto') {
     if (autoUnlocked) return;
-    gem -= cost;
-    autoUnlocked = true;
-    autoActive = true;
+    gem -= cost; autoUnlocked = true; autoActive = true;
     showToast('階層間オート周回を解放しました！');
   } else if (id === 'speed2x') {
     if (speed2xUnlocked) return;
-    gem -= cost;
-    speed2xUnlocked = true;
-    speed2xActive = true;
+    gem -= cost; speed2xUnlocked = true; speed2xActive = true;
     showToast('戦闘速度 2倍速を解放しました！');
   } else if (id === 'staminaFast') {
     if (staminaFastUnlocked) return;
-    gem -= cost;
-    staminaFastUnlocked = true;
+    gem -= cost; staminaFastUnlocked = true;
     showToast('スタミナ回復速度が2倍になりました！');
   }
-  renderShop();
-  updateUI();
-  triggerAutoSave(true);
+  renderShop(); updateUI(); triggerAutoSave(true);
 }
 
 function switchAiSub(sub, btn) {
@@ -119,6 +84,7 @@ function switchAiSub(sub, btn) {
   if (target) target.classList.add('active');
   refreshAiSpeciesSelects();
   renderSpeciesGallery();
+  renderStampBuilderUI();
   if (typeof renderStamps === 'function') renderStamps();
 }
 
@@ -134,17 +100,17 @@ function refreshAiSpeciesSelects() {
     monSel.innerHTML = allNames.map(n => `<option value="${n}">${n}</option>`).join('');
     if (allNames.includes(prev)) monSel.value = prev;
   }
-
-  const stampSel = document.getElementById('stamp-species-sel');
-  if (stampSel) {
-    const prev = stampSel.value;
-    stampSel.innerHTML = allNames.map(n => `<option value="${n}">${n}</option>`).join('');
-    if (allNames.includes(prev)) stampSel.value = prev;
-  }
 }
+
 function updateCharCount(kind) {
   const inp = document.getElementById(`ai-${kind}-prompt`);
   const cnt = document.getElementById(`${kind}-count`);
+  if (inp && cnt) cnt.textContent = inp.value.length;
+}
+
+function updateStampTextCount() {
+  const inp = document.getElementById('stamp-text');
+  const cnt = document.getElementById('stamp-text-count');
   if (inp && cnt) cnt.textContent = inp.value.length;
 }
 
@@ -162,7 +128,6 @@ function toggleExtend(kind) {
   if (costEl) costEl.textContent = isExt ? '250' : '200';
   updateCharCount(kind);
 }
-
 function renderSpeciesGallery() {
   refreshAiSpeciesSelects();
   const gal = document.getElementById('species-skin-gallery');
@@ -202,6 +167,105 @@ function equipSpeciesSkinFromGallery(spName, idx) {
   showToast(`${spName}のスキンを適用しました！`);
 }
 
+function getStampSelectedSourceVisual() {
+  const sp = stampBuilderState.species;
+  if (!sp) return '';
+  const spData = (speciesSkins && speciesSkins[sp]) ? speciesSkins[sp] : null;
+  if (stampBuilderState.skinIdx >= 0 && spData && Array.isArray(spData.list) && spData.list[stampBuilderState.skinIdx]) {
+    return spData.list[stampBuilderState.skinIdx];
+  }
+  return typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual(sp) : `EMBLEM:none:${sp.slice(0, 1)}`;
+}
+
+function renderStampBuilderUI() {
+  const emptyArea = document.getElementById('stamp-select-empty');
+  const activeArea = document.getElementById('stamp-select-active');
+  const srcBox = document.getElementById('stamp-source-preview');
+  const resBox = document.getElementById('stamp-result-preview');
+  if (!emptyArea || !activeArea) return;
+
+  if (!stampBuilderState.species) {
+    emptyArea.style.display = 'flex';
+    activeArea.style.display = 'none';
+    return;
+  }
+
+  emptyArea.style.display = 'none';
+  activeArea.style.display = 'block';
+  const srcVisual = getStampSelectedSourceVisual();
+  if (srcBox) srcBox.innerHTML = renderSprite(srcVisual, 92, '18px');
+  if (resBox) {
+    resBox.innerHTML = stampBuilderState.previewImg
+      ? `<img src="${stampBuilderState.previewImg}" style="width:100%;height:100%;object-fit:contain;">`
+      : '';
+  }
+}
+
+function openStampMonsterModal() {
+  const modal = document.getElementById('stamp-picker-modal');
+  const titleEl = document.getElementById('stamp-modal-title');
+  const bodyEl = document.getElementById('stamp-modal-body');
+  if (!modal || !titleEl || !bodyEl) return;
+
+  titleEl.textContent = 'スタンプにしたいモンスターを選択';
+  const list = (typeof ALL_MONSTER_SPECIES !== 'undefined') ? ALL_MONSTER_SPECIES : [{ name: 'スライム', elem: 'water' }];
+
+  bodyEl.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;max-height:340px;overflow-y:auto;padding:2px;">
+      ${list.map(sp => {
+        const vis = typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual(sp.name) : `EMBLEM:${sp.elem}:${sp.name.slice(0, 1)}`;
+        return `
+          <div onclick="openStampSkinStep('${sp.name}')" style="aspect-ratio:1/1;border:1.5px solid #cbd5e1;border-radius:10px;background:#ffffff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:3px;">
+            ${renderSprite(vis, 46, '10px')}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+  modal.style.display = 'flex';
+}
+
+function openStampSkinStep(spName) {
+  const titleEl = document.getElementById('stamp-modal-title');
+  const bodyEl = document.getElementById('stamp-modal-body');
+  if (!titleEl || !bodyEl) return;
+
+  titleEl.textContent = `${spName}のスタンプの元にする絵`;
+  const defVis = typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual(spName) : `EMBLEM:none:${spName.slice(0, 1)}`;
+  const spData = (speciesSkins && speciesSkins[spName]) ? speciesSkins[spName] : { list: [] };
+  const skins = Array.isArray(spData.list) ? spData.list : [];
+
+  let cardsHtml = `
+    <div onclick="confirmStampSource('${spName}', -1)" style="width:74px;height:74px;border:2px solid #ff7043;border-radius:12px;background:#ffffff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:4px;">
+      ${renderSprite(defVis, 62, '14px')}
+    </div>
+  `;
+  cardsHtml += skins.map((imgData, idx) => `
+    <div onclick="confirmStampSource('${spName}', ${idx})" style="width:74px;height:74px;border:1.5px solid #cbd5e1;border-radius:12px;background:#ffffff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:4px;position:relative;">
+      <span style="position:absolute;top:3px;left:4px;font-size:10px;color:#ffb300;">★</span>
+      <img src="${imgData}" style="width:62px;height:62px;object-fit:contain;">
+    </div>
+  `).join('');
+
+  bodyEl.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:8px;min-height:140px;align-content:flex-start;">
+      ${cardsHtml}
+    </div>
+  `;
+}
+
+function confirmStampSource(spName, skinIdx) {
+  stampBuilderState.species = spName;
+  stampBuilderState.skinIdx = skinIdx;
+  stampBuilderState.previewImg = '';
+  closeStampMonsterModal();
+  renderStampBuilderUI();
+}
+
+function closeStampMonsterModal() {
+  const modal = document.getElementById('stamp-picker-modal');
+  if (modal) modal.style.display = 'none';
+}
 function removeWhiteBackground(dataUrl) {
   return new Promise(resolve => {
     const img = new Image();
@@ -217,18 +281,10 @@ function removeWhiteBackground(dataUrl) {
         const d = imgData.data;
         const visited = new Uint8Array(size * size);
         const queue = [];
+        const isNearWhite = (idx) => d[idx * 4] > 232 && d[idx * 4 + 1] > 232 && d[idx * 4 + 2] > 232;
 
-        const isNearWhite = (idx) => {
-          const r = d[idx * 4], g = d[idx * 4 + 1], b = d[idx * 4 + 2];
-          return r > 232 && g > 232 && b > 232;
-        };
-
-        for (let x = 0; x < size; x++) {
-          queue.push(x, (size - 1) * size + x);
-        }
-        for (let y = 0; y < size; y++) {
-          queue.push(y * size, y * size + (size - 1));
-        }
+        for (let x = 0; x < size; x++) queue.push(x, (size - 1) * size + x);
+        for (let y = 0; y < size; y++) queue.push(y * size, y * size + (size - 1));
 
         while (queue.length > 0) {
           const p = queue.pop();
@@ -242,15 +298,45 @@ function removeWhiteBackground(dataUrl) {
           if (y > 0) queue.push(p - size);
           if (y < size - 1) queue.push(p + size);
         }
-
         ctx.putImageData(imgData, 0, 0);
         resolve(canvas.toDataURL('image/png'));
-      } catch (e) {
-        resolve(dataUrl);
-      }
+      } catch (e) { resolve(dataUrl); }
     };
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
+  });
+}
+
+function composeStampWithCaption(cleanImgUrl, captionText) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const size = 256;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 8, 4, size - 16, size - 28);
+
+      const text = String(captionText || '').trim();
+      if (text) {
+        ctx.font = '900 32px "Zen Maru Gothic", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = '#ffffff';
+        ctx.strokeText(text, size / 2, size - 8, size - 20);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#3e2723';
+        ctx.strokeText(text, size / 2, size - 8, size - 20);
+        ctx.fillStyle = '#ff7043';
+        ctx.fillText(text, size / 2, size - 8, size - 20);
+      }
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(cleanImgUrl);
+    img.src = cleanImgUrl;
   });
 }
 
@@ -273,6 +359,7 @@ async function generateAI(type) {
   let rawInput = '';
   let species = 'スライム';
   let stampText = '';
+  let refDesc = '';
 
   if (type === 'monster') {
     species = document.getElementById('ai-species-sel')?.value || 'スライム';
@@ -282,13 +369,15 @@ async function generateAI(type) {
     rawInput = document.getElementById('ai-bg-prompt')?.value.trim() || '';
     if (!rawInput) return alert('どんな背景にするかプロンプトを入力してください');
   } else if (type === 'stamp') {
-    species = document.getElementById('stamp-species-sel')?.value || 'スライム';
-    stampText = document.getElementById('stamp-text')?.value.trim() || 'やったね！';
+    if (!stampBuilderState.species) return alert('先に「スタンプにしたいモンスター」を選択してください');
+    species = stampBuilderState.species;
+    stampText = document.getElementById('stamp-text')?.value.trim() || '';
     rawInput = document.getElementById('ai-stamp-prompt')?.value.trim() || '';
-    if (!rawInput) return alert('スタンプのイラスト内容を入力してください');
+    if (stampBuilderState.skinIdx >= 0) {
+      refDesc = `humanized anime girl version of ${species} in cute outfit`;
+    }
   }
 
-  // 開発者用秘密コマンド判定 (!公式 / !背景1〜10)
   let officialMonsterCmd = false;
   let officialStageNum = 0;
   let cleanPrompt = rawInput;
@@ -300,8 +389,8 @@ async function generateAI(type) {
   } else if (type === 'bg') {
     const m = rawInput.match(/^(?:!背景|！背景|@stage)(\d{1,2})\s*(.*)$/i);
     if (m) {
-      officialStageNum = Math.min(10, Math.max(1, Number(m[1])));
-      cleanPrompt = (m[2] || '').trim();
+      officialStageNum = Math.min(10, Math.max(1, Number(m.slice(1, 2).pop())));
+      cleanPrompt = (m.slice(2, 3).pop() || '').trim();
       cost = 0;
     }
   }
@@ -313,12 +402,10 @@ async function generateAI(type) {
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, species, prompt: cleanPrompt, stamp_text: stampText })
+      body: JSON.stringify({ type, species, prompt: cleanPrompt, stamp_text: stampText, ref_desc: refDesc })
     });
     const data = await res.json();
-    if (!res.ok || !data.image) {
-      throw new Error(data.error || '生成に失敗しました');
-    }
+    if (!res.ok || !data.image) throw new Error(data.error || '生成に失敗しました');
 
     if (cost > 0) gem -= cost;
 
@@ -358,8 +445,12 @@ async function generateAI(type) {
       if (typeof updateIconPreview === 'function') updateIconPreview(false);
       showToast('新しいアイコン背景を生成しました！');
     } else if (type === 'stamp') {
+      const cleanImg = await removeWhiteBackground(data.image);
+      const finalStamp = await composeStampWithCaption(cleanImg, stampText);
+      stampBuilderState.previewImg = finalStamp;
+      renderStampBuilderUI();
       if (!Array.isArray(aiStamps)) aiStamps = [];
-      aiStamps.push({ img: data.image, text: stampText, species });
+      aiStamps.push({ img: finalStamp, text: stampText || species, species });
       if (typeof renderStamps === 'function') renderStamps();
       showToast('新しいチャットスタンプを生成しました！');
     }
