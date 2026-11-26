@@ -1,149 +1,276 @@
-// 便利機能（ジェム）＆ 兵器工房（ゴールド）ショップシステム (shop.js)
+// ショップ・AIアトリエ管理 (shop.js)
 let shopSubTab = 'gem';
 
-function getStaminaIntervalMs() {
-  return staminaFastUnlocked ? 20000 : 60000;
-}
-
-function switchShopSub(subName, btn) {
-  shopSubTab = subName;
+function switchShopSub(sub, btn) {
+  shopSubTab = sub;
   document.querySelectorAll('.shop-sub-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  renderShop();
-}
-
-function makeTankCardHtml(tier, name, cost, baseAtk, interval, desc, curTier) {
-  let btnHtml = '<button class="shop-buy-btn done" disabled>未解放</button>';
-  if (curTier >= tier) {
-    btnHtml = '<button class="shop-buy-btn done" disabled>所持済</button>';
-  } else if (curTier === tier - 1) {
-    btnHtml = `<button class="shop-buy-btn" onclick="buyShopTank(${tier})">${cost.toLocaleString()} G</button>`;
+  if (sub === 'tank' && typeof openTankShop === 'function') {
+    openTankShop(btn);
+  } else {
+    renderShop();
   }
-  return `
-    <div class="shop-item-card">
-      <div class="shop-item-info">
-        <div class="shop-item-title">Rank ${tier}：${name}</div>
-        <div class="shop-item-desc">${desc}<br>基本砲撃力: <b>${baseAtk.toLocaleString()}</b>（${interval}秒ごと）</div>
-      </div>
-      <div class="shop-item-action">${btnHtml}</div>
-    </div>
-  `;
 }
 
 function renderShop() {
   const box = document.getElementById('shop-list');
   if (!box) return;
-
-  if (shopSubTab === 'tank') {
-    const curTier = Number(landTankTier) || 0;
-    box.innerHTML =
-      `<div style="font-size:11px;color:#546e7a;margin-bottom:8px;">購入した戦車は全ステージで自動的に砲撃援護を行います（ランク順に購入可能）。</div>` +
-      makeTankCardHtml(1, '軽装バリスタ車', 5000, 25, 3.4, '大型の連射弩弓を積んだ軽快な移動砲台', curTier) +
-      makeTankCardHtml(2, '鉄輪キャノン車', 45000, 80, 3.2, '大砲を1門搭載した鉄輪補強の砲撃車', curTier) +
-      makeTankCardHtml(3, '蒸気装甲車', 350000, 250, 3.0, '魔導蒸気機関で走る装甲板付きの砲撃車両', curTier) +
-      makeTankCardHtml(4, '魔導軽戦車', 2500000, 780, 2.9, '魔力弾を放つ旋回砲塔を備えた軽戦車', curTier) +
-      makeTankCardHtml(5, '鋼鉄中戦車', 15000000, 2400, 2.8, '厚い鋼鉄装甲と連装砲を備えた主力戦車', curTier) +
-      makeTankCardHtml(6, '重装攻城戦車', 80000000, 7500, 2.7, '城壁をも砕く大口径砲を積んだ重戦車', curTier);
+  if (shopSubTab === 'tank' && typeof renderTankCardsDirect === 'function') {
+    box.innerHTML = renderTankCardsDirect(Number(landTankTier) || 0);
     return;
   }
 
-  const goldReward = typeof getShopGoldAmount === 'function' ? getShopGoldAmount() : 500;
-  box.innerHTML = `
+  const goldAmt = typeof getShopGoldAmount === 'function' ? getShopGoldAmount() : 2000;
+  const items = [
+    {
+      id: 'stamina',
+      title: 'スタミナ全回復（30回復）',
+      desc: '冒険に必要なスタミナを即座にMAX（30）まで回復します。',
+      cost: 100,
+      done: false
+    },
+    {
+      id: 'gold',
+      title: `ゴールド交換（+${goldAmt.toLocaleString()} G）`,
+      desc: '現在の進行度に応じたゴールドを獲得します。',
+      cost: 100,
+      done: false
+    },
+    {
+      id: 'auto',
+      title: '階層間オート周回解放',
+      desc: '階層クリア後に自動で次の階層へ出撃し続ける周回機能を解放します。',
+      cost: 500,
+      done: Boolean(autoUnlocked)
+    },
+    {
+      id: 'speed2x',
+      title: '戦闘速度 2倍速解放',
+      desc: 'バトルの進行速度を2倍に切り替えられるようになります。',
+      cost: 500,
+      done: Boolean(speed2xUnlocked)
+    },
+    {
+      id: 'staminaFast',
+      title: 'スタミナ回復速度 2倍（30秒で1回復）',
+      desc: 'スタミナの自然回復間隔が60秒から30秒に短縮されます。',
+      cost: 800,
+      done: Boolean(staminaFastUnlocked)
+    }
+  ];
+
+  box.innerHTML = items.map(it => `
     <div class="shop-item-card">
       <div class="shop-item-info">
-        <div class="shop-item-title">階層間オート周回 解放</div>
-        <div class="shop-item-desc">5ウェーブ踏破後も自動で次の階層へ連続出撃できるようになります。</div>
+        <div class="shop-item-title">${it.title}</div>
+        <div class="shop-item-desc">${it.desc}</div>
       </div>
       <div class="shop-item-action">
-        ${autoUnlocked ? `<button class="shop-buy-btn done" disabled>解放済</button>` : `<button class="shop-buy-btn" onclick="buyShopItem('auto')">1,500 GEM</button>`}
+        ${it.done
+          ? `<button class="shop-buy-btn done" disabled>解放済</button>`
+          : `<button class="shop-buy-btn" onclick="buyShopItem('${it.id}', ${it.cost})">${it.cost} GEM</button>`
+        }
       </div>
     </div>
-    <div class="shop-item-card">
-      <div class="shop-item-info">
-        <div class="shop-item-title">戦闘スピード2倍速 解放</div>
-        <div class="shop-item-desc">バトルの進行速度を2倍に切り替えられるようになります。</div>
-      </div>
-      <div class="shop-item-action">
-        ${speed2xUnlocked ? `<button class="shop-buy-btn done" disabled>解放済</button>` : `<button class="shop-buy-btn" onclick="buyShopItem('speed2x')">1,000 GEM</button>`}
-      </div>
-    </div>
-    <div class="shop-item-card">
-      <div class="shop-item-info">
-        <div class="shop-item-title">スタミナ回復速度 3倍</div>
-        <div class="shop-item-desc">スタミナ1回復にかかる時間が「60秒 → 20秒」に短縮されます。</div>
-      </div>
-      <div class="shop-item-action">
-        ${staminaFastUnlocked ? `<button class="shop-buy-btn done" disabled>解放済</button>` : `<button class="shop-buy-btn" onclick="buyShopItem('stamina_fast')">800 GEM</button>`}
-      </div>
-    </div>
-    <div class="shop-item-card">
-      <div class="shop-item-info">
-        <div class="shop-item-title">スタミナ全回復 (+30)</div>
-        <div class="shop-item-desc">現在のスタミナを最大値（30）まで即座に回復します。</div>
-      </div>
-      <div class="shop-item-action">
-        <button class="shop-buy-btn" onclick="buyShopItem('stamina')">50 GEM</button>
-      </div>
-    </div>
-    <div class="shop-item-card">
-      <div class="shop-item-info">
-        <div class="shop-item-title">ゴールド支給パック</div>
-        <div class="shop-item-desc">現在の到達ステージに応じた資金（<b>${goldReward.toLocaleString()} G</b>）を獲得します。</div>
-      </div>
-      <div class="shop-item-action">
-        <button class="shop-buy-btn" onclick="buyShopItem('gold')">100 GEM</button>
-      </div>
-    </div>
-  `;
+  `).join('');
 }
 
-function buyShopTank(targetTier) {
-  const costs = { 1: 5000, 2: 45000, 3: 350000, 4: 2500000, 5: 15000000, 6: 80000000 };
-  const names = { 1: '軽装バリスタ車', 2: '鉄輪キャノン車', 3: '蒸気装甲車', 4: '魔導軽戦車', 5: '鋼鉄中戦車', 6: '重装攻城戦車' };
-  const cost = costs[targetTier];
-  const name = names[targetTier];
-  if (!cost || !name) return;
-
-  const curTier = Number(landTankTier) || 0;
-  if (targetTier <= curTier) return alert('すでに購入済みです');
-  if (targetTier > curTier + 1) return alert('ひとつ前のランクから順番に購入してください');
-  if (gold < cost) return alert(`ゴールドが足りません（${cost.toLocaleString()} G 必要）`);
-
-  gold -= cost;
-  landTankTier = targetTier;
-  if (landTankTier === 1) { landTankLv = 1; landUpCost = 500; }
-  updateUI();
-  renderShop();
-  triggerAutoSave(true);
-  showToast(`${name}を購入しました`);
-}
-
-function buyShopItem(type) {
-  if (type === 'auto') {
-    if (autoUnlocked || gem < 1500) return alert('ジェムが足りません（1,500 GEM 必要）');
-    gem -= 1500; autoUnlocked = true; autoActive = true;
-    showToast('階層間オート周回を解放しました');
-  } else if (type === 'speed2x') {
-    if (speed2xUnlocked || gem < 1000) return alert('ジェムが足りません（1,000 GEM 必要）');
-    gem -= 1000; speed2xUnlocked = true; speed2xActive = true;
-    showToast('戦闘スピード2倍速を解放しました');
-  } else if (type === 'stamina_fast') {
-    if (staminaFastUnlocked || gem < 800) return alert('ジェムが足りません（800 GEM 必要）');
-    syncStamina(); gem -= 800; staminaFastUnlocked = true; staminaUpdatedAt = Date.now();
-    showToast('スタミナ回復速度が3倍になりました');
-  } else if (type === 'stamina') {
-    syncStamina();
-    if (stamina >= MAX_STAMINA) return alert('すでにスタミナは満タンです');
-    if (gem < 50) return alert('ジェムが足りません（50 GEM 必要）');
-    gem -= 50; stamina = MAX_STAMINA; staminaUpdatedAt = Date.now();
-    showToast('スタミナが全回復しました');
-  } else if (type === 'gold') {
-    if (gem < 100) return alert('ジェムが足りません（100 GEM 必要）');
-    const amount = typeof getShopGoldAmount === 'function' ? getShopGoldAmount() : 500;
-    gem -= 100; gold += amount;
-    showToast(`${amount.toLocaleString()} G を獲得しました`);
+function buyShopItem(id, cost) {
+  if (gem < cost) return alert(`ジェムが足りません（${cost} GEM 必要）`);
+  if (id === 'stamina') {
+    if (stamina >= MAX_STAMINA) return alert('スタミナはすでにMAXです');
+    gem -= cost;
+    stamina = MAX_STAMINA;
+    staminaUpdatedAt = Date.now();
+    showToast('スタミナが全回復しました！');
+  } else if (id === 'gold') {
+    const amt = typeof getShopGoldAmount === 'function' ? getShopGoldAmount() : 2000;
+    gem -= cost;
+    gold += amt;
+    showToast(`${amt.toLocaleString()} G を獲得しました！`);
+  } else if (id === 'auto') {
+    if (autoUnlocked) return;
+    gem -= cost;
+    autoUnlocked = true;
+    autoActive = true;
+    showToast('階層間オート周回を解放しました！');
+  } else if (id === 'speed2x') {
+    if (speed2xUnlocked) return;
+    gem -= cost;
+    speed2xUnlocked = true;
+    speed2xActive = true;
+    showToast('戦闘速度 2倍速を解放しました！');
+  } else if (id === 'staminaFast') {
+    if (staminaFastUnlocked) return;
+    gem -= cost;
+    staminaFastUnlocked = true;
+    showToast('スタミナ回復速度が2倍になりました！');
   }
-  updateUI();
   renderShop();
+  updateUI();
   triggerAutoSave(true);
+}
+
+// --- AIアトリエ機能 ---
+function switchAiSub(sub, btn) {
+  document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.querySelectorAll('.ai-sub-pane').forEach(p => p.classList.remove('active'));
+  const target = document.getElementById('ai-sub-' + sub);
+  if (target) target.classList.add('active');
+  refreshAiSpeciesSelects();
+  renderSpeciesGallery();
+  if (typeof renderStamps === 'function') renderStamps();
+}
+
+function refreshAiSpeciesSelects() {
+  const names = Array.from(new Set((captured || []).map(m => m.name)));
+  if (names.length === 0) names.push('スライム');
+
+  const monSel = document.getElementById('ai-species-sel');
+  if (monSel) {
+    const prev = monSel.value;
+    monSel.innerHTML = names.map(n => `<option value="${n}">${n}</option>`).join('');
+    if (names.includes(prev)) monSel.value = prev;
+  }
+
+  const stampSel = document.getElementById('stamp-species-sel');
+  if (stampSel) {
+    const prev = stampSel.value;
+    const allNames = (typeof ALL_MONSTER_SPECIES !== 'undefined')
+      ? ALL_MONSTER_SPECIES.map(s => s.name)
+      : names;
+    stampSel.innerHTML = allNames.map(n => `<option value="${n}">${n}</option>`).join('');
+    if (allNames.includes(prev)) stampSel.value = prev;
+  }
+}
+
+function updateCharCount(kind) {
+  const inp = document.getElementById(`ai-${kind}-prompt`);
+  const cnt = document.getElementById(`${kind}-count`);
+  if (inp && cnt) cnt.textContent = inp.value.length;
+}
+
+function toggleExtend(kind) {
+  const chk = document.getElementById(`${kind}-ext`);
+  const inp = document.getElementById(`ai-${kind}-prompt`);
+  const maxEl = document.getElementById(`${kind}-max`);
+  const costEl = document.getElementById(`${kind}-cost`);
+  const isExt = chk ? chk.checked : false;
+  if (inp) {
+    inp.maxLength = isExt ? 500 : 200;
+    if (!isExt && inp.value.length > 200) inp.value = inp.value.slice(0, 200);
+  }
+  if (maxEl) maxEl.textContent = isExt ? '500' : '200';
+  if (costEl) costEl.textContent = isExt ? '250' : '200';
+  updateCharCount(kind);
+}
+
+function renderSpeciesGallery() {
+  refreshAiSpeciesSelects();
+  const gal = document.getElementById('species-skin-gallery');
+  const sel = document.getElementById('ai-species-sel');
+  if (!gal || !sel) return;
+  const spName = sel.value || 'スライム';
+  const spData = (speciesSkins && speciesSkins[spName]) ? speciesSkins[spName] : { list: [], activeIdx: -1 };
+  const list = Array.isArray(spData.list) ? spData.list : [];
+
+  if (list.length === 0) {
+    gal.innerHTML = `<div style="grid-column:1/-1;font-size:11px;color:#78909c;text-align:center;padding:8px;">「${spName}」のAIスキンはまだありません</div>`;
+    return;
+  }
+
+  gal.innerHTML = list.map((imgData, idx) => {
+    const isAct = spData.activeIdx === idx;
+    return `
+      <div class="slot-box" onclick="equipSpeciesSkinFromGallery('${spName}', ${idx})" style="${isAct ? 'border:2px solid #ff7043;background:#fff8f6;' : ''}">
+        <img src="${imgData}" style="width:64px;height:64px;object-fit:contain;border-radius:8px;">
+        <div style="font-size:10px;font-weight:bold;color:${isAct ? '#ff7043' : '#546e7a'};margin-top:3px;">${isAct ? '★ 適用中' : 'タップで適用'}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function equipSpeciesSkinFromGallery(spName, idx) {
+  if (!speciesSkins[spName]) return;
+  speciesSkins[spName].activeIdx = idx;
+  if (!state.inBattle && typeof resetBattleAllies === 'function') resetBattleAllies();
+  if (typeof renderParty === 'function') renderParty();
+  if (typeof renderCaptured === 'function') renderCaptured();
+  if (typeof renderTraining === 'function') renderTraining();
+  if (typeof renderCafe === 'function') renderCafe();
+  renderSpeciesGallery();
+  updateUI();
+  triggerAutoSave(true);
+  showToast(`${spName}のスキンを適用しました！`);
+}
+
+async function generateAI(type) {
+  const statusEl = document.getElementById('ai-status');
+  const kindKey = type === 'monster' ? 'mon' : type;
+  const isExt = document.getElementById(`${kindKey}-ext`)?.checked || false;
+  const cost = isExt ? 250 : 200;
+
+  if (gem < cost) return alert(`ジェムが足りません（${cost} GEM 必要）`);
+
+  let prompt = '';
+  let species = 'スライム';
+  let stampText = '';
+
+  if (type === 'monster') {
+    species = document.getElementById('ai-species-sel')?.value || 'スライム';
+    prompt = document.getElementById('ai-mon-prompt')?.value.trim() || '';
+    if (!prompt) return alert('どんな姿にするかプロンプトを入力してください');
+  } else if (type === 'bg') {
+    prompt = document.getElementById('ai-bg-prompt')?.value.trim() || '';
+    if (!prompt) return alert('どんな背景にするかプロンプトを入力してください');
+  } else if (type === 'stamp') {
+    species = document.getElementById('stamp-species-sel')?.value || 'スライム';
+    stampText = document.getElementById('stamp-text')?.value.trim() || 'やったね！';
+    prompt = document.getElementById('ai-stamp-prompt')?.value.trim() || '';
+    if (!prompt) return alert('スタンプのイラスト内容を入力してください');
+  }
+
+  if (statusEl) statusEl.textContent = 'AI生成中（約5〜10秒）...';
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, species, prompt, stamp_text: stampText })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.image) {
+      throw new Error(data.error || '生成に失敗しました');
+    }
+
+    gem -= cost;
+
+    if (type === 'monster') {
+      if (!speciesSkins[species]) speciesSkins[species] = { list: [], activeIdx: -1 };
+      speciesSkins[species].list.push(data.image);
+      speciesSkins[species].activeIdx = speciesSkins[species].list.length - 1;
+      if (!state.inBattle && typeof resetBattleAllies === 'function') resetBattleAllies();
+      if (typeof renderParty === 'function') renderParty();
+      if (typeof renderCaptured === 'function') renderCaptured();
+      renderSpeciesGallery();
+      showToast(`${species}の新しいAIスキンを生成＆適用しました！`);
+    } else if (type === 'bg') {
+      if (!Array.isArray(aiBackgrounds)) aiBackgrounds = [];
+      aiBackgrounds.push({ img: data.image, prompt });
+      if (typeof updateIconPreview === 'function') updateIconPreview(false);
+      showToast('新しいアイコン背景を生成しました！');
+    } else if (type === 'stamp') {
+      if (!Array.isArray(aiStamps)) aiStamps = [];
+      aiStamps.push({ img: data.image, text: stampText, species });
+      if (typeof renderStamps === 'function') renderStamps();
+      showToast('新しいチャットスタンプを生成しました！');
+    }
+
+    updateUI();
+    triggerAutoSave(true);
+    if (statusEl) statusEl.textContent = '生成完了！';
+  } catch (e) {
+    if (statusEl) statusEl.textContent = 'エラー発生';
+    alert('AI生成エラー: ' + e.message);
+  }
 }
