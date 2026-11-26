@@ -42,7 +42,7 @@ function getMonsterVisual(m) {
 
 function renderElementBadge(elemId) {
   const el = typeof getElementInfo === 'function' ? getElementInfo(elemId) : { name: '無', color: '#546e7a', bg: '#eceff1' };
-  return `<span style="display:inline-block;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:bold;color:${el.color};background:${el.bg};border:1px solid ${el.color}44;">${el.name}</span>`;
+  return `<span style="display:inline-block;padding:1px 4px;border-radius:4px;font-size:8.5px;font-weight:bold;color:${el.color};background:${el.bg};border:1px solid ${el.color}44;">${el.name}</span>`;
 }
 
 function getMonStats(m) {
@@ -181,10 +181,22 @@ function renderParty() {
   if (!el) return;
   el.innerHTML = party.slice(0, 3).map((monId, slotIdx) => {
     const m = captured.find(x => x.id === monId);
-    if (!m) return `<div class="slot-box"><div class="lvl">枠${slotIdx + 1}</div><div class="icon">＋</div><div class="name">空き枠</div><div class="sub">一覧から編成</div></div>`;
+    if (!m) {
+      return `<div class="slot-box" style="aspect-ratio:1/1.05;display:flex;flex-direction:column;justify-content:center;align-items:center;border:1.5px solid #cbd5e1;background:#ffffff;padding:4px;">
+        <div style="font-size:22px;color:#cbd5e1;">＋</div>
+        <div class="sub">枠${slotIdx + 1}</div>
+      </div>`;
+    }
     const disp = getMonsterVisual(m), idx = captured.findIndex(x => x.id === monId), st = getMonStats(m);
     const plusTag = st.plus > 0 ? `+${st.plus}` : '';
-    return `<div class="slot-box" onclick="openMonModal(${idx})"><div class="lvl"><span>Lv.${st.lv}/${st.maxLv}</span>${renderElementBadge(st.elem)}</div><div class="icon">${renderSprite(disp, 36)}</div><div class="name">${m.name}${plusTag}</div><div class="sub">HP:${st.maxHp} ATK:${st.atk}</div></div>`;
+    return `<div class="slot-box" onclick="openMonModal(${idx})" style="aspect-ratio:1/1.05;padding:4px;display:flex;flex-direction:column;justify-content:space-between;border:1.5px solid #90caf9;background:#ffffff;">
+      <div class="lvl" style="font-size:10px;line-height:1;"><span>Lv.${st.lv}</span>${renderElementBadge(st.elem)}</div>
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;">${renderSprite(disp, 78, '12px')}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;font-weight:bold;line-height:1;">
+        <span style="color:#e65100;">${plusTag}</span>
+        <span style="color:#546e7a;font-size:8.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${m.name}</span>
+      </div>
+    </div>`;
   }).join('');
 }
 
@@ -213,7 +225,7 @@ function renderTraining() {
     const plusText = st.plus > 0 ? `+${st.plus}` : '';
     return `<div class="mini-mon-card train" onclick="removeFromTraining(${slotIdx})">
       <div class="m-top"><span class="m-lv">Lv.${st.lv}</span><span class="m-tag train">解除</span></div>
-      <div class="m-icon">${renderSprite(disp, 30, '6px')}</div>
+      <div class="m-icon">${renderSprite(disp, 48, '8px')}</div>
       <div class="m-bot">${plusText ? `<span class="m-plus">${plusText}</span>` : `<span class="m-nm">${m.name}</span>`}</div>
     </div>`;
   }).join('');
@@ -264,7 +276,7 @@ function renderCaptured() {
 
     return `<div class="mini-mon-card ${inParty ? 'in-party' : ''}" onclick="openMonModal(${i})">
       <div class="m-top"><span class="m-lv">Lv.${st.lv}</span>${statusBadge}</div>
-      <div class="m-icon">${renderSprite(disp, 30, '6px')}</div>
+      <div class="m-icon">${renderSprite(disp, 48, '8px')}</div>
       <div class="m-bot">${plusText ? `<span class="m-plus">${plusText}</span>` : `<span class="m-nm">${m.name}</span>`}</div>
     </div>`;
   }).join('');
@@ -281,7 +293,7 @@ function openMonModal(idx) {
   const needExp = getNextLevelExp(st.lv);
   const expText = st.lv >= st.maxLv ? 'MAX（上限到達）' : `${m.exp || 0} / ${needExp}`;
 
-  document.getElementById('modal-mon-sprite').innerHTML = renderSprite(disp, 64, '12px');
+  document.getElementById('modal-mon-sprite').innerHTML = renderSprite(disp, 68, '12px');
   document.getElementById('modal-mon-name').textContent = `${m.name}${plusTag}`;
   document.getElementById('modal-mon-rarity').textContent = `配合値: +${st.plus}`;
   document.getElementById('modal-mon-lv').innerHTML = `Lv.${st.lv} / ${st.maxLv}<br><span style="font-size:10px;color:#546e7a;font-weight:normal;">EXP: ${expText}</span>`;
