@@ -27,10 +27,9 @@ function renderShop() {
 
   if (shopSubTab === 'tank') {
     const curTier = Number(landTankTier) || 0;
-    const list = (typeof TANK_MASTER !== 'undefined' && Array.isArray(TANK_MASTER) && TANK_MASTER.length > 0) ? TANK_MASTER : SHOP_TANKS;
     let html = `<div style="font-size:11px;color:#546e7a;margin-bottom:8px;">購入した戦車は全ステージで自動的に砲撃援護を行います（ランク順に購入可能）。</div>`;
-    for (const item of list) {
-      if (!item) continue;
+    for (let i = 0; i < SHOP_TANKS.length; i++) {
+      const item = SHOP_TANKS.slice(i, i + 1).pop();
       const owned = curTier >= item.tier;
       const canBuy = curTier === item.tier - 1;
       let btnHtml = `<button class="shop-buy-btn done" disabled>未解放</button>`;
@@ -101,7 +100,6 @@ function renderShop() {
 }
 
 function buyShopTank(targetTier) {
-  if (typeof buyTank === 'function') return buyTank(targetTier);
   const item = SHOP_TANKS.find(x => x.tier === targetTier);
   if (!item) return;
   const curTier = Number(landTankTier) || 0;
