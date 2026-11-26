@@ -452,7 +452,7 @@
   <script src="/storage.js?v=31"></script>
   <script src="/battle.js?v=31"></script>
   <script src="/social.js?v=31"></script>
-  <script>
+   <script>
     function renderTankCardsDirect(curTier) {
       const tanks = [
         { tier: 1, name: '軽装バリスタ車', cost: 5000,     atk: 25,   iv: 3.4, desc: '大型の連射弩弓を積んだ軽快な移動砲台' },
@@ -462,13 +462,64 @@
         { tier: 5, name: '鋼鉄中戦車',     cost: 15000000, atk: 2400, iv: 2.8, desc: '厚い鋼鉄装甲と連装砲を備えた主力戦車' },
         { tier: 6, name: '重装攻城戦車',   cost: 80000000, atk: 7500, iv: 2.7, desc: '城壁をも砕く大口径砲を積んだ重戦車' }
       ];
-      let out = '<div style="font-size:11px;color:#546e7a;margin-bottom:8px;">購入した戦車は全ステージで自動的に砲撃援護を行います（ランク順に購入可能）。</div>';
-      for (const t of tanks) {
-        let btn = '<button class="shop-buy-btn done" disabled>未解放</button>';
-        if (curTier >= t.tier) btn = '<button class="shop-buy-btn done" disabled>所持済</button>';
-        else if (curTier === t.tier - 1) btn = `<button class="shop-buy-btn" onclick="buyShopTankDirect(${t.tier}, ${t.cost}, '${t.name}')">${t.cost.toLocaleString()} G</button>`;
-        out += `<div class="shop-item-card"><div class="shop-item-info"><div class="shop-item-title">Rank ${t.tier}：${t.name}</div><div class="shop-item-desc">${t.desc}<br>基本砲撃力: <b>${t.atk.toLocaleString()}</b>（${t.iv}秒ごと）</div></div><div class="shop-item-action">${btn}</div></div>`;
+
+      const cur = curTier > 0 ? tanks.find(x => x.tier === curTier) : null;
+      const next = tanks.find(x => x.tier === curTier + 1) || null;
+
+      let out = '<div style="font-size:11px;color:#546e7a;margin-bottom:8px;">戦車を改造してランクアップさせると、全ステージの砲撃援護が大幅に強化されます。</div>';
+
+      if (cur) {
+        const curAtk = typeof getTankSupportAtk === 'function' ? getTankSupportAtk() : cur.atk;
+        const curLv = typeof getTankLevel === 'function' ? getTankLevel() : 1;
+        out += `
+          <div class="shop-item-card" style="background:#f8fdff;border-color:#81d4fa;">
+            <div class="shop-item-info">
+              <div style="font-size:10px;font-weight:bold;color:#0288d1;margin-bottom:2px;">現在の愛車（Rank ${cur.tier} / Lv.${curLv}）</div>
+              <div class="shop-item-title">${cur.name}</div>
+              <div class="shop-item-desc">${cur.desc}<br>現在の砲撃力: <b>${curAtk.toLocaleString()}</b>（${cur.iv}秒ごと）</div>
+            </div>
+            <div class="shop-item-action">
+              <button class="shop-buy-btn done" disabled>運用中</button>
+            </div>
+          </div>
+        `;
+      } else {
+        out += `
+          <div class="shop-item-card" style="background:#f8fdff;">
+            <div class="shop-item-info">
+              <div style="font-size:10px;font-weight:bold;color:#78909c;margin-bottom:2px;">現在の愛車</div>
+              <div class="shop-item-title">未建造</div>
+              <div class="shop-item-desc">下の「新規建造」から最初の戦車を建造できます。</div>
+            </div>
+          </div>
+        `;
       }
+
+      if (next) {
+        const actionLabel = cur ? '次の改造' : '新規建造';
+        out += `
+          <div class="shop-item-card" style="border-color:#ffb74d;">
+            <div class="shop-item-info">
+              <div style="font-size:10px;font-weight:bold;color:#e65100;margin-bottom:2px;">${actionLabel}（Rank ${next.tier}）</div>
+              <div class="shop-item-title">${next.name}</div>
+              <div class="shop-item-desc">${next.desc}<br>基本砲撃力: <b>${next.atk.toLocaleString()}</b>（${next.iv}秒ごと）</div>
+            </div>
+            <div class="shop-item-action">
+              <button class="shop-buy-btn" onclick="buyShopTankDirect(${next.tier}, ${next.cost}, '${next.name}')">${next.cost.toLocaleString()} G</button>
+            </div>
+          </div>
+        `;
+      } else {
+        out += `
+          <div class="shop-item-card" style="background:#fff8e1;border-color:#ffe082;">
+            <div class="shop-item-info">
+              <div class="shop-item-title" style="color:#d84315;">最大ランク到達（Rank 6）</div>
+              <div class="shop-item-desc">すべての改造が完了しました！編成タブからレベル強化を続けられます。</div>
+            </div>
+          </div>
+        `;
+      }
+
       return out;
     }
 
@@ -482,16 +533,16 @@
 
     function buyShopTankDirect(targetTier, cost, name) {
       const curTier = Number(landTankTier) || 0;
-      if (targetTier <= curTier) return alert('すでに購入済みです');
-      if (targetTier > curTier + 1) return alert('ひとつ前のランクから順番に購入してください');
+      if (targetTier !== curTier + 1) return;
       if (gold < cost) return alert(`ゴールドが足りません（${cost.toLocaleString()} G 必要）`);
       gold -= cost;
       landTankTier = targetTier;
       if (landTankTier === 1) { landTankLv = 1; landUpCost = 500; }
       updateUI();
-      openTankShop(document.querySelectorAll('.shop-sub-btn')[1]);
+      const btns = document.querySelectorAll('.shop-sub-btn');
+      openTankShop(btns.length > 1 ? btns.item(1) : null);
       triggerAutoSave(true);
-      showToast(`${name}を購入しました`);
+      showToast(targetTier === 1 ? `${name}を建造しました！` : `戦車を「${name}」へ改造しました！`);
     }
 
     initCloudLoad();
