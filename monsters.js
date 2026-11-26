@@ -1,209 +1,102 @@
-// 10ステージ×10種族マスター・固定ウェーブ配置・配合法則 (monsters.js)
-const STAGE_TEMPLATES = {
-  land: [
-    { name: 'はじまりの草原', base: [
-      { icon: '🦊', name: 'フォックス', ct: 1.7, hp: 70, atk: 12, def: 4, inherit: 0.14, img: '/images/mon_fox.png' },
-      { icon: '🐗', name: 'ボア', ct: 2.1, hp: 85, atk: 14, def: 6, inherit: 0.15, img: '/images/mon_boar.png' },
-      { icon: '🐇', name: 'ラビット', ct: 1.5, hp: 60, atk: 11, def: 3, inherit: 0.13 },
-      { icon: '🐛', name: 'キャタピラー', ct: 2.2, hp: 75, atk: 10, def: 7, inherit: 0.14 },
-      { icon: '🐝', name: 'ワスプ', ct: 1.6, hp: 58, atk: 15, def: 3, inherit: 0.15 },
-      { icon: '🐸', name: 'フロッグ', ct: 2.0, hp: 72, atk: 12, def: 5, inherit: 0.14 },
-      { icon: '🦔', name: 'ヘッジホッグ', ct: 2.3, hp: 80, atk: 11, def: 9, inherit: 0.16 },
-      { icon: '🐿️', name: 'スクイレル', ct: 1.5, hp: 62, atk: 13, def: 4, inherit: 0.13 },
-      { icon: '🐍', name: 'ヴァイパー', ct: 1.8, hp: 68, atk: 16, def: 4, inherit: 0.15 },
-      { icon: '🐺', name: 'ウルフ', ct: 1.7, hp: 82, atk: 17, def: 5, inherit: 0.17 }
-    ]},
-    { name: '深い霧の森', base: [
-      { icon: '🦎', name: 'リザード', ct: 1.9, hp: 78, atk: 15, def: 6, inherit: 0.16, img: '/images/mon_lizard.png' },
-      { icon: '🦉', name: 'オウル', ct: 1.6, hp: 68, atk: 16, def: 5, inherit: 0.16, img: '/images/mon_owl.png' },
-      { icon: '🕷️', name: 'スパイダー', ct: 1.8, hp: 70, atk: 17, def: 5, inherit: 0.15 },
-      { icon: '🍄', name: 'マッシュ', ct: 2.4, hp: 92, atk: 12, def: 9, inherit: 0.17 },
-      { icon: '🦇', name: 'バット', ct: 1.5, hp: 64, atk: 16, def: 4, inherit: 0.15 },
-      { icon: '🦌', name: 'スタッグ', ct: 2.0, hp: 88, atk: 15, def: 7, inherit: 0.17 },
-      { icon: '🐢', name: 'トータス', ct: 2.7, hp: 110, atk: 12, def: 12, inherit: 0.19 },
-      { icon: '🦡', name: 'バジャー', ct: 1.9, hp: 84, atk: 17, def: 6, inherit: 0.16 },
-      { icon: '🦅', name: 'ホーク', ct: 1.6, hp: 72, atk: 19, def: 5, inherit: 0.17 },
-      { icon: '🐻', name: 'グリズリー', ct: 2.5, hp: 105, atk: 20, def: 8, inherit: 0.19, img: '/images/mon_grizzly.png' }
-    ]},
-    { name: '乾いた岩山', prefix: 'ロック' },
-    { name: '古代の遺跡', prefix: 'エンシェント' },
-    { name: '灼熱の砂漠', prefix: 'サンド' },
-    { name: '氷結の雪原', prefix: 'フロスト' },
-    { name: '雷鳴の渓谷', prefix: 'サンダー' },
-    { name: '溶岩の火山', prefix: 'マグマ' },
-    { name: '天空の浮島', prefix: 'スカイ' },
-    { name: '終焉の魔大陸', prefix: 'カオス' }
-  ],
-  sea: [
-    { name: '穏やかな浅瀬', base: [
-      { icon: '🦀', name: 'クラブ', ct: 2.4, hp: 82, atk: 12, def: 8, inherit: 0.15, img: '/images/mon_crab.png' },
-      { icon: '🐡', name: 'ハリセンボン', ct: 2.0, hp: 74, atk: 13, def: 6, inherit: 0.14, img: '/images/mon_puffer.png' },
-      { icon: '🦐', name: 'シュリンプ', ct: 1.6, hp: 60, atk: 14, def: 4, inherit: 0.13 },
-      { icon: '🐚', name: 'シェル', ct: 2.6, hp: 95, atk: 10, def: 11, inherit: 0.16 },
-      { icon: '🐠', name: 'トロピカル', ct: 1.5, hp: 58, atk: 13, def: 3, inherit: 0.13 },
-      { icon: '🪼', name: 'ジェリー', ct: 2.1, hp: 70, atk: 15, def: 5, inherit: 0.15 },
-      { icon: '🐢', name: 'ウミガメ', ct: 2.5, hp: 96, atk: 12, def: 10, inherit: 0.17 },
-      { icon: '🦞', name: 'ロブスター', ct: 2.1, hp: 80, atk: 16, def: 7, inherit: 0.16 },
-      { icon: '🐬', name: 'ドルフィン', ct: 1.6, hp: 76, atk: 16, def: 5, inherit: 0.16 },
-      { icon: '🐙', name: 'オクトパス', ct: 2.1, hp: 88, atk: 18, def: 6, inherit: 0.18, img: '/images/mon_octopus.png' }
-    ]},
-    { name: 'サンゴ礁の海', prefix: 'コーラル' },
-    { name: '難破船の海域', prefix: 'ゴースト' },
-    { name: '渦潮の海峡', prefix: 'ストーム' },
-    { name: '深海の海溝', prefix: 'アビス' },
-    { name: '氷山漂う極海', prefix: 'グレイシア' },
-    { name: '海底火山の海', prefix: 'ボルケーノ' },
-    { name: '竜巻の魔海域', prefix: 'テンペスト' },
-    { name: '古代アトランティス', prefix: 'レリック' },
-    { name: '海神の聖域', prefix: 'ポセイドン' }
-  ]
+// 全10ステージ・王道ファンタジー100種＆属性・配合法則 (monsters.js)
+const ELEMENTS = {
+  fire:  { id: 'fire',  name: '火', color: '#e53935', bg: '#ffebee', weakTo: 'water', resistTo: 'fire' },
+  water: { id: 'water', name: '水', color: '#1e88e5', bg: '#e3f2fd', weakTo: 'earth', resistTo: 'water' },
+  earth: { id: 'earth', name: '地', color: '#8d6e63', bg: '#efebe9', weakTo: 'sky',   resistTo: 'earth' },
+  sky:   { id: 'sky',   name: '空', color: '#00acc1', bg: '#e0f7fa', weakTo: 'fire',  resistTo: 'sky' },
+  dark:  { id: 'dark',  name: '闇', color: '#6a1b9a', bg: '#f3e5f5', weakTo: 'light', resistTo: 'dark' },
+  light: { id: 'light', name: '光', color: '#f9a825', bg: '#fffde7', weakTo: 'dark',  resistTo: 'light' },
+  none:  { id: 'none',  name: '無', color: '#546e7a', bg: '#eceff1', weakTo: null,    resistTo: null }
 };
 
-// 全200種族（陸100・海100）を構築
-const ALL_MONSTER_SPECIES = [];
-const STAGE_MONSTERS = { land: {}, sea: {} };
+function getElementInfo(elemId) {
+  return ELEMENTS[elemId] || ELEMENTS.none;
+}
 
-['land', 'sea'].forEach(mType => {
-  const baseList1 = STAGE_TEMPLATES[mType][0].base;
-  const baseList2 = STAGE_TEMPLATES[mType][1].base || baseList1;
+// 属性相性倍率（攻撃属性 vs 防御側属性）
+function getElementMultiplier(atkElem, defElem) {
+  if (!atkElem || atkElem === 'none' || !defElem || defElem === 'none') return 1.0;
+  const defInfo = ELEMENTS[defElem];
+  if (!defInfo) return 1.0;
+  if (defInfo.weakTo === atkElem) return 1.5;   // 弱点（1.5倍）
+  if (defInfo.resistTo === atkElem) return 0.6; // 耐性（0.6倍）
+  return 1.0;
+}
 
-  for (let stg = 1; stg <= 10; stg++) {
-    const tpl = STAGE_TEMPLATES[mType][stg - 1];
-    let list = [];
-    if (tpl.base) {
-      list = tpl.base.map((b, idx) => ({
-        id: `${mType}_${stg}_${idx}`,
-        type: mType,
-        stage: stg,
-        idx,
-        name: b.name,
-        icon: b.icon,
-        ct: b.ct,
-        baseHp: b.hp,
-        baseAtk: b.atk,
-        baseDef: b.def,
-        inheritRate: b.inherit,
-        imgFile: b.img || null
-      }));
-    } else {
-      const refList = (stg % 2 === 1) ? baseList1 : baseList2;
-      list = refList.map((b, idx) => ({
-        id: `${mType}_${stg}_${idx}`,
-        type: mType,
-        stage: stg,
-        idx,
-        name: `${tpl.prefix}${b.name}`,
-        icon: b.icon,
-        ct: b.ct,
-        baseHp: Math.floor(b.hp * (1 + (stg - 1) * 0.04)),
-        baseAtk: Math.floor(b.atk * (1 + (stg - 1) * 0.04)),
-        baseDef: Math.floor(b.def * (1 + (stg - 1) * 0.04)),
-        inheritRate: Number((b.inherit + (stg - 1) * 0.008).toFixed(3)),
-        imgFile: b.img || null
-      }));
-    }
-    STAGE_MONSTERS[mType][stg] = list;
-    ALL_MONSTER_SPECIES.push(...list);
+const STAGE_DATA = [
+  {
+    stage: 1, name: '緑の草原', vehicleType: 'land',
+    monsters: [
+      { name: 'スライム', elem: 'water', ct: 1.8, hp: 58, atk: 10, def: 3, inherit: 14, trait: 'wisdom', skill: 'tackle', img: '/images/mon_slime.png' },
+      { name: 'プチバット', elem: 'sky', ct: 1.5, hp: 52, atk: 11, def: 2, inherit: 13, trait: 'agility', skill: 'wind_slash' },
+      { name: 'マンドラゴラ', elem: 'earth', ct: 1.9, hp: 62, atk: 11, def: 4, inherit: 14, trait: 'vitality', skill: 'earth_spike' },
+      { name: 'フォレストウルフ', elem: 'earth', ct: 1.7, hp: 66, atk: 13, def: 4, inherit: 15, trait: 'valor', skill: 'double_strike', img: '/images/mon_fox.png' },
+      { name: 'ゴブリン', elem: 'earth', ct: 1.9, hp: 68, atk: 13, def: 4, inherit: 15, trait: 'fortune', skill: 'heavy_blow' },
+      { name: 'コボルト', elem: 'fire', ct: 1.8, hp: 65, atk: 14, def: 4, inherit: 15, trait: 'first_edge', skill: 'fire_fang' },
+      { name: 'ウィスプ', elem: 'light', ct: 1.6, hp: 56, atk: 14, def: 3, inherit: 14, trait: 'focus', skill: 'light_ray' },
+      { name: 'シャドウラット', elem: 'dark', ct: 1.6, hp: 60, atk: 13, def: 3, inherit: 14, trait: 'drain_soul', skill: 'shadow_bite' },
+      { name: 'ゴブリン弓兵', elem: 'sky', ct: 1.8, hp: 64, atk: 15, def: 4, inherit: 16, trait: 'skill_mastery', skill: 'gale_arrow' },
+      { name: 'ホブゴブリン', elem: 'fire', ct: 2.0, hp: 82, atk: 16, def: 6, inherit: 17, trait: 'valor', skill: 'flame_slash' }
+    ]
+  },
+  {
+    stage: 2, name: '木漏れ日の森', vehicleType: 'land',
+    monsters: [
+      { name: 'ポイズンマッシュ', elem: 'dark', ct: 2.2, hp: 84, atk: 13, def: 8, inherit: 15, trait: 'iron_guard', skill: 'dark_mist' },
+      { name: 'シルフ', elem: 'sky', ct: 1.5, hp: 68, atk: 16, def: 4, inherit: 16, trait: 'agility', skill: 'aero_cutter', img: '/images/mon_owl.png' },
+      { name: 'リザードマン', elem: 'water', ct: 1.9, hp: 82, atk: 17, def: 6, inherit: 16, trait: 'valor', skill: 'aqua_thrust', img: '/images/mon_lizard.png' },
+      { name: '見習い剣士', elem: 'light', ct: 1.7, hp: 84, atk: 18, def: 6, inherit: 18, trait: 'first_edge', skill: 'cross_slash' },
+      { name: 'エルフの弓使い', elem: 'sky', ct: 1.6, hp: 76, atk: 20, def: 5, inherit: 18, trait: 'focus', skill: 'sky_volley' },
+      { name: '森の魔術師', elem: 'fire', ct: 2.0, hp: 74, atk: 21, def: 4, inherit: 17, trait: 'skill_mastery', skill: 'fire_ball' },
+      { name: 'アラクネ', elem: 'dark', ct: 1.8, hp: 80, atk: 19, def: 6, inherit: 16, trait: 'drain_soul', skill: 'shadow_fang' },
+      { name: 'トレント', elem: 'earth', ct: 2.5, hp: 112, atk: 16, def: 11, inherit: 19, trait: 'iron_guard', skill: 'rock_crush' },
+      { name: 'ワーウルフ', elem: 'dark', ct: 1.7, hp: 92, atk: 22, def: 6, inherit: 18, trait: 'guts', skill: 'double_strike' },
+      { name: 'フォレストベア', elem: 'earth', ct: 2.3, hp: 110, atk: 23, def: 8, inherit: 19, trait: 'vitality', skill: 'earth_quake', img: '/images/mon_grizzly.png' }
+    ]
+  },
+  {
+    stage: 3, name: '赤土の荒野', vehicleType: 'land',
+    monsters: [
+      { name: 'ロックゴーレム', elem: 'earth', ct: 2.6, hp: 128, atk: 19, def: 14, inherit: 18, trait: 'iron_guard', skill: 'rock_crush' },
+      { name: 'ハーピー', elem: 'sky', ct: 1.5, hp: 86, atk: 23, def: 5, inherit: 17, trait: 'agility', skill: 'gale_storm' },
+      { name: 'オーク戦士', elem: 'earth', ct: 2.1, hp: 114, atk: 24, def: 8, inherit: 18, trait: 'valor', skill: 'heavy_blow' },
+      { name: 'サラマンダー', elem: 'fire', ct: 1.8, hp: 98, atk: 26, def: 7, inherit: 18, trait: 'fire_soul', skill: 'flame_breath' },
+      { name: '荒野の盗賊', elem: 'dark', ct: 1.6, hp: 92, atk: 25, def: 6, inherit: 17, trait: 'fortune', skill: 'double_strike' },
+      { name: 'フレイムメイジ', elem: 'fire', ct: 2.0, hp: 88, atk: 28, def: 5, inherit: 18, trait: 'skill_mastery', skill: 'blaze_nova' },
+      { name: 'デススコーピオン', elem: 'dark', ct: 1.8, hp: 96, atk: 26, def: 7, inherit: 17, trait: 'focus', skill: 'shadow_fang' },
+      { name: 'グリフォン', elem: 'sky', ct: 1.7, hp: 108, atk: 28, def: 8, inherit: 20, trait: 'first_edge', skill: 'sky_dive' },
+      { name: '重装歩兵', elem: 'light', ct: 2.3, hp: 130, atk: 24, def: 13, inherit: 19, trait: 'iron_guard', skill: 'holy_shield_bash' },
+      { name: 'マンティコア', elem: 'fire', ct: 1.9, hp: 122, atk: 30, def: 8, inherit: 20, trait: 'guts', skill: 'flame_slash' }
+    ]
+  },
+  {
+    stage: 4, name: '潮風の入江', vehicleType: 'sea',
+    monsters: [
+      { name: 'アクアスライム', elem: 'water', ct: 1.8, hp: 105, atk: 22, def: 7, inherit: 16, trait: 'vitality', skill: 'water_pulse' },
+      { name: 'シーサーペント', elem: 'water', ct: 1.9, hp: 116, atk: 25, def: 8, inherit: 17, trait: 'water_soul', skill: 'aqua_thrust' },
+      { name: 'マーマン兵士', elem: 'water', ct: 1.8, hp: 118, atk: 27, def: 8, inherit: 18, trait: 'valor', skill: 'trident_wave' },
+      { name: 'セイレーン', elem: 'sky', ct: 1.7, hp: 104, atk: 28, def: 7, inherit: 19, trait: 'drain_soul', skill: 'aero_cutter' },
+      { name: '海賊剣士', elem: 'water', ct: 1.7, hp: 114, atk: 29, def: 8, inherit: 18, trait: 'fortune', skill: 'cross_slash' },
+      { name: 'ストームバード', elem: 'sky', ct: 1.5, hp: 100, atk: 30, def: 6, inherit: 18, trait: 'agility', skill: 'gale_storm' },
+      { name: 'ディープクラゲ', elem: 'dark', ct: 2.0, hp: 108, atk: 29, def: 7, inherit: 17, trait: 'skill_mastery', skill: 'dark_mist' },
+      { name: 'クラブナイト', elem: 'earth', ct: 2.4, hp: 142, atk: 26, def: 15, inherit: 19, trait: 'iron_guard', skill: 'rock_crush', img: '/images/mon_crab.png' },
+      { name: '海賊砲撃手', elem: 'fire', ct: 2.2, hp: 116, atk: 33, def: 7, inherit: 19, trait: 'focus', skill: 'blaze_nova' },
+      { name: 'クラーケン', elem: 'water', ct: 2.1, hp: 148, atk: 32, def: 10, inherit: 20, trait: 'water_soul', skill: 'tidal_wave', img: '/images/mon_octopus.png' }
+    ]
+  },
+  {
+    stage: 5, name: 'サンゴの浅瀬', vehicleType: 'sea',
+    monsters: [
+      { name: 'コーラルゴーレム', elem: 'earth', ct: 2.5, hp: 158, atk: 28, def: 16, inherit: 19, trait: 'iron_guard', skill: 'earth_quake' },
+      { name: 'ウンディーネ', elem: 'water', ct: 1.7, hp: 120, atk: 34, def: 8, inherit: 20, trait: 'water_soul', skill: 'water_pulse' },
+      { name: '人魚の巫女', elem: 'light', ct: 1.9, hp: 118, atk: 33, def: 8, inherit: 20, trait: 'drain_soul', skill: 'holy_beam' },
+      { name: 'アビスシャーク', elem: 'water', ct: 1.7, hp: 138, atk: 38, def: 8, inherit: 20, trait: 'valor', skill: 'aqua_thrust', img: '/images/mon_shark.png' },
+      { name: '水棲の聖騎士', elem: 'light', ct: 1.9, hp: 146, atk: 35, def: 12, inherit: 21, trait: 'light_soul', skill: 'light_slash' },
+      { name: 'テンペストレイ', elem: 'sky', ct: 1.6, hp: 126, atk: 37, def: 8, inherit: 19, trait: 'agility', skill: 'gale_storm' },
+      { name: 'ダークスクイド', elem: 'dark', ct: 1.9, hp: 134, atk: 39, def: 9, inherit: 20, trait: 'dark_soul', skill: 'shadow_wave', img: '/images/mon_squid.png' },
+      { name: 'シードラゴン', elem: 'water', ct: 2.0, hp: 154, atk: 40, def: 11, inherit: 21, trait: 'skill_mastery', skill: 'tidal_wave' },
+      { name: '深海の魔導士', elem: 'dark', ct: 2.0, hp: 128, atk: 42, def: 8, inherit: 21, trait: 'focus', skill: 'abyss_orb' },
+      { name: 'リヴァイアサン', elem: 'water', ct: 2.3, hp: 185, atk: 42, def: 14, inherit: 23, trait: 'water_soul', skill: 'grand_deluge', img: '/images/mon_whale.png' }
+    ]
   }
-});
-
-// 互換用配列
-const landMonsters = STAGE_MONSTERS.land[1];
-const seaMonsters = STAGE_MONSTERS.sea[1];
-
-function getSpeciesData(name) {
-  return ALL_MONSTER_SPECIES.find(x => x.name === name) || ALL_MONSTER_SPECIES[0];
-}
-
-function getStageName(mType, stg) {
-  const tpl = STAGE_TEMPLATES[mType]?.[stg - 1];
-  return tpl ? `Stage${stg} ${tpl.name}` : `Stage${stg}`;
-}
-
-// 決定論的（毎回固定）なウェーブ編成（1〜3体・同種族複数も配置）
-function getFixedWaveEnemies(mType, stg, floor, wave) {
-  const pool = STAGE_MONSTERS[mType]?.[stg] || STAGE_MONSTERS.land[1];
-  const seed = stg * 10000 + floor * 17 + wave * 7;
-
-  // ウェーブ1〜2は1〜2体、ウェーブ3〜4は2〜3体、ウェーブ5はボス含め2〜3体
-  let count = 1;
-  if (wave === 5) count = (floor % 2 === 0) ? 3 : 2;
-  else if (wave >= 3) count = 2 + (seed % 2);
-  else count = 1 + ((floor + wave) % 2);
-
-  // 同種族複数配置パターン（30%のウェーブで同じ種族が2〜3体並ぶ）
-  const sameSpeciesWave = ((floor * 3 + wave) % 3 === 0) && count >= 2;
-  const mainIdx = (floor + wave * 2) % 10;
-
-  // 階層＆ステージに応じた強さ倍率（50-5まで段階的に上昇）
-  const stageScale = Math.pow(3.2, stg - 1);
-  const floorScale = 1 + (floor - 1) * 0.14;
-  const waveScale = (wave === 5) ? 1.35 : (1 + (wave - 1) * 0.06);
-  const totalMult = stageScale * floorScale * waveScale;
-
-  const enemies = [];
-  for (let i = 0; i < count; i++) {
-    let pickIdx = sameSpeciesWave ? mainIdx : (mainIdx + i * 3) % 10;
-    if (wave === 5 && i === 0) pickIdx = 9; // ウェーブ5の先頭はステージの主（10番目）
-    const sp = pool[pickIdx];
-    const maxHp = Math.floor(sp.baseHp * 1.4 * totalMult);
-    enemies.push({
-      slot: i,
-      name: (wave === 5 && i === 0) ? `👑 ${sp.name}` : sp.name,
-      rawName: sp.name,
-      icon: sp.icon,
-      maxHp,
-      hp: maxHp,
-      atk: Math.floor(sp.baseAtk * 0.75 * totalMult),
-      def: Math.floor(sp.baseDef * 0.6 * totalMult),
-      ct: sp.ct,
-      curCt: (i * 0.35), // 攻撃タイミングが少しズレて臨場感が出る
-      expReward: Math.floor((12 + stg * 18 + floor * 3) * (wave === 5 ? 1.5 : 1.0) / count),
-      goldReward: Math.floor((15 + stg * 22 + floor * 4) * (wave === 5 ? 1.6 : 1.0) / count)
-    });
-  }
-  return enemies;
-}
-
-// 配合結果の法則性（上位ステージへ一気に飛び級できないバランス設計）
-function getBreedResultSpecies(monA, monB) {
-  const spA = getSpeciesData(monA.name);
-  const spB = getSpeciesData(monB.name);
-
-  // 同じ種族同士なら同ステージの次の種族へランクアップ（最大同ステージ内）
-  let targetType = spA.type;
-  let targetStage = Math.min(spA.stage, spB.stage);
-
-  // 両親が同じステージ帯で、かつ親Aの+値が2以上なら1つ上のステージの種族に進化可能
-  if (spA.stage === spB.stage && (monA.plus || 0) >= 2 && spA.stage < 10) {
-    targetStage = spA.stage + 1;
-  } else if (spA.stage !== spB.stage) {
-    // ステージ差がある場合は低い方のステージ〜中間まで（飛び級防止）
-    targetStage = Math.floor((spA.stage + spB.stage) / 2);
-  }
-
-  const pool = STAGE_MONSTERS[targetType][targetStage];
-  // 両親と異なる別種族を法則的に決定
-  let resIdx = (spA.idx + spB.idx + 1) % pool.length;
-  if (pool[resIdx].name === spA.name || pool[resIdx].name === spB.name) {
-    resIdx = (resIdx + 2) % pool.length;
-  }
-  return pool[resIdx];
-}
-
-// デフォルト立ち絵画像の読み込み
-const validDefaultMonsterImages = {};
-function initDefaultMonsterImages() {
-  ALL_MONSTER_SPECIES.forEach(m => {
-    if (!m.imgFile || validDefaultMonsterImages[m.name]) return;
-    const img = new Image();
-    img.onload = () => { validDefaultMonsterImages[m.name] = m.imgFile; };
-    img.src = m.imgFile;
-  });
-}
-function getDefaultMonsterVisual(name, fallbackEmoji) {
-  if (validDefaultMonsterImages[name]) return validDefaultMonsterImages[name];
-  const found = ALL_MONSTER_SPECIES.find(x => x.name === name);
-  return found ? found.icon : (fallbackEmoji || '🐾');
-}
-window.addEventListener('DOMContentLoaded', initDefaultMonsterImages);
+];
