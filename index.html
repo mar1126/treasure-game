@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>オーシャン＆ランド・トレジャー</title>
+  <title>ファンタジーフロンティア</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
@@ -15,16 +15,16 @@
     .stage-vignette { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.32) 0%, rgba(0,0,0,0.08) 45%, rgba(0,0,0,0.45) 100%); pointer-events: none; }
 
     .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 11px; z-index: 4; gap: 4px; position: relative; }
-    .area-badge { background: rgba(0,0,0,0.38); padding: 4px 10px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.65); white-space: nowrap; cursor: pointer; }
-    .mode-btn { background: #ff7043; color: white; border: 2px solid #fff; padding: 4px 10px; border-radius: 15px; font-weight: bold; font-size: 11px; cursor: pointer; white-space: nowrap; }
+    .area-badge { background: rgba(0,0,0,0.42); padding: 4px 10px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.65); white-space: nowrap; cursor: pointer; }
+    .mode-btn { background: #37474f; color: white; border: 1.5px solid #fff; padding: 4px 10px; border-radius: 15px; font-weight: bold; font-size: 11px; cursor: pointer; white-space: nowrap; }
     .hud-toggle-btn { background: rgba(0,0,0,0.45); color: #fff; border: 1.5px solid rgba(255,255,255,0.8); padding: 3px 8px; border-radius: 12px; font-weight: bold; font-size: 11px; cursor: pointer; white-space: nowrap; display: none; }
     .hud-toggle-btn.active { background: #ffca28; color: #263238; border-color: #fff; box-shadow: 0 0 8px #ffea00; }
 
     .enemy-section { display: flex; align-items: center; justify-content: center; gap: 10px; position: relative; margin-top: 2px; z-index: 3; min-height: 78px; }
-    .enemy-slot { text-align: center; width: 102px; position: relative; transition: opacity 0.2s; }
+    .enemy-slot { text-align: center; width: 104px; position: relative; transition: opacity 0.2s; }
     .enemy-slot.dead { opacity: 0.25; filter: grayscale(100%); }
     .e-name { font-size: 10px; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .e-sprite { font-size: 38px; height: 44px; display: flex; align-items: center; justify-content: center; margin-top: 2px; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.45)); }
+    .e-sprite { height: 44px; display: flex; align-items: center; justify-content: center; margin-top: 2px; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.45)); }
 
     .ally-section { display: flex; flex-direction: column; align-items: center; width: 100%; position: relative; z-index: 3; }
     .units-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; width: 100%; max-width: 330px; }
@@ -33,43 +33,27 @@
     .unit.atk-motion { animation: allyAttack 0.35s ease-out; box-shadow: 0 0 14px #ffeb3b; border-color: #ffeb3b; z-index: 10; }
     .enemy-slot.atk-motion { animation: enemyAttack 0.35s ease-out; z-index: 10; }
     .unit.hit-motion, .enemy-slot.hit-motion { animation: unitHit 0.25s ease-in-out; }
-    @keyframes allyAttack {
-      0% { transform: translateY(0) scale(1); }
-      40% { transform: translateY(-20px) scale(1.12); }
-      100% { transform: translateY(0) scale(1); }
-    }
-    @keyframes enemyAttack {
-      0% { transform: translateY(0) scale(1); }
-      40% { transform: translateY(20px) scale(1.15); }
-      100% { transform: translateY(0) scale(1); }
-    }
-    @keyframes unitHit {
-      0%, 100% { transform: translateX(0); }
-      25% { transform: translateX(-5px); }
-      75% { transform: translateX(5px); }
-    }
-    .unit-sprite { font-size: 28px; height: 32px; display: flex; align-items: center; justify-content: center; }
+    @keyframes allyAttack { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(-20px) scale(1.12); } 100% { transform: translateY(0) scale(1); } }
+    @keyframes enemyAttack { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(20px) scale(1.15); } 100% { transform: translateY(0) scale(1); } }
+    @keyframes unitHit { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+    .unit-sprite { font-size: 24px; height: 32px; display: flex; align-items: center; justify-content: center; }
     .hp-text { font-size: 10px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .bar-bg { background: rgba(0,0,0,0.45); height: 5px; border-radius: 3px; overflow: hidden; margin-top: 2px; }
     .hp-fill { background: #ff7043; height: 100%; width: 100%; transition: width 0.15s; }
     .ally-hp-fill { background: #66bb6a; height: 100%; width: 100%; transition: width 0.15s; }
     .ct-fill { background: #ffea00; height: 100%; width: 0%; box-shadow: 0 0 4px #ffea00; }
     .start-battle-btn { position: absolute; top: 48%; left: 50%; transform: translate(-50%, -50%); background: #ff7043; color: #fff; border: 2px solid #fff; padding: 7px 18px; border-radius: 18px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.35); z-index: 30; white-space: nowrap; }
-    .retreat-battle-btn { position: absolute; top: 36px; right: 12px; background: rgba(38,50,56,0.82); color: #fff; border: 1.5px solid #cfd8dc; padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: bold; cursor: pointer; z-index: 30; display: none; white-space: nowrap; }
+    .retreat-battle-btn { position: absolute; top: 36px; right: 12px; background: rgba(38,50,56,0.85); color: #fff; border: 1.5px solid #cfd8dc; padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: bold; cursor: pointer; z-index: 30; display: none; white-space: nowrap; }
     .fx-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 20; }
-    .dmg-popup { position: absolute; font-weight: 900; font-size: 18px; color: #ffeb3b; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000; pointer-events: none; animation: floatDmg 0.8s ease-out forwards; white-space: nowrap; }
-    .dmg-popup.crit { font-size: 22px; color: #ff5252; }
-    .dmg-popup.ship-dmg { font-size: 20px; color: #40c4ff; }
+    .dmg-popup { position: absolute; font-weight: 900; font-size: 17px; color: #ffeb3b; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000; pointer-events: none; animation: floatDmg 0.8s ease-out forwards; white-space: nowrap; }
+    .dmg-popup.crit { font-size: 20px; color: #ff5252; }
+    .dmg-popup.ship-dmg { font-size: 18px; color: #40c4ff; }
     .dmg-popup.ally-dmg { font-size: 15px; color: #ff8a80; }
-    @keyframes floatDmg {
-      0% { opacity: 1; transform: translate(-50%, 0) scale(0.85); }
-      25% { opacity: 1; transform: translate(-50%, -10px) scale(1.15); }
-      100% { opacity: 0; transform: translate(-50%, -30px) scale(1.0); }
-    }
+    @keyframes floatDmg { 0% { opacity: 1; transform: translate(-50%, 0) scale(0.85); } 25% { opacity: 1; transform: translate(-50%, -10px) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -30px) scale(1.0); } }
     .capture-msg { position: absolute; top: 38px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #ffd54f; padding: 5px 14px; border-radius: 12px; font-size: 11px; font-weight: bold; display: none; white-space: nowrap; z-index: 25; }
     .status-bar { background: #ffffff; border-bottom: 1px solid #d0e8f2; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: bold; gap: 4px; }
     .profile-mini { display: flex; align-items: center; gap: 5px; min-width: 0; }
-    .mini-avatar { width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; display: flex; align-items: center; justify-content: center; font-size: 15px; border: 2px solid #ff7043; overflow: hidden; }
+    .mini-avatar { width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; display: flex; align-items: center; justify-content: center; border: 2px solid #ff7043; overflow: hidden; }
     .save-badge { font-size: 9px; color: #00897b; background: #e0f2f1; padding: 2px 5px; border-radius: 8px; white-space: nowrap; }
     .currency { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
     .stamina-box { background: #e8f5e9; border: 1px solid #a5d6a7; padding: 3px 6px; border-radius: 12px; color: #2e7d32; white-space: nowrap; }
@@ -82,10 +66,9 @@
     .card-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; color: #0277bd; display: flex; justify-content: space-between; align-items: center; }
     .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .slot-box { border: 1px solid #e0f2f1; border-radius: 10px; padding: 7px; text-align: center; background: #f8fdff; cursor: pointer; position: relative; }
-    .slot-box.land { background: #f1f8e9; border-color: #c5e1a5; }
     .slot-box.staff { background: #fff8e1; border: 2px dashed #ffb74d; }
-    .slot-box .lvl { font-size: 10px; color: #ff7043; font-weight: bold; display: flex; justify-content: space-between; }
-    .slot-box .icon { font-size: 28px; margin: 4px 0; height: 38px; display: flex; align-items: center; justify-content: center; }
+    .slot-box .lvl { font-size: 10px; color: #ff7043; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+    .slot-box .icon { margin: 4px 0; height: 38px; display: flex; align-items: center; justify-content: center; }
     .slot-box .name { font-size: 11px; font-weight: bold; }
     .slot-box .sub { font-size: 10px; color: #546e7a; }
     .badge-tag { font-size: 9px; background: #0288d1; color: white; padding: 1px 4px; border-radius: 4px; }
@@ -123,15 +106,15 @@
     .char-count { font-size: 11px; color: #607d8b; text-align: right; margin-top: -4px; margin-bottom: 8px; }
     .extend-box { display: flex; align-items: center; gap: 6px; font-size: 12px; background: #fff8e1; padding: 8px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ffe082; color: #d84315; font-weight: bold; }
     .garden-field { background: linear-gradient(180deg, #b3e5fc 0%, #fff9c4 45%, #c8e6c9 100%); border: 2px solid #81d4fa; border-radius: 12px; padding: 10px; min-height: 110px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; margin-bottom: 10px; }
-    .garden-cell { background: rgba(255,255,255,0.6); border-radius: 8px; height: 46px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+    .garden-cell { background: rgba(255,255,255,0.6); border-radius: 8px; height: 46px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
     .preview-wrap { display: flex; justify-content: center; margin: 10px 0; }
     #icon-preview-box { width: 120px; height: 120px; border-radius: 16px; border: 4px solid #ff7043; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; background-position: center; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
     .slider-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin: 6px 0; }
     .slider-row input { width: 65%; }
-    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: #ffffff; border-top: 1px solid #d0e8f2; display: flex; justify-content: space-around; align-items: center; z-index: 100; }
-    .nav-item { background: none; border: none; color: #78909c; font-size: 9px; font-weight: bold; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; flex: 1; padding: 0 2px; }
-    .nav-item.active { color: #ff7043; }
-    .nav-icon { font-size: 19px; }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 58px; background: #ffffff; border-top: 1px solid #d0e8f2; display: flex; justify-content: space-around; align-items: center; z-index: 100; }
+    .nav-item { background: none; border: none; color: #78909c; font-size: 11px; font-weight: bold; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; flex: 1; height: 100%; border-right: 1px solid #f1f5f9; }
+    .nav-item:last-child { border-right: none; }
+    .nav-item.active { color: #ff7043; background: #fff8f6; }
     .chat-box { height: 220px; overflow-y: auto; background: #f8fdff; border: 1px solid #dceef5; border-radius: 10px; padding: 8px; margin-bottom: 8px; font-size: 12px; }
     .chat-msg { margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #eceff1; }
   </style>
@@ -141,12 +124,12 @@
     <div class="stage-art-layer" id="stage-art-layer"></div>
     <div class="fx-layer" id="fx-layer"></div>
     <div class="battle-header">
-      <div class="area-badge" id="floor-text" onclick="openFloorSelectModal(event)">🌲陸 S1 1-1 ▾</div>
-      <div>🍰 +<span id="cafe-income-hud">0</span>G/秒</div>
+      <div class="area-badge" id="floor-text" onclick="openFloorSelectModal(event)">S1 緑の草原 1-1 ▾</div>
+      <div>売上 +<span id="cafe-income-hud">0</span>G/秒</div>
       <div style="display:flex;gap:4px;align-items:center;">
-        <button class="hud-toggle-btn" id="hud-auto-btn" onclick="toggleAutoMode(event)">🔄 周回</button>
-        <button class="hud-toggle-btn" id="hud-speed-btn" onclick="toggleSpeedMode(event)">▷ 1x</button>
-        <button class="mode-btn" id="mode-switch-btn" onclick="toggleMode(event)">🌊 海へ行く</button>
+        <button class="hud-toggle-btn" id="hud-auto-btn" onclick="toggleAutoMode(event)">周回</button>
+        <button class="hud-toggle-btn" id="hud-speed-btn" onclick="toggleSpeedMode(event)">1x</button>
+        <button class="mode-btn" id="mode-switch-btn" onclick="returnToTown(event)">街へ戻る</button>
       </div>
     </div>
 
@@ -154,27 +137,27 @@
 
     <div class="enemy-section">
       <div class="enemy-slot" id="enemy-slot-0">
-        <div class="e-name">フォックス (98)</div>
+        <div class="e-name">スライム (84)</div>
         <div class="bar-bg"><div class="hp-fill e-hp-fill"></div></div>
-        <div class="e-sprite">🦊</div>
+        <div class="e-sprite">ス</div>
         <div class="bar-bg" style="height:3px;width:72px;margin:2px auto 0;"><div class="ct-fill e-ct-fill"></div></div>
       </div>
       <div class="enemy-slot" id="enemy-slot-1" style="display:none;">
-        <div class="e-name">ボア (119)</div>
+        <div class="e-name">プチバット (75)</div>
         <div class="bar-bg"><div class="hp-fill e-hp-fill"></div></div>
-        <div class="e-sprite">🐗</div>
+        <div class="e-sprite">プ</div>
         <div class="bar-bg" style="height:3px;width:72px;margin:2px auto 0;"><div class="ct-fill e-ct-fill"></div></div>
       </div>
       <div class="enemy-slot" id="enemy-slot-2" style="display:none;">
-        <div class="e-name">ラビット (84)</div>
+        <div class="e-name">ゴブリン (98)</div>
         <div class="bar-bg"><div class="hp-fill e-hp-fill"></div></div>
-        <div class="e-sprite">🐇</div>
+        <div class="e-sprite">ゴ</div>
         <div class="bar-bg" style="height:3px;width:72px;margin:2px auto 0;"><div class="ct-fill e-ct-fill"></div></div>
       </div>
     </div>
 
-    <button class="start-battle-btn" id="start-battle-btn" onclick="startBattle(event)" ontouchend="startBattle(event)">⚔️ バトル開始 (⚡1)</button>
-    <button class="retreat-battle-btn" id="retreat-battle-btn" onclick="retreatBattle(event)">🏳️ 退却</button>
+    <button class="start-battle-btn" id="start-battle-btn" onclick="startBattle(event)" ontouchend="startBattle(event)">バトル開始（スタミナ1）</button>
+    <button class="retreat-battle-btn" id="retreat-battle-btn" onclick="retreatBattle(event)">退却する</button>
 
     <div class="ally-section">
       <div class="units-grid">
@@ -202,16 +185,16 @@
 
   <div class="status-bar">
     <div class="profile-mini">
-      <div class="mini-avatar" id="hud-my-icon">🦊</div>
+      <div class="mini-avatar" id="hud-my-icon">ス</div>
       <div>
         <div id="hud-name" style="font-size:11px;">ハンター</div>
-        <div class="save-badge" id="save-indicator">☁️ 自動保存済</div>
+        <div class="save-badge" id="save-indicator">自動保存済</div>
       </div>
     </div>
     <div class="currency">
-      <div class="stamina-box">⚡ <span id="stamina-disp">30</span>/30 <span id="stamina-timer" style="font-size:9px;">MAX</span></div>
-      <div class="gold-box">🪙 <span id="gold">200</span> G</div>
-      <div class="gem-box">💎 <span id="gem">1,000</span></div>
+      <div class="stamina-box">ST <span id="stamina-disp">30</span>/30 <span id="stamina-timer" style="font-size:9px;">MAX</span></div>
+      <div class="gold-box"><span id="gold">200</span> G</div>
+      <div class="gem-box">GEM <span id="gem">1,000</span></div>
     </div>
   </div>
 
@@ -219,18 +202,18 @@
     <div class="tab-pane active" id="tab-ship">
       <div class="card">
         <div class="card-title">
-          <span>⚔️ バトルパーティ編成 (最大3体)</span>
+          <span>バトルパーティ編成（最大3体）</span>
           <span>総戦力: <span id="power-disp">10</span></span>
         </div>
         <div class="grid-3" id="party-slots" style="margin-bottom:10px;"></div>
         <button class="btn-coral" id="vehicle-upgrade-btn" onclick="upgradeUnit()">
-          🚜 戦車・探索船を強化 Lv.<span id="ally-lv">1</span>（費用: <span id="up-cost">50</span> G）
+          戦車・探索船を強化 Lv.<span id="ally-lv">1</span>（費用: <span id="up-cost">50</span> G）
         </button>
       </div>
 
       <div class="card">
         <div class="card-title">
-          <span>🏋️ 訓練場（獲得EXPの10%を全員に分配）</span>
+          <span>訓練場（獲得EXPの10%を全員に分配）</span>
           <span style="font-size:10px;color:#546e7a;">編成中以外を配置可</span>
         </div>
         <div class="grid-3" id="training-slots"></div>
@@ -238,20 +221,30 @@
 
       <div class="card">
         <div class="card-title">
-          <span>🐾 仲間モンスター一覧</span>
+          <span>仲間モンスター一覧</span>
           <span style="font-size:11px;color:#546e7a;">タップで詳細・訓練・画像変更</span>
         </div>
-        <div class="grid-3" id="captured-list">
-          <p style="grid-column:span 3;font-size:12px;color:#78909c;text-align:center;padding:12px 0;">
-            バトルに勝利して仲間を増やそう！
-          </p>
+        <div class="grid-3" id="captured-list"></div>
+      </div>
+    </div>
+
+    <div class="tab-pane" id="tab-breed">
+      <div class="card">
+        <div class="card-title">
+          <span>モンスター配合（Lv.10以上）</span>
+          <span style="font-size:10px;color:#546e7a;">上限Lv+5 / 継承選択</span>
         </div>
+        <div style="font-size:11px;color:#546e7a;margin-bottom:4px;">親モンスター 1（Lv.10以上）</div>
+        <select class="inp" id="breed-parent-a" onchange="onChangeBreedParent('A', this.value)"></select>
+        <div style="font-size:11px;color:#546e7a;margin-bottom:4px;">親モンスター 2（Lv.10以上）</div>
+        <select class="inp" id="breed-parent-b" onchange="onChangeBreedParent('B', this.value)"></select>
+        <div id="breed-preview-area"></div>
       </div>
     </div>
     <div class="tab-pane" id="tab-cafe">
       <div class="card">
         <div class="card-title">
-          <span>🍰 リゾートカフェ経営 Lv.<span id="cafe-lv">1</span></span>
+          <span>リゾートカフェ経営 Lv.<span id="cafe-lv">1</span></span>
           <span>+<span id="cafe-rate">0</span> G/秒</span>
         </div>
         <div class="garden-field" id="garden-grid"></div>
@@ -265,38 +258,24 @@
       </div>
 
       <div class="card">
-        <div class="card-title"><span>🌴 ガーデン装飾ショップ（各+15%）</span></div>
+        <div class="card-title"><span>ガーデン装飾ショップ（各+15%）</span></div>
         <div class="grid-3">
-          <div class="slot-box" onclick="buyDecor('🌴', 100)"><div class="icon">🌴</div><div class="name">ヤシの木</div><div class="sub">100 G</div></div>
-          <div class="slot-box" onclick="buyDecor('🌺', 250)"><div class="icon">🌺</div><div class="name">ハイビスカス</div><div class="sub">250 G</div></div>
-          <div class="slot-box" onclick="buyDecor('⛲', 600)"><div class="icon">⛲</div><div class="name">噴水</div><div class="sub">600 G</div></div>
+          <div class="slot-box" onclick="buyDecor('ヤシの木', 100)"><div class="icon">木</div><div class="name">ヤシの木</div><div class="sub">100 G</div></div>
+          <div class="slot-box" onclick="buyDecor('花壇', 250)"><div class="icon">花</div><div class="name">ハイビスカス</div><div class="sub">250 G</div></div>
+          <div class="slot-box" onclick="buyDecor('噴水', 600)"><div class="icon">泉</div><div class="name">噴水</div><div class="sub">600 G</div></div>
         </div>
-      </div>
-    </div>
-
-    <div class="tab-pane" id="tab-breed">
-      <div class="card">
-        <div class="card-title">
-          <span>🧬 モンスター配合（+値＆上限解放）</span>
-          <span style="font-size:10px;color:#546e7a;">上限Lv+5 / 継承選択</span>
-        </div>
-        <div style="font-size:11px;color:#546e7a;margin-bottom:4px;">親モンスター 1</div>
-        <select class="inp" id="breed-parent-a" onchange="onChangeBreedParent('A', this.value)"></select>
-        <div style="font-size:11px;color:#546e7a;margin-bottom:4px;">親モンスター 2</div>
-        <select class="inp" id="breed-parent-b" onchange="onChangeBreedParent('B', this.value)"></select>
-        <div id="breed-preview-area"></div>
       </div>
     </div>
 
     <div class="tab-pane" id="tab-shop">
       <div class="card">
         <div class="card-title">
-          <span>🏪 ショップ</span>
-          <span style="font-size:11px;color:#0288d1;">便利機能＆戦車・船</span>
+          <span>ショップ</span>
+          <span style="font-size:11px;color:#0288d1;">便利機能・戦車・船</span>
         </div>
         <div class="shop-sub-tabs">
-          <button class="shop-sub-btn active" onclick="switchShopSub('gem', this)">💎 便利機能</button>
-          <button class="shop-sub-btn" onclick="switchShopSub('vehicle', this)">🚜 戦車・船 (G)</button>
+          <button class="shop-sub-btn active" onclick="switchShopSub('gem', this)">便利機能 (GEM)</button>
+          <button class="shop-sub-btn" onclick="switchShopSub('vehicle', this)">戦車・船 (G)</button>
         </div>
         <div id="shop-list">読み込み中...</div>
       </div>
@@ -305,77 +284,78 @@
     <div class="tab-pane" id="tab-ai">
       <div class="card">
         <div class="card-title">
-          <span>🎨 AIアトリエ</span>
+          <span>AIアトリエ</span>
           <span id="ai-status" style="font-size:11px;color:#ff7043;">準備OK</span>
         </div>
         <div class="sub-tabs">
-          <button class="sub-tab-btn active" onclick="switchAiSub('mon', this)">🐾 着せ替え</button>
-          <button class="sub-tab-btn" onclick="switchAiSub('bg', this)">🖼️ 背景</button>
-          <button class="sub-tab-btn" onclick="switchAiSub('stamp', this)">💬 スタンプ</button>
+          <button class="sub-tab-btn active" onclick="switchAiSub('mon', this)">着せ替え</button>
+          <button class="sub-tab-btn" onclick="switchAiSub('bg', this)">背景</button>
+          <button class="sub-tab-btn" onclick="switchAiSub('stamp', this)">スタンプ</button>
         </div>
 
         <div class="ai-sub-pane active" id="ai-sub-mon">
-          <select class="inp" id="ai-species-sel" onchange="renderSpeciesGallery()"><option value="">未捕獲</option></select>
-          <textarea class="inp" id="ai-mon-prompt" maxlength="200" oninput="updateCharCount('mon')" placeholder="例：海賊の帽子をかぶったかっこいい姿、黄金の鎧など"></textarea>
+          <select class="inp" id="ai-species-sel" onchange="renderSpeciesGallery()"><option value="">未獲得</option></select>
+          <textarea class="inp" id="ai-mon-prompt" maxlength="200" oninput="updateCharCount('mon')" placeholder="例：騎士の鎧を着た姿、王冠をかぶったイラストなど"></textarea>
           <div class="char-count"><span id="mon-count">0</span> / <span id="mon-max">200</span>文字</div>
-          <label class="extend-box"><input type="checkbox" id="mon-ext" onchange="toggleExtend('mon')"> 長文プロンプト拡張（500文字 / 250💎）</label>
-          <button class="btn-coral" onclick="generateAI('monster')">✨ スキンを生成（<span id="mon-cost">200</span> 💎）</button>
+          <label class="extend-box"><input type="checkbox" id="mon-ext" onchange="toggleExtend('mon')"> 長文プロンプト拡張（500文字 / 250 GEM）</label>
+          <button class="btn-coral" onclick="generateAI('monster')">スキンを生成（<span id="mon-cost">200</span> GEM）</button>
           <div class="grid-3" id="species-skin-gallery" style="margin-top:10px;"></div>
         </div>
 
         <div class="ai-sub-pane" id="ai-sub-bg">
-          <textarea class="inp" id="ai-bg-prompt" maxlength="200" oninput="updateCharCount('bg')" placeholder="例：夕焼けのトロピカルビーチ、神秘的な深海神殿"></textarea>
+          <textarea class="inp" id="ai-bg-prompt" maxlength="200" oninput="updateCharCount('bg')" placeholder="例：夕焼けの草原、古代の石造り神殿"></textarea>
           <div class="char-count"><span id="bg-count">0</span> / <span id="bg-max">200</span>文字</div>
-          <label class="extend-box"><input type="checkbox" id="bg-ext" onchange="toggleExtend('bg')"> 長文プロンプト拡張（500文字 / 250💎）</label>
-          <button class="btn-blue" onclick="generateAI('bg')">🖼️ アイコン背景を生成（<span id="bg-cost">200</span> 💎）</button>
+          <label class="extend-box"><input type="checkbox" id="bg-ext" onchange="toggleExtend('bg')"> 長文プロンプト拡張（500文字 / 250 GEM）</label>
+          <button class="btn-blue" onclick="generateAI('bg')">アイコン背景を生成（<span id="bg-cost">200</span> GEM）</button>
         </div>
 
         <div class="ai-sub-pane" id="ai-sub-stamp">
-          <select class="inp" id="stamp-species-sel"><option value="🦊 フォックス">🦊 フォックス(相棒)</option></select>
-          <input class="inp" id="stamp-text" maxlength="12" placeholder="スタンプ文字（例：よろしく！、やったー！）">
-          <textarea class="inp" id="ai-stamp-prompt" maxlength="200" oninput="updateCharCount('stamp')" placeholder="例：キラキラした笑顔で手を振るデフォルメイラスト"></textarea>
+          <select class="inp" id="stamp-species-sel"><option value="スライム">スライム</option></select>
+          <input class="inp" id="stamp-text" maxlength="12" placeholder="スタンプ文字（例：よろしく！、ありがとう！）">
+          <textarea class="inp" id="ai-stamp-prompt" maxlength="200" oninput="updateCharCount('stamp')" placeholder="例：笑顔で手を振るファンタジー風イラスト"></textarea>
           <div class="char-count"><span id="stamp-count">0</span> / <span id="stamp-max">200</span>文字</div>
-          <label class="extend-box"><input type="checkbox" id="stamp-ext" onchange="toggleExtend('stamp')"> 長文プロンプト拡張（500文字 / 250💎）</label>
-          <button class="btn-coral" onclick="generateAI('stamp')">💬 スタンプを生成（<span id="stamp-cost">200</span> 💎）</button>
+          <label class="extend-box"><input type="checkbox" id="stamp-ext" onchange="toggleExtend('stamp')"> 長文プロンプト拡張（500文字 / 250 GEM）</label>
+          <button class="btn-coral" onclick="generateAI('stamp')">スタンプを生成（<span id="stamp-cost">200</span> GEM）</button>
           <div class="grid-3" id="stamp-gallery" style="margin-top:10px;"></div>
         </div>
       </div>
     </div>
+
     <div class="tab-pane" id="tab-chat">
       <div class="card">
         <div class="card-title">
-          <span>💬 みんなとチャット</span>
-          <button onclick="loadChat()" style="background:#e1f5fe;border:none;padding:3px 8px;border-radius:6px;font-size:11px;color:#0277bd;font-weight:bold;">🔄 更新</button>
+          <span>チャット</span>
+          <button onclick="loadChat()" style="background:#e1f5fe;border:none;padding:3px 8px;border-radius:6px;font-size:11px;color:#0277bd;font-weight:bold;">更新</button>
         </div>
         <div class="chat-box" id="chat-messages">読み込み中...</div>
         <div style="display:flex;gap:6px;margin-bottom:8px;">
           <input class="inp" id="chat-input" maxlength="100" placeholder="メッセージを入力（100文字まで）" style="margin-bottom:0;">
           <button class="btn-blue" onclick="sendChat()" style="width:72px;">送信</button>
         </div>
-        <div style="font-size:11px;color:#546e7a;margin-bottom:6px;">AIスタンプ送信（タップで即送信）</div>
+        <div style="font-size:11px;color:#546e7a;margin-bottom:6px;">スタンプ送信（タップで即送信）</div>
         <div class="grid-3" id="chat-stamp-bar"></div>
       </div>
     </div>
 
     <div class="tab-pane" id="tab-rank">
       <div class="card">
-        <div class="card-title"><span>👤 プロフィール＆アイコン編集</span></div>
+        <div class="card-title"><span>プロフィール・アイコン編集</span></div>
         <div style="font-size:11px;color:#607d8b;margin-bottom:6px;">あなたのID: <b id="my-user-id">---</b></div>
         <input class="inp" id="player-name" maxlength="12" value="ハンター" onchange="changePlayerName()" placeholder="プレイヤー名">
-        <div class="preview-wrap"><div id="icon-preview-box"><div id="icon-char-layer">🦊</div></div></div>
-        <select class="inp" id="icon-char-sel" onchange="updateIconPreview()"><option value="デフォルト">🦊 デフォルト</option></select>
-        <select class="inp" id="icon-bg-sel" onchange="updateIconPreview()"><option value="-1">デフォルト(水色グラデ)</option></select>
+        <div class="preview-wrap"><div id="icon-preview-box"><div id="icon-char-layer">ス</div></div></div>
+        <select class="inp" id="icon-char-sel" onchange="updateIconPreview()"><option value="デフォルト">デフォルト</option></select>
+        <select class="inp" id="icon-bg-sel" onchange="updateIconPreview()"><option value="-1">デフォルト背景</option></select>
         <div class="slider-row"><span>拡大率</span><input type="range" id="icon-scale" min="0.5" max="2.0" step="0.1" value="1.0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
         <div class="slider-row"><span>横位置</span><input type="range" id="icon-x" min="-40" max="40" step="2" value="0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
         <div class="slider-row"><span>縦位置</span><input type="range" id="icon-y" min="-40" max="40" step="2" value="0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
         <div class="slider-row"><span>回転角度</span><input type="range" id="icon-rot" min="-180" max="180" step="5" value="0" oninput="updateIconPreview(false)" onchange="updateIconPreview(true)"></div>
       </div>
       <div class="card">
-        <div class="card-title"><span>🏆 ランキング</span></div>
+        <div class="card-title"><span>ランキング</span></div>
         <div id="ranking-list" style="font-size:12px;">読み込み中...</div>
       </div>
       <div class="card">
-        <div class="card-title"><span>☁️ データ引き継ぎ（ID復元）</span></div>
+        <div class="card-title"><span>データ引き継ぎ（ID復元）</span></div>
         <div style="display:flex;gap:6px;">
           <input class="inp" id="import-id-input" placeholder="引き継ぎIDを入力" style="margin-bottom:0;">
           <button class="btn-gray" onclick="loadFromCloudById()" style="width:80px;">復元</button>
@@ -383,11 +363,10 @@
       </div>
     </div>
   </div>
-
   <!-- 過去階層・ステージ移動モーダル -->
   <div class="modal-overlay" id="floor-modal" onclick="closeFloorSelectModal()" style="z-index:1050;">
     <div class="modal-card" onclick="event.stopPropagation()">
-      <div style="font-size:15px;font-weight:bold;color:#0277bd;margin-bottom:8px;">📍 ステージ・階層移動</div>
+      <div style="font-size:15px;font-weight:bold;color:#0277bd;margin-bottom:8px;">ステージ・階層移動</div>
       <div style="font-size:11px;color:#546e7a;margin-bottom:10px;">到達済みのステージ・階層へ自由に移動できます</div>
       <div id="floor-select-list" style="max-height:300px;overflow-y:auto;margin-bottom:10px;"></div>
       <button class="btn-gray" style="background:#cfd8dc;color:#37474f;" onclick="closeFloorSelectModal()">閉じる</button>
@@ -399,25 +378,25 @@
     <div class="modal-card" onclick="event.stopPropagation()">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
         <div style="display:flex;align-items:center;gap:12px;">
-          <div id="modal-mon-sprite" style="font-size:48px;"></div>
+          <div id="modal-mon-sprite"></div>
           <div>
             <div id="modal-mon-name" style="font-size:16px;font-weight:bold;"></div>
             <div id="modal-mon-rarity" style="font-size:11px;color:#ff7043;font-weight:bold;"></div>
           </div>
         </div>
-        <button onclick="openSkinPickerModal()" style="background:#fff3e0;color:#e65100;border:1.5px solid #ffb74d;padding:6px 10px;border-radius:10px;font-size:11px;font-weight:bold;cursor:pointer;white-space:nowrap;">🎨 画像変更</button>
+        <button onclick="openSkinPickerModal()" style="background:#fff3e0;color:#e65100;border:1.5px solid #ffb74d;padding:6px 10px;border-radius:10px;font-size:11px;font-weight:bold;cursor:pointer;white-space:nowrap;">画像変更</button>
       </div>
       <table class="stat-table">
         <tr><td>レベル</td><td id="modal-mon-lv"></td></tr>
         <tr><td>ステータス</td><td id="modal-mon-atk"></td></tr>
-        <tr><td>得意地形</td><td id="modal-mon-terrain"></td></tr>
+        <tr><td>属性・耐性</td><td id="modal-mon-terrain"></td></tr>
         <tr><td>戦闘スキル</td><td id="modal-mon-skill"></td></tr>
         <tr><td>個体特性</td><td id="modal-mon-trait"></td></tr>
       </table>
       <div style="display:flex;flex-direction:column;gap:6px;">
         <button class="btn-coral" id="modal-party-btn" onclick="togglePartyFromModal()"></button>
-        <button class="btn-blue" onclick="assignTrainingFromModal()">🏋️ 訓練場に配置する（EXP10%）</button>
-        <button class="btn-gray" onclick="assignStaffFromModal()">🍰 カフェ店員に配属する</button>
+        <button class="btn-blue" onclick="assignTrainingFromModal()">訓練場に配置する（EXP10%）</button>
+        <button class="btn-gray" onclick="assignStaffFromModal()">カフェ店員に配属する</button>
         <button class="btn-gray" style="background:#cfd8dc;color:#37474f;" onclick="closeMonModal()">閉じる</button>
       </div>
     </div>
@@ -448,25 +427,25 @@
   </div>
 
   <nav class="bottom-nav">
-    <button class="nav-item active" onclick="switchTab('ship', this)"><span class="nav-icon">⚔️</span>編成・訓練</button>
-    <button class="nav-item" onclick="switchTab('breed', this)"><span class="nav-icon">🧬</span>配合</button>
-    <button class="nav-item" onclick="switchTab('cafe', this)"><span class="nav-icon">🍰</span>カフェ</button>
-    <button class="nav-item" onclick="switchTab('shop', this)"><span class="nav-icon">🏪</span>ショップ</button>
-    <button class="nav-item" onclick="switchTab('ai', this)"><span class="nav-icon">🎨</span>AI生成</button>
-    <button class="nav-item" onclick="switchTab('chat', this)"><span class="nav-icon">💬</span>チャット</button>
-    <button class="nav-item" onclick="switchTab('rank', this)"><span class="nav-icon">👤</span>マイページ</button>
+    <button class="nav-item active" onclick="switchTab('ship', this)">編成・訓練</button>
+    <button class="nav-item" onclick="switchTab('breed', this)">配合</button>
+    <button class="nav-item" onclick="switchTab('cafe', this)">カフェ</button>
+    <button class="nav-item" onclick="switchTab('shop', this)">ショップ</button>
+    <button class="nav-item" onclick="switchTab('ai', this)">AI生成</button>
+    <button class="nav-item" onclick="switchTab('chat', this)">チャット</button>
+    <button class="nav-item" onclick="switchTab('rank', this)">マイページ</button>
   </nav>
-  <script src="/monsters.js?v=20"></script>
-  <script src="/traits.js?v=20"></script>
-  <script src="/skills.js?v=20"></script>
-  <script src="/vehicle.js?v=20"></script>
-  <script src="/party.js?v=20"></script>
-  <script src="/breed.js?v=20"></script>
-  <script src="/cafe.js?v=20"></script>
-  <script src="/shop.js?v=20"></script>
-  <script src="/stage.js?v=20"></script>
-  <script src="/game.js?v=20"></script>
-  <script src="/social.js?v=20"></script>
+  <script src="/monsters.js?v=25"></script>
+  <script src="/traits.js?v=25"></script>
+  <script src="/skills.js?v=25"></script>
+  <script src="/vehicle.js?v=25"></script>
+  <script src="/party.js?v=25"></script>
+  <script src="/breed.js?v=25"></script>
+  <script src="/cafe.js?v=25"></script>
+  <script src="/shop.js?v=25"></script>
+  <script src="/stage.js?v=25"></script>
+  <script src="/game.js?v=25"></script>
+  <script src="/social.js?v=25"></script>
   <script>initCloudLoad();</script>
 </body>
 </html>
