@@ -365,3 +365,24 @@ function getSpeciesDisplay(speciesName) {
   }
   return getDefaultMonsterVisual(name);
 }
+// --- battle.js / vehicle.js / storage.js との完全互換ブリッジ ---
+Object.defineProperty(state, 'gold', {
+  get() { return gold; },
+  set(v) { gold = Number(v) || 0; }
+});
+Object.defineProperty(state, 'gem', {
+  get() { return gem; },
+  set(v) { gem = Number(v) || 0; }
+});
+Object.defineProperty(state, 'allies', {
+  get() { return battleAllies; },
+  set(v) { battleAllies = Array.isArray(v) ? v : [null, null, null]; }
+});
+
+function getSpeedMultiplier() {
+  return speed2xActive ? 2 : 1;
+}
+
+function getBattleSpeed() {
+  return speed2xActive ? 2 : 1;
+}
