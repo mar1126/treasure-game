@@ -322,3 +322,124 @@ function togglePartyFromModal() {
   if (!state.inBattle) resetBattleAllies();
   renderParty(); renderCaptured(); updateUI(); triggerAutoSave(); openMonModal(selectedMonIdx);
 }
+let skinPickerState = { monIdx: -1, selectedSkinIdx: -1, selectedBgIdx: -1, individualOnly: false };
+
+function openSkinPickerModal() {
+  const m = captured.slice(selectedMonIdx, selectedMonIdx + 1).pop();
+  if (!m) return;
+  if (!speciesSkins || typeof speciesSkins !== 'object') speciesSkins = {};
+  if (!speciesSkins[m.name]) speciesSkins[m.name] = { list: [], activeIdx: -1 };
+  const spData = speciesSkins[m.name];
+  if (!Array.isArray(spData.list)) spData.list = [];
+
+  let initialSkinIdx = spData.activeIdx ?? -1;
+  if (m.customSkin) {
+    const foundIdx = spData.list.indexOf(m.customSkin);
+    if (foundIdx !== -1) initialSkinIdx = foundIdx;
+  }
+  skinPickerState = {
+    monIdx: selectedMonIdx,
+    selectedSkinIdx: initialSkinIdx,
+    selectedBgIdx: (typeof m.customBgIdx === 'number') ? m.customBgIdx : (spData.activeBgIdx ?? -1),
+    individualOnly: Boolean(m.customSkin)
+  };
+  const titleEl = document.getElementById('skin-picker-title');
+  if (titleEl) titleEl.textContent = `${m.name}の画像`;
+  const chk = document.getElementById('skin-individual-chk');
+  if (chk) chk.checked = skinPickerState.individualOnly;
+  renderSkinPickerOptions();
+  const modal = document.getElementById('skin-picker-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeSkinPickerModal() {
+  const modal = document.getElementById('skin-picker-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function selectPickerSkin(idx) {
+  skinPickerState.selectedSkinIdx = idx;
+  renderSkinPickerOptions();
+}
+
+function selectPickerBg(idx) {
+  skinPickerState.selectedBgIdx = idx;
+  renderSkinPickerOptions();
+}
+
+function renderSkinPickerOptions() {
+  const m = captured.slice(skinPickerState.monIdx, skinPickerState.monIdx + 1).pop();
+  if (!m) return;
+  const spData = (speciesSkins && speciesSkins[m.name]) ? speciesSkins[m.name] : { list: [], activeIdx: -1 };
+  const list = Array.isArray(spData.list) ? spData.list : [];
+  const bgList = Array.isArray(aiBackgrounds) ? aiBackgrounds : [];
+  const defVisual = typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual(m.name) : `EMBLEM:none:${m.name.slice(0, 1)}`;
+
+  const imgRow = document.getElementById('skin-picker-images');
+  if (imgRow) {
+    const defSelected = skinPickerState.selectedSkinIdx === -1 ? 'selected' : '';
+    let html = `<div class="picker-thumb ${defSelected}" onclick="selectPickerSkin(-1)">${renderSprite(defVisual, 44, '6px')}</div>`;
+    html += list.map((imgData, idx) => {
+      const sel = skinPickerState.selectedSkinIdx === idx ? 'selected' : '';
+      return `<div class="picker-thumb ${sel}" onclick="selectPickerSkin(${idx})"><span class="picker-star">★</span>${renderSprite(imgData, 44, '6px')}</div>`;
+    }).join('');
+    imgRow.innerHTML = html;
+  }
+
+  const bgRow = document.getElementById('skin-picker-bgs');
+  if (bgRow) {
+    const noneSel = skinPickerState.selectedBgIdx === -1 ? 'selected' : '';
+    let bgHtml = `<div class="picker-thumb ${noneSel}" onclick="selectPickerBg(-1)" style="font-size:11px;font-weight:bold;color:#546e7a;">なし</div>`;
+    bgHtml += bgList.map((bg, idx) => {
+      const sel = skinPickerState.selectedBgIdx === idx ? 'selected' : '';
+      return `<div class="picker-thumb ${sel}" onclick="selectPickerBg(${idx})"><span class="picker-star">★</span><img src="${bg.img}" style="width:44px;height:44px;border-radius:6px;object-fit:cover;"></div>`;
+    }).join('');
+    bgRow.innerHTML = bgHtml;
+  }
+
+  const previewBox = document.getElementById('skin-picker-preview');
+  if (previewBox) {
+    const chosenVisual = (skinPickerState.selectedSkinIdx >= 0 && list[skinPickerState.selectedSkinIdx])
+      ? list[skinPickerState.selectedSkinIdx] : defVisual;
+    const chosenBg = (skinPickerState.selectedBgIdx >= 0 && bgList[skinPickerState.selectedBgIdx])
+      ? bgList[skinPickerState.selectedBgIdx].img : null;
+
+    previewBox.style.backgroundImage = chosenBg ? `url(${chosenBg})` : 'none';
+    previewBox.style.backgroundColor = chosenBg ? 'transparent' : '#f1f5f9';
+    previewBox.innerHTML = renderSprite(chosenVisual, 130, '10px');
+  }
+}
+
+function applySkinPicker() {
+  const m = captured.slice(skinPickerState.monIdx, skinPickerState.monIdx + 1).pop();
+  if (!m) return;
+  if (!speciesSkins[m.name]) speciesSkins[m.name] = { list: [], activeIdx: -1 };
+  const spData = speciesSkins[m.name];
+  const list = Array.isArray(spData.list) ? spData.list : [];
+  const isIndiv = document.getElementById('skin-individual-chk')?.checked || false;
+  const chosenImg = (skinPickerState.selectedSkinIdx >= 0 && list[skinPickerState.selectedSkinIdx])
+    ? list[skinPickerState.selectedSkinIdx] : null;
+
+  if (isIndiv) {
+    m.customSkin = chosenImg;
+    m.customBgIdx = skinPickerState.selectedBgIdx;
+  } else {
+    m.customSkin = null;
+    m.customBgIdx = -1;
+    spData.activeIdx = skinPickerState.selectedSkinIdx;
+    spData.activeBgIdx = skinPickerState.selectedBgIdx;
+  }
+
+  if (!state.inBattle && typeof resetBattleAllies === 'function') resetBattleAllies();
+  renderParty();
+  renderCaptured();
+  renderTraining();
+  if (typeof renderCafe === 'function') renderCafe();
+  if (typeof renderSpeciesGallery === 'function') renderSpeciesGallery();
+  if (typeof updateIconPreview === 'function') updateIconPreview(false);
+  updateUI();
+  triggerAutoSave(true);
+  closeSkinPickerModal();
+  openMonModal(skinPickerState.monIdx);
+  showToast(`${m.name}の見た目を変更しました`);
+}
