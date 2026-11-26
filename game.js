@@ -379,8 +379,7 @@ function updateUI() {
     const nameEl = box.querySelector('.e-name');
     const hpEl = box.querySelector('.e-hp-fill');
     const sprEl = box.querySelector('.e-sprite');
-    const badgeHtml = typeof renderElementBadge === 'function' ? renderElementBadge(e.elem) : '';
-    if (nameEl) nameEl.innerHTML = `${badgeHtml} ${e.name} (${Math.max(0, e.hp)})`;
+    if (nameEl) nameEl.textContent = `${e.name} (${Math.max(0, e.hp)})`;
     if (hpEl) hpEl.style.width = `${Math.max(0, Math.min(100, (e.hp / (e.maxHp || 1)) * 100))}%`;
     if (sprEl) {
       const disp = getSpeciesDisplay(e.rawName || e.name);
@@ -423,7 +422,7 @@ function updateUI() {
   if (upBtn) {
     const eq = typeof getEquippedTank === 'function' ? getEquippedTank() : null;
     if (!eq) {
-      upBtn.textContent = '戦車 未所持（ショップの「戦車」タブで購入）';
+      upBtn.textContent = '戦車 未所持（ショップの「兵器工房」タブで購入）';
       upBtn.style.background = '#90a4ae';
     } else {
       const vLv = typeof getTankLevel === 'function' ? getTankLevel() : 1;
@@ -525,12 +524,14 @@ function handleWaveClear() {
     if (tm && typeof grantExpToMonster === 'function') grantExpToMonster(tm, trainExp);
   });
 
-  const targetForRecruit = enemies[Math.floor(Math.random() * enemies.length)];
-  const recruited = (targetForRecruit && typeof tryAutoRecruit === 'function') ? tryAutoRecruit(targetForRecruit) : false;
-
-  if (typeof renderParty === 'function') renderParty();
-  if (typeof renderTraining === 'function') renderTraining();
-  if (typeof renderCaptured === 'function') renderCaptured();
+  let recruited = false;
+  try {
+    const targetForRecruit = enemies[Math.floor(Math.random() * enemies.length)];
+    recruited = (targetForRecruit && typeof tryAutoRecruit === 'function') ? tryAutoRecruit(targetForRecruit) : false;
+    if (typeof renderParty === 'function') renderParty();
+    if (typeof renderTraining === 'function') renderTraining();
+    if (typeof renderCaptured === 'function') renderCaptured();
+  } catch (err) { console.error(err); }
 
   if (state.wave < 5) {
     state.wave++;
