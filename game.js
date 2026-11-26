@@ -274,3 +274,32 @@ function updateUI() {
 
   if (typeof updateVehicleUI === 'function') updateVehicleUI();
 }
+function renderSprite(disp, size = 36, fontSize = '14px') {
+  const val = String(disp || '');
+  if (val.startsWith('data:image') || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('/')) {
+    return `<img src="${val}" style="width:${size}px;height:${size}px;object-fit:contain;border-radius:6px;display:block;margin:0 auto;">`;
+  }
+  let bg = '#0288d1';
+  let label = val;
+  if (val.startsWith('EMBLEM:')) {
+    const parts = val.split(':');
+    const elem = parts[1] || 'none';
+    label = parts[2] || '魔';
+    const colors = {
+      fire: '#ef5350',
+      water: '#29b6f6',
+      earth: '#66bb6a',
+      sky: '#26a69a',
+      light: '#ffa726',
+      dark: '#7e57c2',
+      none: '#78909c'
+    };
+    bg = colors[elem] || '#78909c';
+  }
+  const circleSize = Math.max(20, Math.round(size * 0.85));
+  return `<div style="width:${circleSize}px;height:${circleSize}px;border-radius:50%;background:${bg};color:#ffffff;font-weight:bold;font-size:${fontSize};display:flex;align-items:center;justify-content:center;border:2px solid #ffffff;box-shadow:0 2px 4px rgba(0,0,0,0.25);margin:0 auto;">${label.slice(0, 2)}</div>`;
+}
+
+function updateSelectOptions() {
+  if (typeof refreshAiSpeciesSelects === 'function') refreshAiSpeciesSelects();
+}
