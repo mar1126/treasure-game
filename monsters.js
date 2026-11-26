@@ -100,3 +100,199 @@ const STAGE_DATA = [
     ]
   }
 ];
+STAGE_DATA.push(
+  {
+    stage: 6, name: '古びた石の遺跡', vehicleType: 'land',
+    monsters: [
+      { name: 'スケルトン', elem: 'dark', ct: 1.8, hp: 135, atk: 36, def: 9, inherit: 18, trait: 'first_edge', skill: 'cross_slash' },
+      { name: 'ガーゴイル', elem: 'earth', ct: 2.1, hp: 162, atk: 34, def: 16, inherit: 19, trait: 'iron_guard', skill: 'rock_crush' },
+      { name: 'ゴースト', elem: 'dark', ct: 1.7, hp: 124, atk: 39, def: 8, inherit: 18, trait: 'agility', skill: 'shadow_wave' },
+      { name: '遺跡の探索者', elem: 'earth', ct: 1.7, hp: 138, atk: 38, def: 10, inherit: 20, trait: 'fortune', skill: 'double_strike' },
+      { name: 'リビングアーマー', elem: 'light', ct: 2.3, hp: 175, atk: 35, def: 18, inherit: 20, trait: 'iron_guard', skill: 'holy_shield_bash' },
+      { name: 'スペルキャスター', elem: 'fire', ct: 2.0, hp: 126, atk: 44, def: 8, inherit: 20, trait: 'skill_mastery', skill: 'blaze_nova' },
+      { name: 'ミミック', elem: 'dark', ct: 1.9, hp: 150, atk: 41, def: 13, inherit: 19, trait: 'drain_soul', skill: 'shadow_bite' },
+      { name: 'ミノタウロス', elem: 'earth', ct: 2.2, hp: 182, atk: 45, def: 12, inherit: 21, trait: 'guts', skill: 'earth_quake' },
+      { name: 'リッチ', elem: 'dark', ct: 2.0, hp: 140, atk: 48, def: 9, inherit: 22, trait: 'dark_soul', skill: 'abyss_orb' },
+      { name: '古代の守護巨像', elem: 'light', ct: 2.6, hp: 215, atk: 44, def: 20, inherit: 23, trait: 'vitality', skill: 'holy_beam' }
+    ]
+  },
+  {
+    stage: 7, name: '白銀の雪原', vehicleType: 'land',
+    monsters: [
+      { name: 'フロストスライム', elem: 'water', ct: 1.8, hp: 155, atk: 42, def: 12, inherit: 19, trait: 'vitality', skill: 'water_pulse' },
+      { name: 'アイスウルフ', elem: 'water', ct: 1.6, hp: 150, atk: 47, def: 10, inherit: 20, trait: 'agility', skill: 'aqua_thrust' },
+      { name: '雪原の狩人', elem: 'sky', ct: 1.6, hp: 148, atk: 49, def: 10, inherit: 21, trait: 'focus', skill: 'sky_volley' },
+      { name: 'イエティ', elem: 'earth', ct: 2.3, hp: 198, atk: 48, def: 15, inherit: 21, trait: 'guts', skill: 'heavy_blow' },
+      { name: '氷の精霊', elem: 'water', ct: 1.8, hp: 145, atk: 51, def: 10, inherit: 20, trait: 'water_soul', skill: 'grand_deluge' },
+      { name: '白銀の剣士', elem: 'light', ct: 1.7, hp: 165, atk: 52, def: 13, inherit: 22, trait: 'valor', skill: 'light_slash' },
+      { name: 'フロストワイバーン', elem: 'sky', ct: 1.9, hp: 176, atk: 54, def: 13, inherit: 22, trait: 'sky_soul', skill: 'gale_storm' },
+      { name: '氷結の魔女', elem: 'water', ct: 2.0, hp: 152, atk: 57, def: 10, inherit: 22, trait: 'skill_mastery', skill: 'tidal_wave' },
+      { name: 'フェンリル', elem: 'dark', ct: 1.6, hp: 172, atk: 59, def: 12, inherit: 23, trait: 'first_edge', skill: 'shadow_fang' },
+      { name: 'フロストドラゴン', elem: 'water', ct: 2.2, hp: 225, atk: 58, def: 18, inherit: 24, trait: 'water_soul', skill: 'grand_deluge' }
+    ]
+  },
+  {
+    stage: 8, name: '灼熱の砂漠', vehicleType: 'land',
+    monsters: [
+      { name: 'サンドワーム', elem: 'earth', ct: 2.2, hp: 195, atk: 54, def: 16, inherit: 20, trait: 'earth_soul', skill: 'earth_quake' },
+      { name: 'ファイアスピリット', elem: 'fire', ct: 1.7, hp: 162, atk: 60, def: 11, inherit: 21, trait: 'fire_soul', skill: 'flame_breath' },
+      { name: '砂漠の踊り子', elem: 'sky', ct: 1.5, hp: 158, atk: 62, def: 11, inherit: 22, trait: 'agility', skill: 'aero_cutter' },
+      { name: 'マミー', elem: 'dark', ct: 2.1, hp: 188, atk: 58, def: 15, inherit: 20, trait: 'drain_soul', skill: 'dark_mist' },
+      { name: 'アヌビス戦士', elem: 'dark', ct: 1.8, hp: 185, atk: 65, def: 14, inherit: 22, trait: 'dark_soul', skill: 'shadow_wave' },
+      { name: '炎の剣闘士', elem: 'fire', ct: 1.7, hp: 192, atk: 67, def: 15, inherit: 23, trait: 'valor', skill: 'flame_slash' },
+      { name: 'キマイラ', elem: 'fire', ct: 1.9, hp: 205, atk: 68, def: 15, inherit: 23, trait: 'guts', skill: 'blaze_nova' },
+      { name: '太陽の巫女', elem: 'light', ct: 1.9, hp: 172, atk: 69, def: 13, inherit: 23, trait: 'light_soul', skill: 'holy_beam' },
+      { name: 'イフリート', elem: 'fire', ct: 2.0, hp: 215, atk: 73, def: 16, inherit: 24, trait: 'fire_soul', skill: 'meteor_flame' },
+      { name: 'スフィンクス', elem: 'light', ct: 2.2, hp: 248, atk: 72, def: 20, inherit: 25, trait: 'wisdom', skill: 'radiant_burst' }
+    ]
+  },
+  {
+    stage: 9, name: '霧の渓谷', vehicleType: 'land',
+    monsters: [
+      { name: 'ワイバーン', elem: 'sky', ct: 1.7, hp: 210, atk: 74, def: 16, inherit: 22, trait: 'sky_soul', skill: 'sky_dive', img: '/images/mon_wyvern.png' },
+      { name: 'デュラハン', elem: 'dark', ct: 1.9, hp: 228, atk: 76, def: 19, inherit: 23, trait: 'iron_guard', skill: 'shadow_wave' },
+      { name: '風読みの賢者', elem: 'sky', ct: 1.8, hp: 192, atk: 80, def: 14, inherit: 24, trait: 'skill_mastery', skill: 'tempest_wing' },
+      { name: 'ベヒーモス', elem: 'earth', ct: 2.4, hp: 275, atk: 78, def: 23, inherit: 24, trait: 'vitality', skill: 'earth_quake' },
+      { name: 'ヴァルキリー', elem: 'light', ct: 1.6, hp: 216, atk: 82, def: 17, inherit: 25, trait: 'first_edge', skill: 'light_slash' },
+      { name: 'シャドウナイト', elem: 'dark', ct: 1.8, hp: 224, atk: 84, def: 18, inherit: 24, trait: 'dark_soul', skill: 'abyss_orb' },
+      { name: 'サンダーバード', elem: 'sky', ct: 1.5, hp: 204, atk: 86, def: 15, inherit: 24, trait: 'agility', skill: 'tempest_wing' },
+      { name: '竜騎士', elem: 'fire', ct: 1.7, hp: 235, atk: 88, def: 19, inherit: 25, trait: 'valor', skill: 'meteor_flame' },
+      { name: 'ヒュドラ', elem: 'water', ct: 2.1, hp: 268, atk: 86, def: 20, inherit: 25, trait: 'drain_soul', skill: 'grand_deluge' },
+      { name: 'ストームドラゴン', elem: 'sky', ct: 2.0, hp: 285, atk: 92, def: 22, inherit: 26, trait: 'sky_soul', skill: 'tempest_wing' }
+    ]
+  },
+  {
+    stage: 10, name: '王都の古代神殿', vehicleType: 'land',
+    monsters: [
+      { name: 'テンプルナイト', elem: 'light', ct: 1.8, hp: 255, atk: 92, def: 22, inherit: 24, trait: 'iron_guard', skill: 'light_slash' },
+      { name: 'アークメイジ', elem: 'fire', ct: 1.9, hp: 225, atk: 98, def: 17, inherit: 25, trait: 'skill_mastery', skill: 'meteor_flame' },
+      { name: 'ケルベロス', elem: 'fire', ct: 1.6, hp: 248, atk: 100, def: 19, inherit: 25, trait: 'fire_soul', skill: 'blaze_nova' },
+      { name: 'エンジェル', elem: 'light', ct: 1.7, hp: 238, atk: 99, def: 19, inherit: 26, trait: 'light_soul', skill: 'radiant_burst' },
+      { name: 'デーモンロード', elem: 'dark', ct: 1.8, hp: 262, atk: 104, def: 20, inherit: 26, trait: 'dark_soul', skill: 'abyss_orb' },
+      { name: '神殿の聖女', elem: 'light', ct: 1.8, hp: 230, atk: 102, def: 18, inherit: 26, trait: 'drain_soul', skill: 'holy_beam' },
+      { name: 'アースドラゴン', elem: 'earth', ct: 2.2, hp: 310, atk: 102, def: 26, inherit: 27, trait: 'earth_soul', skill: 'earth_quake' },
+      { name: 'フェニックス', elem: 'fire', ct: 1.6, hp: 252, atk: 108, def: 19, inherit: 27, trait: 'guts', skill: 'meteor_flame' },
+      { name: '近衛騎士団長', elem: 'light', ct: 1.7, hp: 280, atk: 110, def: 24, inherit: 28, trait: 'valor', skill: 'radiant_burst' },
+      { name: 'エンシェントドラゴン', elem: 'light', ct: 2.0, hp: 340, atk: 118, def: 28, inherit: 30, trait: 'light_soul', skill: 'radiant_burst' }
+    ]
+  }
+);
+
+const ALL_MONSTER_SPECIES = [];
+const STAGE_MONSTERS = {};
+
+STAGE_DATA.forEach(stObj => {
+  const list = stObj.monsters.map((m, idx) => ({
+    id: `s${stObj.stage}_${idx}`,
+    stage: stObj.stage,
+    idx,
+    name: m.name,
+    elem: m.elem || 'none',
+    vehicleType: stObj.vehicleType || 'land',
+    ct: m.ct,
+    baseHp: m.hp,
+    baseAtk: m.atk,
+    baseDef: m.def,
+    inheritRate: m.inherit,
+    innateTrait: m.trait,
+    innateSkill: m.skill,
+    imgFile: m.img || null
+  }));
+  STAGE_MONSTERS[stObj.stage] = list;
+  ALL_MONSTER_SPECIES.push(...list);
+});
+function getSpeciesData(name) {
+  const clean = String(name || '').replace(/^\[強敵\]\s*/, '');
+  return ALL_MONSTER_SPECIES.find(x => x.name === clean) || ALL_MONSTER_SPECIES[0];
+}
+
+function getStageInfo(stg) {
+  return STAGE_DATA.find(s => s.stage === stg) || STAGE_DATA[0];
+}
+
+function getFixedWaveEnemies(stg, floor, wave) {
+  const curPool = STAGE_MONSTERS[stg] || STAGE_MONSTERS[1];
+  const prevPool = stg > 1 ? STAGE_MONSTERS[stg - 1] : null;
+  const seed = stg * 10000 + floor * 17 + wave * 7;
+
+  let count = 1;
+  if (wave === 5) count = (floor % 2 === 0) ? 3 : 2;
+  else if (wave >= 3) count = 2 + (seed % 2);
+  else count = 1 + ((floor + wave) % 2);
+
+  const sameSpeciesWave = ((floor * 3 + wave) % 3 === 0) && count >= 2;
+  const mainIdx = (floor + wave * 2) % 10;
+
+  const stageScale = Math.pow(2.4, stg - 1);
+  const floorScale = 1 + (floor - 1) * 0.13;
+  const waveScale = (wave === 5) ? 1.32 : (1 + (wave - 1) * 0.05);
+  const totalMult = stageScale * floorScale * waveScale;
+
+  const enemies = [];
+  for (let i = 0; i < count; i++) {
+    let sp;
+    if (prevPool && i > 0 && ((floor + wave + i) % 3 === 0)) {
+      sp = prevPool[(floor + i * 2) % 10];
+    } else {
+      let pickIdx = sameSpeciesWave ? mainIdx : (mainIdx + i * 3) % 10;
+      if (wave === 5 && i === 0) pickIdx = 9;
+      sp = curPool[pickIdx];
+    }
+
+    const maxHp = Math.floor(sp.baseHp * 1.45 * totalMult);
+    enemies.push({
+      slot: i,
+      name: (wave === 5 && i === 0) ? `[強敵] ${sp.name}` : sp.name,
+      rawName: sp.name,
+      elem: sp.elem,
+      maxHp,
+      hp: maxHp,
+      atk: Math.floor(sp.baseAtk * 0.78 * totalMult),
+      def: Math.floor(sp.baseDef * 0.65 * totalMult),
+      ct: sp.ct,
+      curCt: i * 0.35,
+      expReward: Math.floor((14 + stg * 16 + floor * 3) * (wave === 5 ? 1.5 : 1.0) / count),
+      goldReward: Math.floor((16 + stg * 20 + floor * 4) * (wave === 5 ? 1.5 : 1.0) / count)
+    });
+  }
+  return enemies;
+}
+
+function getBreedResultSpecies(monA, monB) {
+  const spA = getSpeciesData(monA.name);
+  const spB = getSpeciesData(monB.name);
+
+  let targetStage = Math.min(spA.stage, spB.stage);
+  const nextPlus = Math.max(monA.plus || 0, monB.plus || 0) + 1;
+
+  if (spA.stage === spB.stage && nextPlus >= 2 && spA.stage < 10) {
+    targetStage = spA.stage + 1;
+  } else if (spA.stage !== spB.stage) {
+    targetStage = Math.floor((spA.stage + spB.stage) / 2);
+  }
+
+  const pool = STAGE_MONSTERS[targetStage];
+  let resIdx = (spA.idx + spB.idx + 1) % pool.length;
+  if (pool[resIdx].name === spA.name || pool[resIdx].name === spB.name) {
+    resIdx = (resIdx + 2) % pool.length;
+  }
+  return pool[resIdx];
+}
+
+const validDefaultMonsterImages = {};
+function initDefaultMonsterImages() {
+  ALL_MONSTER_SPECIES.forEach(m => {
+    if (!m.imgFile || validDefaultMonsterImages[m.name]) return;
+    const img = new Image();
+    img.onload = () => { validDefaultMonsterImages[m.name] = m.imgFile; };
+    img.src = m.imgFile;
+  });
+}
+
+function getDefaultMonsterVisual(name) {
+  const sp = getSpeciesData(name);
+  if (validDefaultMonsterImages[sp.name]) return validDefaultMonsterImages[sp.name];
+  return `EMBLEM:${sp.elem}:${sp.name.slice(0, 1)}`;
+}
+
+window.addEventListener('DOMContentLoaded', initDefaultMonsterImages);
