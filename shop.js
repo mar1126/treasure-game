@@ -1,4 +1,4 @@
-// ショップ・AIアトリエ管理 (shop.js)
+// ショップ・AIアトリエ管理（白背景自動透明化対応）(shop.js)
 let shopSubTab = 'gem';
 
 function switchShopSub(sub, btn) {
@@ -111,7 +111,6 @@ function buyShopItem(id, cost) {
   triggerAutoSave(true);
 }
 
-// --- AIアトリエ機能 ---
 function switchAiSub(sub, btn) {
   document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
@@ -142,135 +141,5 @@ function refreshAiSpeciesSelects() {
       : names;
     stampSel.innerHTML = allNames.map(n => `<option value="${n}">${n}</option>`).join('');
     if (allNames.includes(prev)) stampSel.value = prev;
-  }
-}
-
-function updateCharCount(kind) {
-  const inp = document.getElementById(`ai-${kind}-prompt`);
-  const cnt = document.getElementById(`${kind}-count`);
-  if (inp && cnt) cnt.textContent = inp.value.length;
-}
-
-function toggleExtend(kind) {
-  const chk = document.getElementById(`${kind}-ext`);
-  const inp = document.getElementById(`ai-${kind}-prompt`);
-  const maxEl = document.getElementById(`${kind}-max`);
-  const costEl = document.getElementById(`${kind}-cost`);
-  const isExt = chk ? chk.checked : false;
-  if (inp) {
-    inp.maxLength = isExt ? 500 : 200;
-    if (!isExt && inp.value.length > 200) inp.value = inp.value.slice(0, 200);
-  }
-  if (maxEl) maxEl.textContent = isExt ? '500' : '200';
-  if (costEl) costEl.textContent = isExt ? '250' : '200';
-  updateCharCount(kind);
-}
-
-function renderSpeciesGallery() {
-  refreshAiSpeciesSelects();
-  const gal = document.getElementById('species-skin-gallery');
-  const sel = document.getElementById('ai-species-sel');
-  if (!gal || !sel) return;
-  const spName = sel.value || 'スライム';
-  const spData = (speciesSkins && speciesSkins[spName]) ? speciesSkins[spName] : { list: [], activeIdx: -1 };
-  const list = Array.isArray(spData.list) ? spData.list : [];
-
-  if (list.length === 0) {
-    gal.innerHTML = `<div style="grid-column:1/-1;font-size:11px;color:#78909c;text-align:center;padding:8px;">「${spName}」のAIスキンはまだありません</div>`;
-    return;
-  }
-
-  gal.innerHTML = list.map((imgData, idx) => {
-    const isAct = spData.activeIdx === idx;
-    return `
-      <div class="slot-box" onclick="equipSpeciesSkinFromGallery('${spName}', ${idx})" style="${isAct ? 'border:2px solid #ff7043;background:#fff8f6;' : ''}">
-        <img src="${imgData}" style="width:64px;height:64px;object-fit:contain;border-radius:8px;">
-        <div style="font-size:10px;font-weight:bold;color:${isAct ? '#ff7043' : '#546e7a'};margin-top:3px;">${isAct ? '★ 適用中' : 'タップで適用'}</div>
-      </div>
-    `;
-  }).join('');
-}
-
-function equipSpeciesSkinFromGallery(spName, idx) {
-  if (!speciesSkins[spName]) return;
-  speciesSkins[spName].activeIdx = idx;
-  if (!state.inBattle && typeof resetBattleAllies === 'function') resetBattleAllies();
-  if (typeof renderParty === 'function') renderParty();
-  if (typeof renderCaptured === 'function') renderCaptured();
-  if (typeof renderTraining === 'function') renderTraining();
-  if (typeof renderCafe === 'function') renderCafe();
-  renderSpeciesGallery();
-  updateUI();
-  triggerAutoSave(true);
-  showToast(`${spName}のスキンを適用しました！`);
-}
-
-async function generateAI(type) {
-  const statusEl = document.getElementById('ai-status');
-  const kindKey = type === 'monster' ? 'mon' : type;
-  const isExt = document.getElementById(`${kindKey}-ext`)?.checked || false;
-  const cost = isExt ? 250 : 200;
-
-  if (gem < cost) return alert(`ジェムが足りません（${cost} GEM 必要）`);
-
-  let prompt = '';
-  let species = 'スライム';
-  let stampText = '';
-
-  if (type === 'monster') {
-    species = document.getElementById('ai-species-sel')?.value || 'スライム';
-    prompt = document.getElementById('ai-mon-prompt')?.value.trim() || '';
-    if (!prompt) return alert('どんな姿にするかプロンプトを入力してください');
-  } else if (type === 'bg') {
-    prompt = document.getElementById('ai-bg-prompt')?.value.trim() || '';
-    if (!prompt) return alert('どんな背景にするかプロンプトを入力してください');
-  } else if (type === 'stamp') {
-    species = document.getElementById('stamp-species-sel')?.value || 'スライム';
-    stampText = document.getElementById('stamp-text')?.value.trim() || 'やったね！';
-    prompt = document.getElementById('ai-stamp-prompt')?.value.trim() || '';
-    if (!prompt) return alert('スタンプのイラスト内容を入力してください');
-  }
-
-  if (statusEl) statusEl.textContent = 'AI生成中（約5〜10秒）...';
-  try {
-    const res = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, species, prompt, stamp_text: stampText })
-    });
-    const data = await res.json();
-    if (!res.ok || !data.image) {
-      throw new Error(data.error || '生成に失敗しました');
-    }
-
-    gem -= cost;
-
-    if (type === 'monster') {
-      if (!speciesSkins[species]) speciesSkins[species] = { list: [], activeIdx: -1 };
-      speciesSkins[species].list.push(data.image);
-      speciesSkins[species].activeIdx = speciesSkins[species].list.length - 1;
-      if (!state.inBattle && typeof resetBattleAllies === 'function') resetBattleAllies();
-      if (typeof renderParty === 'function') renderParty();
-      if (typeof renderCaptured === 'function') renderCaptured();
-      renderSpeciesGallery();
-      showToast(`${species}の新しいAIスキンを生成＆適用しました！`);
-    } else if (type === 'bg') {
-      if (!Array.isArray(aiBackgrounds)) aiBackgrounds = [];
-      aiBackgrounds.push({ img: data.image, prompt });
-      if (typeof updateIconPreview === 'function') updateIconPreview(false);
-      showToast('新しいアイコン背景を生成しました！');
-    } else if (type === 'stamp') {
-      if (!Array.isArray(aiStamps)) aiStamps = [];
-      aiStamps.push({ img: data.image, text: stampText, species });
-      if (typeof renderStamps === 'function') renderStamps();
-      showToast('新しいチャットスタンプを生成しました！');
-    }
-
-    updateUI();
-    triggerAutoSave(true);
-    if (statusEl) statusEl.textContent = '生成完了！';
-  } catch (e) {
-    if (statusEl) statusEl.textContent = 'エラー発生';
-    alert('AI生成エラー: ' + e.message);
   }
 }
