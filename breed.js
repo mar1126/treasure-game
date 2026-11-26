@@ -1,9 +1,7 @@
-// ビジュアルモンスター配合・配合確認モーダルシステム (breed.js)
+// ビジュアルモンスター配合システム（両親＋子の固有のみ自動継承・重複統合）(breed.js)
 let breedState = {
   parentAId: '',
-  parentBId: '',
-  selectedSkills: [],
-  selectedTraits: []
+  parentBId: ''
 };
 
 function getBreedChildSpeciesName(monA, monB) {
@@ -21,6 +19,21 @@ function getBreedChildSpeciesName(monA, monB) {
 function getBreedCost(monA, monB) {
   const plusSum = (Number(monA?.plus) || 0) + (Number(monB?.plus) || 0);
   return 1000 + plusSum * 800;
+}
+
+function getInheritedBreedTraitsAndSkills(monA, monB) {
+  const childName = getBreedChildSpeciesName(monA, monB);
+  const innateA_T = typeof getSpeciesInnateTraitId === 'function' ? getSpeciesInnateTraitId(monA.name) : 'valor';
+  const innateB_T = typeof getSpeciesInnateTraitId === 'function' ? getSpeciesInnateTraitId(monB.name) : 'valor';
+  const innateC_T = typeof getSpeciesInnateTraitId === 'function' ? getSpeciesInnateTraitId(childName) : 'valor';
+
+  const innateA_S = typeof getSpeciesInnateSkillId === 'function' ? getSpeciesInnateSkillId(monA.name) : 'tackle';
+  const innateB_S = typeof getSpeciesInnateSkillId === 'function' ? getSpeciesInnateSkillId(monB.name) : 'tackle';
+  const innateC_S = typeof getSpeciesInnateSkillId === 'function' ? getSpeciesInnateSkillId(childName) : 'tackle';
+
+  const traits = Array.from(new Set([innateC_T, innateA_T, innateB_T].filter(Boolean)));
+  const skills = Array.from(new Set([innateC_S, innateA_S, innateB_S].filter(Boolean)));
+  return { childName, traits, skills, innateC_T, innateA_T, innateB_T, innateC_S, innateA_S, innateB_S };
 }
 
 function renderBreedTab() {
@@ -57,7 +70,7 @@ function renderBreedTab() {
         <div class="name" style="font-size:10px;">${childName || '2体選択'}</div>
       </div>
     </div>
-    ${(monA && monB) ? `<button class="btn-coral" style="margin-bottom:10px;" onclick="openBreedConfirmModal()">配合確認・継承スキル選択へ</button>` : `<div style="font-size:11px;color:#546e7a;margin-bottom:8px;">下のリストから <b>Lv.10以上</b> の仲間を2体タップして選んでください</div>`}
+    ${(monA && monB) ? `<button class="btn-coral" style="margin-bottom:10px;" onclick="openBreedConfirmModal()">配合確認へ</button>` : `<div style="font-size:11px;color:#546e7a;margin-bottom:8px;">下のリストから <b>Lv.10以上</b> の仲間を2体タップして選んでください</div>`}
   `;
 
   gridEl.innerHTML = (captured || []).map(m => {
@@ -92,43 +105,17 @@ function selectBreedMonster(monId) {
   if ((Number(m.lv) || 1) < 10) {
     return showToast('配合できるのは Lv.10以上 の仲間だけです');
   }
-  if (breedState.parentAId === monId) {
-    breedState.parentAId = '';
-    renderBreedTab();
-    return;
-  }
-  if (breedState.parentBId === monId) {
-    breedState.parentBId = '';
-    renderBreedTab();
-    return;
-  }
-  if (!breedState.parentAId) {
-    breedState.parentAId = monId;
-  } else if (!breedState.parentBId) {
-    breedState.parentBId = monId;
-  } else {
-    breedState.parentBId = monId;
-  }
+  if (breedState.parentAId === monId) { breedState.parentAId = ''; renderBreedTab(); return; }
+  if (breedState.parentBId === monId) { breedState.parentBId = ''; renderBreedTab(); return; }
+  if (!breedState.parentAId) breedState.parentAId = monId;
+  else breedState.parentBId = monId;
   renderBreedTab();
-  if (breedState.parentAId && breedState.parentBId) {
-    openBreedConfirmModal();
-  }
+  if (breedState.parentAId && breedState.parentBId) openBreedConfirmModal();
 }
 function openBreedConfirmModal() {
   const monA = captured.find(x => x.id === breedState.parentAId);
   const monB = captured.find(x => x.id === breedState.parentBId);
   if (!monA || !monB) return;
-
-  const childName = getBreedChildSpeciesName(monA, monB);
-  const innateSkill = typeof getSpeciesInnateSkillId === 'function' ? getSpeciesInnateSkillId(childName) : 'tackle';
-  const innateTrait = typeof getSpeciesInnateTraitId === 'function' ? getSpeciesInnateTraitId(childName) : 'valor';
-
-  const poolSkills = Array.from(new Set([innateSkill, ...(monA.skills || []), ...(monB.skills || [])]));
-  const poolTraits = Array.from(new Set([innateTrait, ...(monA.traits || []), ...(monB.traits || [])]));
-
-  breedState.selectedSkills = poolSkills.slice(0, 3);
-  breedState.selectedTraits = poolTraits.slice(0, 3);
-
   renderBreedConfirmModal();
   const modal = document.getElementById('breed-confirm-modal');
   if (modal) modal.style.display = 'flex';
@@ -147,30 +134,6 @@ function swapBreedParents() {
   openBreedConfirmModal();
 }
 
-function toggleBreedTrait(tid) {
-  const idx = breedState.selectedTraits.indexOf(tid);
-  if (idx !== -1) {
-    if (breedState.selectedTraits.length <= 1) return showToast('最低1つの特性が必要です');
-    breedState.selectedTraits.splice(idx, 1);
-  } else {
-    if (breedState.selectedTraits.length >= 3) return showToast('継承特性は最大3つまでです');
-    breedState.selectedTraits.push(tid);
-  }
-  renderBreedConfirmModal();
-}
-
-function toggleBreedSkill(sid) {
-  const idx = breedState.selectedSkills.indexOf(sid);
-  if (idx !== -1) {
-    if (breedState.selectedSkills.length <= 1) return showToast('最低1つのスキルが必要です');
-    breedState.selectedSkills.splice(idx, 1);
-  } else {
-    if (breedState.selectedSkills.length >= 3) return showToast('継承スキルは最大3つまでです');
-    breedState.selectedSkills.push(sid);
-  }
-  renderBreedConfirmModal();
-}
-
 function renderBreedConfirmModal() {
   const body = document.getElementById('breed-confirm-body');
   if (!body) return;
@@ -181,8 +144,8 @@ function renderBreedConfirmModal() {
 
   const stA = getMonStats(monA);
   const stB = getMonStats(monB);
-  const childName = getBreedChildSpeciesName(monA, monB);
-  const childDisp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(childName) : '魔';
+  const inh = getInheritedBreedTraitsAndSkills(monA, monB);
+  const childDisp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(inh.childName) : '魔';
   const newPlus = (Number(monA.plus) || 0) + (Number(monB.plus) || 0) + 1;
   const newMaxLv = Math.max(Number(monA.maxLv) || 10, Number(monB.maxLv) || 10) + 5;
   const cost = getBreedCost(monA, monB);
@@ -191,40 +154,40 @@ function renderBreedConfirmModal() {
   const bonusAtk = Math.floor((stA.atk + stB.atk) * 0.12);
   const bonusDef = Math.floor((stA.def + stB.def) * 0.12);
 
-  const innateSkill = typeof getSpeciesInnateSkillId === 'function' ? getSpeciesInnateSkillId(childName) : 'tackle';
-  const innateTrait = typeof getSpeciesInnateTraitId === 'function' ? getSpeciesInnateTraitId(childName) : 'valor';
-  const poolTraits = Array.from(new Set([innateTrait, ...(monA.traits || []), ...(monB.traits || [])]));
-  const poolSkills = Array.from(new Set([innateSkill, ...(monA.skills || []), ...(monB.skills || [])]));
-
-  let traitsHtml = poolTraits.map(tid => {
+  const traitsHtml = inh.traits.map(tid => {
     const tr = typeof getMonsterTrait === 'function' ? getMonsterTrait(tid) : { name: tid, desc: '' };
-    const isSel = breedState.selectedTraits.includes(tid);
-    const srcTag = tid === innateTrait ? '固有' : ((monA.traits || []).includes(tid) ? '親1' : '親2');
+    const tags = [];
+    if (tid === inh.innateC_T) tags.push('子固有');
+    if (tid === inh.innateA_T) tags.push('親1固有');
+    if (tid === inh.innateB_T) tags.push('親2固有');
     return `
-      <div onclick="toggleBreedTrait('${tid}')" style="border:1.5px solid ${isSel ? '#ff7043' : '#cfd8dc'};background:${isSel ? '#fff8f6' : '#ffffff'};border-radius:8px;padding:7px 9px;margin-bottom:5px;cursor:pointer;">
+      <div style="border:1.5px solid #ffb74d;background:#fffdf7;border-radius:8px;padding:7px 9px;margin-bottom:5px;">
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:bold;color:#263238;">
-          <span>${tr.name} <span style="font-size:9px;background:#ff7043;color:#fff;padding:1px 5px;border-radius:4px;">${srcTag}</span></span>
-          <span style="color:${isSel ? '#ff7043' : '#b0bec5'};">${isSel ? '✔ 選択中' : '未選択'}</span>
+          <span>${tr.name}</span>
+          <span style="font-size:9px;background:#ff7043;color:#fff;padding:1px 5px;border-radius:4px;">${tags.join('・')}</span>
         </div>
         <div style="font-size:10px;color:#546e7a;margin-top:2px;">${tr.desc}</div>
       </div>
     `;
   }).join('');
 
-  let skillsHtml = poolSkills.map(sid => {
+  const skillsHtml = inh.skills.map(sid => {
     const sk = typeof getSkillById === 'function' ? getSkillById(sid) : { name: sid, elem: 'none', mult: 1.0, rate: 0.3, desc: '' };
-    const isSel = breedState.selectedSkills.includes(sid);
-    const srcTag = sid === innateSkill ? '固有' : ((monA.skills || []).includes(sid) ? '親1' : '親2');
+    const tags = [];
+    if (sid === inh.innateC_S) tags.push('子固有');
+    if (sid === inh.innateA_S) tags.push('親1固有');
+    if (sid === inh.innateB_S) tags.push('親2固有');
     return `
-      <div onclick="toggleBreedSkill('${sid}')" style="border:1.5px solid ${isSel ? '#ff7043' : '#cfd8dc'};background:${isSel ? '#fff8f6' : '#ffffff'};border-radius:8px;padding:7px 9px;margin-bottom:5px;cursor:pointer;">
+      <div style="border:1.5px solid #81d4fa;background:#f8fdff;border-radius:8px;padding:7px 9px;margin-bottom:5px;">
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:bold;color:#263238;">
-          <span>${sk.name} ${typeof renderElementBadge === 'function' ? renderElementBadge(sk.elem) : ''} <span style="font-size:9px;background:#0288d1;color:#fff;padding:1px 5px;border-radius:4px;">${srcTag}</span></span>
-          <span style="color:${isSel ? '#ff7043' : '#b0bec5'};">${isSel ? '✔ 選択中' : '未選択'}</span>
+          <span>${sk.name} ${typeof renderElementBadge === 'function' ? renderElementBadge(sk.elem) : ''}</span>
+          <span style="font-size:9px;background:#0288d1;color:#fff;padding:1px 5px;border-radius:4px;">${tags.join('・')}</span>
         </div>
         <div style="font-size:10px;color:#546e7a;margin-top:2px;">${sk.desc}（威力${Math.round((sk.mult || 1) * 100)}% / 発動${Math.round((sk.rate || 0.3) * 100)}%）</div>
       </div>
     `;
   }).join('');
+
   body.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 30px 1fr 24px 1fr;align-items:center;text-align:center;gap:4px;margin-bottom:10px;">
       <div style="border:1px solid #cfd8dc;border-radius:10px;padding:6px;background:#f8fdff;">
@@ -240,7 +203,7 @@ function renderBreedConfirmModal() {
       </div>
       <div style="font-weight:bold;color:#546e7a;">→</div>
       <div style="border:2px solid #ff7043;border-radius:10px;padding:6px;background:#fff8f6;">
-        <div style="font-size:10px;color:#e65100;font-weight:bold;">子 +${newPlus}</div>
+        <div style="font-size:10px;color:#e65100;font-weight:bold;">${inh.childName} +${newPlus}</div>
         <div style="margin:4px 0;">${renderSprite(childDisp, 42, '8px')}</div>
         <div style="font-size:10px;font-weight:bold;">上限Lv.${newMaxLv}</div>
       </div>
@@ -253,10 +216,10 @@ function renderBreedConfirmModal() {
       <div><div style="font-size:10px;color:#1e88e5;">防御</div><div style="font-size:13px;font-weight:bold;color:#e65100;">+${bonusDef}</div></div>
     </div>
 
-    <div style="font-size:11px;font-weight:bold;color:#37474f;margin-bottom:4px;">継承特性（${breedState.selectedTraits.length}/3）</div>
+    <div style="font-size:11px;font-weight:bold;color:#37474f;margin-bottom:4px;">継承される固有特性（${inh.traits.length}つ・重複統合）</div>
     <div style="margin-bottom:10px;">${traitsHtml}</div>
 
-    <div style="font-size:11px;font-weight:bold;color:#37474f;margin-bottom:4px;">継承スキル（${breedState.selectedSkills.length}/3）</div>
+    <div style="font-size:11px;font-weight:bold;color:#37474f;margin-bottom:4px;">継承される固有スキル（${inh.skills.length}つ・重複統合）</div>
     <div style="margin-bottom:12px;">${skillsHtml}</div>
 
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
@@ -276,8 +239,8 @@ function executeVisualBreed() {
 
   const stA = getMonStats(monA);
   const stB = getMonStats(monB);
-  const childName = getBreedChildSpeciesName(monA, monB);
-  const sp = typeof getSpeciesData === 'function' ? getSpeciesData(childName) : { name: childName, elem: 'none', baseHp: 65, baseAtk: 12, baseDef: 4, ct: 1.7 };
+  const inh = getInheritedBreedTraitsAndSkills(monA, monB);
+  const sp = typeof getSpeciesData === 'function' ? getSpeciesData(inh.childName) : { name: inh.childName, elem: 'none', baseHp: 65, baseAtk: 12, baseDef: 4, ct: 1.7 };
 
   const newPlus = (Number(monA.plus) || 0) + (Number(monB.plus) || 0) + 1;
   const newMaxLv = Math.max(Number(monA.maxLv) || 10, Number(monB.maxLv) || 10) + 5;
@@ -308,8 +271,8 @@ function executeVisualBreed() {
     baseAtk: sp.baseAtk,
     baseDef: sp.baseDef,
     ct: sp.ct,
-    skills: breedState.selectedSkills.slice(0, 3),
-    traits: breedState.selectedTraits.slice(0, 3),
+    skills: inh.skills,
+    traits: inh.traits,
     customSkin: null,
     customBgIdx: -1
   };
