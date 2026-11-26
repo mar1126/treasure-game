@@ -1,4 +1,7 @@
-// チャット・スタンプ・ランキング・プロフィール編集 (social.js)
+// チャット・スタンプリアクション・ランキング・プロフィール編集 (social.js)
+let chatStampOpen = false;
+let chatReactTarget = null; // { id, name }
+
 function switchTab(tabName, btn) {
   document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
   const target = document.getElementById('tab-' + tabName);
@@ -26,41 +29,200 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-async function loadChat() {
+function formatRelativeTime(ts) {
+  if (!ts) return '';
+  const diffSec = Math.max(0, Math.floor((Date.now() - Number(ts)) / 1000));
+  if (diffSec < 60) return 'たった今';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}分前`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}時間前`;
+  return `${Math.floor(diffHour / 24)}日前`;
+}
+
+function getMyChatIconPayload() {
+  const spName = (!iconConfig || iconConfig.species === 'デフォルト') ? 'スライム' : iconConfig.species;
+  const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(spName) : 'EMBLEM:water:ス';
+  const bgObj = (iconConfig && iconConfig.bgIdx >= 0 && Array.isArray(aiBackgrounds)) ? aiBackgrounds[iconConfig.bgIdx] : null;
+  return JSON.stringify({
+    disp,
+    bg: bgObj ? bgObj.img : '',
+    scale: iconConfig?.scale || 1.0,
+    x: iconConfig?.x || 0,
+    y: iconConfig?.y || 0,
+    rotate: iconConfig?.rotate || 0
+  });
+}
+
+function renderChatUserAvatar(iconJsonStr) {
+  let info = null;
+  try { if (iconJsonStr) info = JSON.parse(iconJsonStr); } catch (e) {}
+  const disp = info?.disp || 'EMBLEM:water:ス';
+  const bgStyle = info?.bg
+    ? `background-image:url(${info.bg});background-size:cover;background-position:center;`
+    : `background:linear-gradient(135deg,#4fc3f7,#0288d1);`;
+  const sc = info?.scale || 1.0;
+  const tx = Math.round((info?.x || 0) * 0.35);
+  const ty = Math.round((info?.y || 0) * 0.35);
+  const rot = info?.rotate || 0;
+  return `
+    <div style="width:40px;height:40px;flex-shrink:0;border-radius:10px;${bgStyle}border:1.5px solid #cfd8dc;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+      <div style="transform:translate(${tx}px,${ty}px) scale(${sc}) rotate(${rot}deg);display:flex;align-items:center;justify-content:center;">
+        ${renderSprite(disp, 32, '6px')}
+      </div>
+    </div>
+  `;
+}
+
+function toggleChatStampDrawer() {
+  chatStampOpen = !chatStampOpen;
+  if (!chatStampOpen) chatReactTarget = null;
+  updateChatTrayUI();
+}
+
+function startChatReaction(msgId, userName) {
+  chatReactTarget = { id: msgId, name: userName || 'ハンター' };
+  chatStampOpen = true;
+  updateChatTrayUI();
+}
+
+function cancelChatReaction() {
+  chatReactTarget = null;
+  updateChatTrayUI();
+}
+
+function updateChatTrayUI() {
+  const banner = document.getElementById('chat-react-banner');
+  const bannerText = document.getElementById('chat-react-target-name');
+  const tray = document.getElementById('chat-stamp-drawer');
+  const toggleBtn = document.getElementById('chat-stamp-toggle-btn');
+
+  if (banner) {
+    banner.style.display = chatReactTarget ? 'flex' : 'none';
+    if (bannerText && chatReactTarget) {
+      bannerText.textContent = `${chatReactTarget.name} にスタンプで反応`;
+    }
+  }
+  if (tray) {
+    tray.style.display = chatStampOpen ? 'block' : 'none';
+  }
+  if (toggleBtn) {
+    toggleBtn.style.background = chatStampOpen ? '#fff3e0' : '#f8fafc';
+    toggleBtn.style.borderColor = chatStampOpen ? '#ff7043' : '#cbd5e1';
+    toggleBtn.style.color = chatStampOpen ? '#ff7043' : '#64748b';
+  }
+}
+
+function scrollChatToBottom() {
+  const box = document.getElementById('chat-messages');
+  const btn = document.getElementById('chat-latest-btn');
+  if (box) box.scrollTop = box.scrollHeight;
+  if (btn) btn.style.display = 'none';
+}
+
+function onChatScroll() {
+  const box = document.getElementById('chat-messages');
+  const btn = document.getElementById('chat-latest-btn');
+  if (!box || !btn) return;
+  const distFromBottom = box.scrollHeight - box.scrollTop - box.clientHeight;
+  btn.style.display = distFromBottom > 60 ? 'inline-block' : 'none';
+}
+async function loadChat(keepScroll = false) {
   const box = document.getElementById('chat-messages');
   if (!box) return;
-  box.innerHTML = '<div style="color:#78909c;text-align:center;padding:12px;">読み込み中...</div>';
+  if (!keepScroll && box.innerHTML.trim() === '') {
+    box.innerHTML = '<div style="color:#78909c;text-align:center;padding:16px;">読み込み中...</div>';
+  }
   try {
     const res = await fetch('/api/chat');
-    if (!res.ok) throw new Error('API Error: ' + res.status);
+    if (!res.ok) throw new Error();
     const list = await res.json();
     if (!Array.isArray(list) || list.length === 0) {
-      box.innerHTML = '<div style="color:#78909c;text-align:center;padding:12px;">まだメッセージがありません。最初の挨拶を送ってみよう！</div>';
+      box.innerHTML = '<div style="color:#78909c;text-align:center;padding:16px;">まだメッセージがありません。最初の挨拶を送ってみよう！</div>';
       return;
     }
+
+    const wasNearBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 80;
+
     box.innerHTML = list.map(row => {
       const name = escapeHtml(row.user_name || 'ハンター');
-      const time = row.created_at ? new Date(row.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
-      let bodyHtml = '';
+      const relTime = formatRelativeTime(row.created_at);
+      const avatarHtml = renderChatUserAvatar(row.user_icon);
+
+      let contentHtml = '';
       if (row.stamp_img && row.stamp_img.startsWith('data:image')) {
-        bodyHtml = `<div style="margin-top:4px;"><img src="${row.stamp_img}" style="width:72px;height:72px;border-radius:10px;object-fit:contain;border:1px solid #cfd8dc;"></div>`;
+        contentHtml = `<div style="margin-top:4px;"><img src="${row.stamp_img}" style="width:96px;height:96px;border-radius:10px;object-fit:contain;"></div>`;
       } else {
-        bodyHtml = `<div style="color:#263238;margin-top:2px;word-break:break-all;">${escapeHtml(row.message)}</div>`;
+        contentHtml = `<div style="color:#1e293b;font-size:13px;line-height:1.45;margin-top:3px;word-break:break-all;">${escapeHtml(row.message)}</div>`;
       }
-      return `
-        <div class="chat-msg">
-          <div style="display:flex;justify-content:space-between;font-size:10px;color:#0288d1;font-weight:bold;">
-            <span>${name}</span>
-            <span style="color:#90a4ae;font-weight:normal;">${time}</span>
+
+      let reactList = [];
+      try { reactList = JSON.parse(row.reactions || '[]'); } catch (e) { reactList = []; }
+      let reactionsHtml = '';
+      if (Array.isArray(reactList) && reactList.length > 0) {
+        reactionsHtml = `
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">
+            ${reactList.map(r => `<img src="${r.img}" style="width:36px;height:36px;border-radius:7px;object-fit:contain;background:#f8fafc;border:1px solid #e2e8f0;padding:1px;">`).join('')}
           </div>
-          ${bodyHtml}
+        `;
+      }
+
+      const safeNameArg = String(row.user_name || 'ハンター').replace(/'/g, "\\'");
+
+      return `
+        <div onclick="startChatReaction(${row.id}, '${safeNameArg}')" style="display:flex;align-items:flex-start;gap:10px;padding:10px 6px;border-bottom:1px solid #e2e8f0;cursor:pointer;">
+          ${avatarHtml}
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
+              <span style="font-size:12px;font-weight:bold;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>
+              <span style="font-size:10px;color:#94a3b8;flex-shrink:0;">${relTime}</span>
+            </div>
+            ${contentHtml}
+            ${reactionsHtml}
+          </div>
         </div>
       `;
     }).join('');
-    box.scrollTop = box.scrollHeight;
+
+    if (!keepScroll || wasNearBottom) {
+      scrollChatToBottom();
+    } else {
+      onChatScroll();
+    }
   } catch (e) {
-    box.innerHTML = '<div style="color:#e53935;font-size:11px;padding:10px;">チャット通信エラー：Cloudflareの「functions/api/chat.js」またはD1データベース設定を確認してください。</div>';
+    box.innerHTML = '<div style="color:#e53935;font-size:11px;padding:12px;">チャット通信エラー：設定を確認してください</div>';
   }
+}
+
+async function onSelectChatStamp(idx) {
+  const list = Array.isArray(aiStamps) ? aiStamps : [];
+  const st = list.slice(idx, idx + 1).pop();
+  if (!st || !st.img) return;
+
+  if (chatReactTarget && chatReactTarget.id) {
+    const targetId = chatReactTarget.id;
+    chatReactTarget = null;
+    chatStampOpen = false;
+    updateChatTrayUI();
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'react',
+          message_id: targetId,
+          user_id: userId,
+          stamp_img: st.img
+        })
+      });
+      if (res.ok) await loadChat(true);
+    } catch (e) {}
+    return;
+  }
+
+  chatStampOpen = false;
+  updateChatTrayUI();
+  await sendChat(st.img, st.text || 'スタンプ');
 }
 
 async function sendChat(stampImg = null, stampLabel = '') {
@@ -76,14 +238,15 @@ async function sendChat(stampImg = null, stampLabel = '') {
       body: JSON.stringify({
         user_id: userId,
         user_name: playerName || 'ハンター',
+        user_icon: getMyChatIconPayload(),
         message: text,
         stamp_img: stampImg || ''
       })
     });
     if (!res.ok) throw new Error();
-    await loadChat();
+    await loadChat(false);
   } catch (e) {
-    alert('チャットの送信に失敗しました（サーバー未設定または通信エラー）');
+    alert('チャットの送信に失敗しました');
   }
 }
 
@@ -94,12 +257,11 @@ function renderStamps() {
 
   if (bar) {
     if (list.length === 0) {
-      bar.innerHTML = '<div style="grid-column:1/-1;font-size:10px;color:#90a4ae;">「AI生成」タブでスタンプを作るとここから即送信できます</div>';
+      bar.innerHTML = '<div style="grid-column:1/-1;font-size:11px;color:#94a3b8;text-align:center;padding:12px;">「AI生成」タブでスタンプを作るとここに横5列で並びます</div>';
     } else {
       bar.innerHTML = list.map((st, idx) => `
-        <div class="slot-box" onclick="sendChat(aiStamps[${idx}].img, aiStamps[${idx}].text)" style="padding:4px;">
-          <img src="${st.img}" style="width:48px;height:48px;object-fit:contain;border-radius:6px;">
-          <div style="font-size:9px;font-weight:bold;color:#37474f;margin-top:2px;">${escapeHtml(st.text || 'スタンプ')}</div>
+        <div onclick="onSelectChatStamp(${idx})" style="aspect-ratio:1/1;border:1px solid #e2e8f0;border-radius:8px;background:#ffffff;display:flex;align-items:center;justify-content:center;padding:2px;cursor:pointer;overflow:hidden;">
+          <img src="${st.img}" style="width:100%;height:100%;object-fit:contain;">
         </div>
       `).join('');
     }
