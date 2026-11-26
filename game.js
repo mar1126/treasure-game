@@ -390,3 +390,60 @@ function getSpeedMultiplier() {
 function getBattleSpeed() {
   return speed2xActive ? 2 : 1;
 }
+// --- 公式デフォルトアセット（モンスター・ステージ背景）管理 ---
+let officialAssets = {};
+
+async function loadOfficialAssets() {
+  try {
+    const res = await fetch('/api/assets');
+    if (res.ok) {
+      const map = await res.json();
+      if (map && typeof map === 'object') {
+        officialAssets = map;
+        if (typeof renderParty === 'function') renderParty();
+        if (typeof renderCaptured === 'function') renderCaptured();
+        updateUI();
+      }
+    }
+  } catch (e) {}
+}
+
+function getDefaultMonsterVisual(speciesName) {
+  const name = String(speciesName || '').replace(/^\[強敵\]\s*/, '');
+  if (officialAssets && officialAssets[`mon:${name}`]) {
+    return officialAssets[`mon:${name}`];
+  }
+  const sp = typeof getSpeciesData === 'function' ? getSpeciesData(name) : { name, elem: 'none' };
+  const elem = sp.elem || 'none';
+  const label = String(sp.name || name || '魔').slice(0, 1);
+  return `EMBLEM:${elem}:${label}`;
+}
+
+function updateStageBackgroundArt() {
+  const layer = document.getElementById('stage-art-layer');
+  if (!layer) return;
+  const stNum = Number(state.stage) || 1;
+  const bgUrl = officialAssets ? officialAssets[`stage:${stNum}`] : null;
+  if (bgUrl) {
+    layer.innerHTML = `<img src="${bgUrl}" class="stage-custom-img"><div class="stage-vignette"></div>`;
+  } else {
+    layer.innerHTML = '';
+  }
+}
+
+const _origUpdateUI = updateUI;
+updateUI = function() {
+  _origUpdateUI();
+  updateStageBackgroundArt();
+  const enemies = Array.isArray(state.enemies) ? state.enemies : [];
+  for (let i = 0; i < 3; i++) {
+    const slot = document.getElementById(`enemy-slot-${i}`);
+    const e = enemies.slice(i, i + 1).pop();
+    if (slot && e) {
+      const spEl = slot.querySelector('.e-sprite');
+      if (spEl) spEl.innerHTML = renderSprite(getDefaultMonsterVisual(e.rawName || e.name), 52, '10px');
+    }
+  }
+};
+
+loadOfficialAssets();
