@@ -42,7 +42,7 @@ function getMonsterVisual(m) {
 
 function renderElementBadge(elemId) {
   const el = typeof getElementInfo === 'function' ? getElementInfo(elemId) : { name: '無', color: '#546e7a', bg: '#eceff1' };
-  return `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:bold;color:${el.color};background:${el.bg};border:1px solid ${el.color}44;">${el.name}</span>`;
+  return `<span style="display:inline-block;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:bold;color:${el.color};background:${el.bg};border:1px solid ${el.color}44;">${el.name}</span>`;
 }
 
 function getMonStats(m) {
@@ -173,6 +173,11 @@ function resetBattleAllies() {
 
 function tryAutoRecruit(enemyObj) {
   if (Math.random() >= 0.30) return false;
+  const limit = Number(maxCaptured) || 50;
+  if (captured.length >= limit) {
+    showToast(`仲間枠が上限(${limit}体)のため仲間にできませんでした`);
+    return false;
+  }
   const rawName = (enemyObj.rawName || enemyObj.name).replace(/^\[強敵\]\s*/, '');
   const sp = getSpeciesData(rawName);
   const newMon = {
@@ -203,7 +208,7 @@ function tryAutoRecruit(enemyObj) {
   }
   resetBattleAllies();
   renderParty(); renderCaptured(); renderTraining(); updateSelectOptions(); renderSpeciesGallery();
-  showToast(`${sp.name}が仲間になりました`);
+  showToast(`${sp.name}が仲間になりました (${captured.length}/${limit})`);
   return true;
 }
 function renderParty() {
@@ -220,14 +225,29 @@ function renderParty() {
 
 function renderTraining() {
   const el = document.getElementById('training-slots');
-  if (!el) return;
+  const cntEl = document.getElementById('train-count-disp');
   if (!Array.isArray(trainingSlots)) trainingSlots = new Array(3).fill(null);
-  el.innerHTML = trainingSlots.slice(0, 3).map((monId, slotIdx) => {
+  const validTrain = trainingSlots.slice(0, 3);
+  const activeCount = validTrain.filter(id => id && captured.some(x => x.id === id)).length;
+  if (cntEl) cntEl.textContent = `${activeCount}/3`;
+
+  if (!el) return;
+  el.innerHTML = validTrain.map((monId, slotIdx) => {
     const m = captured.find(x => x.id === monId);
-    if (!m) return `<div class="slot-box" onclick="alert('仲間一覧からモンスターをタップして訓練場へ配置できます（戦闘EXPの10%を獲得）')"><div class="lvl">訓練${slotIdx + 1}</div><div class="icon">＋</div><div class="name">空き枠</div><div class="sub">EXP 10%獲得</div></div>`;
+    if (!m) {
+      return `<div class="mini-mon-card empty" onclick="alert('「仲間一覧」タブからモンスターをタップし、「訓練場に配置する」を選んでください（戦闘EXPの10%を獲得）')">
+        <div class="m-top">訓練${slotIdx + 1}</div>
+        <div class="m-icon" style="opacity:0.4;font-size:18px;">＋</div>
+        <div class="m-bot">空き</div>
+      </div>`;
+    }
     const disp = getMonsterVisual(m), st = getMonStats(m);
-    const plusTag = st.plus > 0 ? `+${st.plus}` : '';
-    return `<div class="slot-box staff" onclick="removeFromTraining(${slotIdx})"><div class="lvl"><span>Lv.${st.lv}/${st.maxLv}</span><span>解除</span></div><div class="icon">${renderSprite(disp, 34)}</div><div class="name">${m.name}${plusTag}</div><div class="sub">訓練中(10%)</div></div>`;
+    const plusText = st.plus > 0 ? `+${st.plus}` : '';
+    return `<div class="mini-mon-card train" onclick="removeFromTraining(${slotIdx})">
+      <div class="m-top"><span class="m-lv">Lv.${st.lv}</span><span class="m-tag train">解除</span></div>
+      <div class="m-icon">${renderSprite(disp, 30, '6px')}</div>
+      <div class="m-bot">${plusText ? `<span class="m-plus">${plusText}</span>` : `<span class="m-nm">${m.name}</span>`}</div>
+    </div>`;
   }).join('');
 }
 
@@ -237,7 +257,7 @@ function assignTrainingFromModal() {
   if (party.includes(m.id)) return alert('バトル編成中のモンスターは訓練場に入れられません。先にパーティから外してください。');
   if (trainingSlots.includes(m.id)) return alert('すでに訓練場に入っています。');
   const empty = trainingSlots.findIndex(x => x === null);
-  if (empty === -1) return alert('訓練場（3枠）がいっぱいです。訓練場枠をタップして解除してください。');
+  if (empty === -1) return alert('訓練場（3枠）がいっぱいです。訓練場タブで枠をタップして解除してください。');
   trainingSlots.splice(empty, 1, m.id);
   closeMonModal();
   renderTraining(); renderCaptured(); triggerAutoSave();
@@ -252,14 +272,29 @@ function removeFromTraining(slotIdx) {
 
 function renderCaptured() {
   const el = document.getElementById('captured-list');
+  const cntEl = document.getElementById('mon-count-disp');
+  const limit = Number(maxCaptured) || 50;
+  if (cntEl) cntEl.textContent = `${captured.length}/${limit}`;
+
   if (!el || captured.length === 0) return;
   el.innerHTML = captured.map((m, i) => {
-    const disp = getMonsterVisual(m), inParty = party.includes(m.id), inTrain = (trainingSlots || []).includes(m.id);
-    const st = getMonStats(m), plusTag = st.plus > 0 ? `+${st.plus}` : '';
-    let badge = renderElementBadge(st.elem);
-    if (inParty) badge = '<span class="badge-tag">編成中</span>';
-    else if (inTrain) badge = '<span class="badge-tag" style="background:#f57c00;">訓練中</span>';
-    return `<div class="slot-box" onclick="openMonModal(${i})"><div class="lvl"><span>Lv.${st.lv}/${st.maxLv}</span>${badge}</div><div class="icon">${renderSprite(disp, 36)}</div><div class="name">${m.name}${plusTag}</div><div class="sub">ATK:${st.atk} DEF:${st.def}</div></div>`;
+    const disp = getMonsterVisual(m);
+    const inParty = party.includes(m.id);
+    const inTrain = (trainingSlots || []).includes(m.id);
+    const inStaff = (staff || []).includes(m.id);
+    const st = getMonStats(m);
+    const plusText = st.plus > 0 ? `+${st.plus}` : '';
+
+    let statusBadge = '';
+    if (inParty) statusBadge = '<span class="m-tag party">編成</span>';
+    else if (inTrain) statusBadge = '<span class="m-tag train">訓練</span>';
+    else if (inStaff) statusBadge = '<span class="m-tag staff">店員</span>';
+
+    return `<div class="mini-mon-card ${inParty ? 'in-party' : ''}" onclick="openMonModal(${i})">
+      <div class="m-top"><span class="m-lv">Lv.${st.lv}</span>${statusBadge}</div>
+      <div class="m-icon">${renderSprite(disp, 30, '6px')}</div>
+      <div class="m-bot">${plusText ? `<span class="m-plus">${plusText}</span>` : `<span class="m-nm">${m.name}</span>`}</div>
+    </div>`;
   }).join('');
 }
 
