@@ -76,8 +76,56 @@ function buyDecor(name, cost) {
   showToast(`${name}を設置しました（売上+15%）`);
 }
 
+function renderCafeStageView(validStaff) {
+  const stage = document.getElementById('cafe-live-stage');
+  if (!stage) return;
+
+  const activeList = validStaff
+    .map((id, idx) => ({ m: captured.find(x => x.id === id), idx }))
+    .filter(x => x.m);
+
+  let html = `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;font-size:10px;font-weight:bold;color:#0277bd;background:rgba(255,255,255,0.75);border-bottom:1px solid rgba(0,0,0,0.06);">
+      <span>テラスフロア（Lv.${cafeLv}）</span>
+      <span>店員 ${activeList.length}/3人 稼働中</span>
+    </div>
+  `;
+
+  // 設置したインテリア家具を表示
+  const decors = (gardenItems || []).slice(0, 10);
+  if (decors.length > 0) {
+    html += `<div style="position:absolute;top:28px;left:8px;right:8px;display:flex;gap:5px;flex-wrap:wrap;pointer-events:none;">`;
+    decors.forEach(d => {
+      const label = d === 'ヤシの木' ? '木' : (d === '花壇' ? '花' : '泉');
+      html += `<span style="background:rgba(255,255,255,0.88);border:1px solid #a5d6a7;color:#2e7d32;font-size:10px;font-weight:bold;padding:1px 6px;border-radius:6px;">${label}</span>`;
+    });
+    html += `</div>`;
+  }
+
+  // 配属中の店員モンスターをフロアに並べる
+  if (activeList.length === 0) {
+    html += `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;color:#546e7a;padding-top:16px;">店員を配属するとフロアに表示されます</div>`;
+  } else {
+    const positions =;
+    activeList.forEach(({ m, idx }) => {
+      const leftPct = positions.slice(idx, idx + 1).pop() || 50;
+      const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : '魔';
+      html += `
+        <div style="position:absolute;left:${leftPct}%;top:68%;transform:translate(-50%,-50%);text-align:center;">
+          ${renderSprite(disp, 36, '50%')}
+          <div style="font-size:9px;font-weight:bold;color:#263238;background:rgba(255,255,255,0.88);padding:1px 6px;border-radius:6px;margin-top:2px;box-shadow:0 1px 3px rgba(0,0,0,0.12);">${m.name}</div>
+        </div>
+      `;
+    });
+  }
+
+  stage.innerHTML = html;
+}
+
 function renderCafe() {
   const validStaff = cleanStaffSlots();
+  renderCafeStageView(validStaff);
+
   const staffEl = document.getElementById('staff-slots');
   if (staffEl) {
     staffEl.innerHTML = validStaff.map((monId, idx) => {
