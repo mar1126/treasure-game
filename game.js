@@ -174,3 +174,103 @@ function expandTrainingBox(e) {
   triggerAutoSave(true);
   showToast(`訓練場を ${maxTrainingSlots}枠 に拡張しました！`);
 }
+function updateUI() {
+  const secLeft = syncStamina();
+  const stEl = document.getElementById('stamina-disp');
+  const stTimerEl = document.getElementById('stamina-timer');
+  if (stEl) stEl.textContent = stamina;
+  if (stTimerEl) stTimerEl.textContent = stamina >= MAX_STAMINA ? 'MAX' : `${secLeft}s`;
+
+  const goldEl = document.getElementById('gold');
+  const gemEl = document.getElementById('gem');
+  if (goldEl) goldEl.textContent = Math.floor(gold).toLocaleString();
+  if (gemEl) gemEl.textContent = Math.floor(gem).toLocaleString();
+
+  const inc = typeof getCafeIncome === 'function' ? getCafeIncome() : 0;
+  const incHud = document.getElementById('cafe-income-hud');
+  if (incHud) incHud.textContent = inc.toLocaleString();
+
+  const stInfo = typeof getCurrentStageInfo === 'function' ? getCurrentStageInfo() : { id: 1, name: '街周辺' };
+  const floorEl = document.getElementById('floor-text');
+  if (floorEl) floorEl.textContent = `S${state.stage} ${stInfo.name} ${state.floor}-${state.wave} ▾`;
+
+  const waveBtn = document.getElementById('hud-wave-mode-btn');
+  if (waveBtn) {
+    waveBtn.textContent = waveStopMode ? 'WAVE停止' : '階層連戦';
+    waveBtn.classList.toggle('active', !waveStopMode);
+  }
+
+  const autoBtn = document.getElementById('hud-auto-btn');
+  if (autoBtn) {
+    autoBtn.style.display = autoUnlocked ? 'inline-block' : 'none';
+    autoBtn.classList.toggle('active', autoActive);
+  }
+
+  const spdBtn = document.getElementById('hud-speed-btn');
+  if (spdBtn) {
+    spdBtn.style.display = speed2xUnlocked ? 'inline-block' : 'none';
+    spdBtn.textContent = speed2xActive ? '2x' : '1x';
+    spdBtn.classList.toggle('active', speed2xActive);
+  }
+
+  const startBtn = document.getElementById('start-battle-btn');
+  const retreatBtn = document.getElementById('retreat-battle-btn');
+  if (startBtn) startBtn.style.display = state.inBattle ? 'none' : 'block';
+  if (retreatBtn) retreatBtn.style.display = state.inBattle ? 'block' : 'none';
+
+  const enemies = Array.isArray(state.enemies) ? state.enemies : [];
+  for (let i = 0; i < 3; i++) {
+    const slot = document.getElementById(`enemy-slot-${i}`);
+    if (!slot) continue;
+    const e = enemies.slice(i, i + 1).pop();
+    if (!e) {
+      slot.style.display = 'none';
+      continue;
+    }
+    slot.style.display = 'block';
+    slot.classList.toggle('dead', e.hp <= 0);
+    const nameEl = slot.querySelector('.e-name');
+    const hpEl = slot.querySelector('.e-hp-fill');
+    const spEl = slot.querySelector('.e-sprite');
+    if (nameEl) nameEl.textContent = `${e.name} (${Math.max(0, Math.ceil(e.hp))})`;
+    if (hpEl) hpEl.style.width = `${Math.max(0, Math.min(100, (e.hp / (e.maxHp || 1)) * 100))}%`;
+    if (spEl) {
+      const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(e.rawName || e.name) : '魔';
+      spEl.innerHTML = renderSprite(disp, 52, '10px');
+    }
+  }
+
+  let totalPower = typeof getTankSupportAtk === 'function' ? getTankSupportAtk() : 0;
+  for (let i = 0; i < 3; i++) {
+    const uSlot = document.getElementById(`ally-slot-${i}`);
+    if (!uSlot) continue;
+    const u = battleAllies.slice(i, i + 1).pop();
+    const spEl = uSlot.querySelector('.unit-sprite');
+    const hpTxt = uSlot.querySelector('.hp-text');
+    const hpBar = document.getElementById(`ally-hp-${i}`);
+    const ctBar = document.getElementById(`ally-ct-${i}`);
+
+    if (!u) {
+      uSlot.classList.remove('dead');
+      if (spEl) spEl.innerHTML = '<span style="opacity:0.45;font-size:20px;">＋</span>';
+      if (hpTxt) hpTxt.textContent = '空き枠';
+      if (hpBar) hpBar.style.width = '0%';
+      if (ctBar) ctBar.style.width = '0%';
+      continue;
+    }
+
+    totalPower += (u.atk || 0) + Math.floor((u.maxHp || 0) / 5);
+    uSlot.classList.toggle('dead', u.hp <= 0);
+    if (spEl) {
+      const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(u.monRef || u) : '魔';
+      spEl.innerHTML = renderSprite(disp, 54, '10px');
+    }
+    if (hpTxt) hpTxt.textContent = `${u.name} ${Math.max(0, Math.ceil(u.hp))}/${u.maxHp}`;
+    if (hpBar) hpBar.style.width = `${Math.max(0, Math.min(100, (u.hp / (u.maxHp || 1)) * 100))}%`;
+  }
+
+  const pwrEl = document.getElementById('power-disp');
+  if (pwrEl) pwrEl.textContent = totalPower.toLocaleString();
+
+  if (typeof updateVehicleUI === 'function') updateVehicleUI();
+}
