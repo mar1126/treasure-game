@@ -451,7 +451,37 @@
   <script src="/game.js?v=30"></script>
   <script src="/storage.js?v=30"></script>
   <script src="/battle.js?v=30"></script>
-  <script src="/social.js?v=30"></script>
-  <script>initCloudLoad();</script>
+    <script src="/social.js?v=31"></script>
+  <script>
+    function renderTankCardsDirect(curTier) {
+      const tanks = [
+        { tier: 1, name: '軽装バリスタ車', cost: 5000,     atk: 25,   iv: 3.4, desc: '大型の連射弩弓を積んだ軽快な移動砲台' },
+        { tier: 2, name: '鉄輪キャノン車', cost: 45000,    atk: 80,   iv: 3.2, desc: '大砲を1門搭載した鉄輪補強の砲撃車' },
+        { tier: 3, name: '蒸気装甲車',     cost: 350000,   atk: 250,  iv: 3.0, desc: '魔導蒸気機関で走る装甲板付きの砲撃車両' },
+        { tier: 4, name: '魔導軽戦車',     cost: 2500000,  atk: 780,  iv: 2.9, desc: '魔力弾を放つ旋回砲塔を備えた軽戦車' },
+        { tier: 5, name: '鋼鉄中戦車',     cost: 15000000, atk: 2400, iv: 2.8, desc: '厚い鋼鉄装甲と連装砲を備えた主力戦車' },
+        { tier: 6, name: '重装攻城戦車',   cost: 80000000, atk: 7500, iv: 2.7, desc: '城壁をも砕く大口径砲を積んだ重戦車' }
+      ];
+      let out = '<div style="font-size:11px;color:#546e7a;margin-bottom:8px;">購入した戦車は全ステージで自動的に砲撃援護を行います（ランク順に購入可能）。</div>';
+      for (const t of tanks) {
+        let btn = '<button class="shop-buy-btn done" disabled>未解放</button>';
+        if (curTier >= t.tier) btn = '<button class="shop-buy-btn done" disabled>所持済</button>';
+        else if (curTier === t.tier - 1) btn = `<button class="shop-buy-btn" onclick="buyShopTank(${t.tier})">${t.cost.toLocaleString()} G</button>`;
+        out += `<div class="shop-item-card"><div class="shop-item-info"><div class="shop-item-title">Rank ${t.tier}：${t.name}</div><div class="shop-item-desc">${t.desc}<br>基本砲撃力: <b>${t.atk.toLocaleString()}</b>（${t.iv}秒ごと）</div></div><div class="shop-item-action">${btn}</div></div>`;
+      }
+      return out;
+    }
+
+    const _origRenderShop = typeof renderShop === 'function' ? renderShop : null;
+    window.renderShop = function() {
+      const box = document.getElementById('shop-list');
+      if (box && typeof shopSubTab !== 'undefined' && shopSubTab === 'tank') {
+        box.innerHTML = renderTankCardsDirect(Number(landTankTier) || 0);
+        return;
+      }
+      if (_origRenderShop) _origRenderShop();
+    };
+
+    initCloudLoad();
+  </script>
 </body>
-</html>
