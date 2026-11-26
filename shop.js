@@ -27,28 +27,26 @@ function renderShop() {
 
   if (shopSubTab === 'tank') {
     const curTier = Number(landTankTier) || 0;
-    const list = (typeof TANK_MASTER !== 'undefined' && Array.isArray(TANK_MASTER)) ? TANK_MASTER : SHOP_TANKS;
-    box.innerHTML = `
-      <div style="font-size:11px;color:#546e7a;margin-bottom:8px;">
-        購入した戦車は全ステージで自動的に砲撃援護を行います（ランク順に購入可能）。
-      </div>
-      ${list.map(item => {
-        const owned = curTier >= item.tier;
-        const canBuy = curTier === item.tier - 1;
-        let btnHtml = `<button class="shop-buy-btn done" disabled>未解放</button>`;
-        if (owned) btnHtml = `<button class="shop-buy-btn done" disabled>所持済</button>`;
-        else if (canBuy) btnHtml = `<button class="shop-buy-btn" onclick="buyShopTank(${item.tier})">${item.cost.toLocaleString()} G</button>`;
-        return `
-          <div class="shop-item-card">
-            <div class="shop-item-info">
-              <div class="shop-item-title">Rank ${item.tier}：${item.name}</div>
-              <div class="shop-item-desc">${item.desc}<br>基本砲撃力: <b>${item.baseAtk.toLocaleString()}</b>（${item.interval}秒ごと）</div>
-            </div>
-            <div class="shop-item-action">${btnHtml}</div>
+    const list = (typeof TANK_MASTER !== 'undefined' && Array.isArray(TANK_MASTER) && TANK_MASTER.length > 0) ? TANK_MASTER : SHOP_TANKS;
+    let html = `<div style="font-size:11px;color:#546e7a;margin-bottom:8px;">購入した戦車は全ステージで自動的に砲撃援護を行います（ランク順に購入可能）。</div>`;
+    for (const item of list) {
+      if (!item) continue;
+      const owned = curTier >= item.tier;
+      const canBuy = curTier === item.tier - 1;
+      let btnHtml = `<button class="shop-buy-btn done" disabled>未解放</button>`;
+      if (owned) btnHtml = `<button class="shop-buy-btn done" disabled>所持済</button>`;
+      else if (canBuy) btnHtml = `<button class="shop-buy-btn" onclick="buyShopTank(${item.tier})">${item.cost.toLocaleString()} G</button>`;
+      html += `
+        <div class="shop-item-card">
+          <div class="shop-item-info">
+            <div class="shop-item-title">Rank ${item.tier}：${item.name}</div>
+            <div class="shop-item-desc">${item.desc}<br>基本砲撃力: <b>${item.baseAtk.toLocaleString()}</b>（${item.interval}秒ごと）</div>
           </div>
-        `;
-      }).join('')}
-    `;
+          <div class="shop-item-action">${btnHtml}</div>
+        </div>
+      `;
+    }
+    box.innerHTML = html;
     return;
   }
 
@@ -63,7 +61,6 @@ function renderShop() {
         ${autoUnlocked ? `<button class="shop-buy-btn done" disabled>解放済</button>` : `<button class="shop-buy-btn" onclick="buyShopItem('auto')">1,500 GEM</button>`}
       </div>
     </div>
-
     <div class="shop-item-card">
       <div class="shop-item-info">
         <div class="shop-item-title">戦闘スピード2倍速 解放</div>
@@ -73,7 +70,6 @@ function renderShop() {
         ${speed2xUnlocked ? `<button class="shop-buy-btn done" disabled>解放済</button>` : `<button class="shop-buy-btn" onclick="buyShopItem('speed2x')">1,000 GEM</button>`}
       </div>
     </div>
-
     <div class="shop-item-card">
       <div class="shop-item-info">
         <div class="shop-item-title">スタミナ回復速度 3倍</div>
@@ -83,7 +79,6 @@ function renderShop() {
         ${staminaFastUnlocked ? `<button class="shop-buy-btn done" disabled>解放済</button>` : `<button class="shop-buy-btn" onclick="buyShopItem('stamina_fast')">800 GEM</button>`}
       </div>
     </div>
-
     <div class="shop-item-card">
       <div class="shop-item-info">
         <div class="shop-item-title">スタミナ全回復 (+30)</div>
@@ -93,7 +88,6 @@ function renderShop() {
         <button class="shop-buy-btn" onclick="buyShopItem('stamina')">50 GEM</button>
       </div>
     </div>
-
     <div class="shop-item-card">
       <div class="shop-item-info">
         <div class="shop-item-title">ゴールド支給パック</div>
@@ -108,8 +102,7 @@ function renderShop() {
 
 function buyShopTank(targetTier) {
   if (typeof buyTank === 'function') return buyTank(targetTier);
-  const list = (typeof TANK_MASTER !== 'undefined' && Array.isArray(TANK_MASTER)) ? TANK_MASTER : SHOP_TANKS;
-  const item = list.find(x => x.tier === targetTier);
+  const item = SHOP_TANKS.find(x => x.tier === targetTier);
   if (!item) return;
   const curTier = Number(landTankTier) || 0;
   if (targetTier <= curTier) return alert('すでに購入済みです');
