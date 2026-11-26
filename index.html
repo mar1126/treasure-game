@@ -7,8 +7,7 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    .battle-area { background: linear-gradient(180deg, #4fc3f7 0%, #0288d1 65%, #01579b 100%); color: white; padding: 10px 12px; height: 268px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; transition: background 0.4s; overflow: hidden; }
-    .battle-area.land-mode { background: linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%); }
+    .battle-area { background: linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%); color: white; padding: 10px 12px; height: 268px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; overflow: hidden; }
 
     .stage-art-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
     .stage-custom-img { width: 100%; height: 100%; object-fit: cover; }
@@ -16,8 +15,9 @@
 
     .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 11px; z-index: 4; gap: 4px; position: relative; }
     .area-badge { background: rgba(0,0,0,0.42); padding: 4px 10px; border-radius: 15px; font-weight: bold; border: 1px solid rgba(255,255,255,0.65); white-space: nowrap; cursor: pointer; }
-    .mode-btn { background: #37474f; color: white; border: 1.5px solid #fff; padding: 4px 10px; border-radius: 15px; font-weight: bold; font-size: 11px; cursor: pointer; white-space: nowrap; }
-    .hud-toggle-btn { background: rgba(0,0,0,0.45); color: #fff; border: 1.5px solid rgba(255,255,255,0.8); padding: 3px 8px; border-radius: 12px; font-weight: bold; font-size: 11px; cursor: pointer; white-space: nowrap; display: none; }
+    .hud-mini-btn { background: rgba(0,0,0,0.48); color: #fff; border: 1px solid rgba(255,255,255,0.8); padding: 3px 7px; border-radius: 10px; font-weight: bold; font-size: 10px; cursor: pointer; white-space: nowrap; }
+    .hud-mini-btn.active { background: #ffca28; color: #263238; border-color: #fff; }
+    .hud-toggle-btn { background: rgba(0,0,0,0.45); color: #fff; border: 1.5px solid rgba(255,255,255,0.8); padding: 3px 7px; border-radius: 10px; font-weight: bold; font-size: 10px; cursor: pointer; white-space: nowrap; display: none; }
     .hud-toggle-btn.active { background: #ffca28; color: #263238; border-color: #fff; box-shadow: 0 0 8px #ffea00; }
 
     .enemy-section { display: flex; align-items: center; justify-content: center; gap: 10px; position: relative; margin-top: 2px; z-index: 3; min-height: 78px; }
@@ -120,16 +120,16 @@
   </style>
 </head>
 <body>
-  <div class="battle-area land-mode" id="battle-bg">
+  <div class="battle-area" id="battle-bg">
     <div class="stage-art-layer" id="stage-art-layer"></div>
     <div class="fx-layer" id="fx-layer"></div>
     <div class="battle-header">
-      <div class="area-badge" id="floor-text" onclick="openFloorSelectModal(event)">S1 緑の草原 1-1 ▾</div>
+      <div class="area-badge" id="floor-text" onclick="openFloorSelectModal(event)">S1 街周辺 1-1 ▾</div>
       <div>売上 +<span id="cafe-income-hud">0</span>G/秒</div>
-      <div style="display:flex;gap:4px;align-items:center;">
+      <div style="display:flex;gap:3px;align-items:center;">
+        <button class="hud-mini-btn active" id="hud-wave-mode-btn" onclick="toggleWaveStopMode(event)">階層連戦</button>
         <button class="hud-toggle-btn" id="hud-auto-btn" onclick="toggleAutoMode(event)">周回</button>
         <button class="hud-toggle-btn" id="hud-speed-btn" onclick="toggleSpeedMode(event)">1x</button>
-        <button class="mode-btn" id="mode-switch-btn" onclick="returnToTown(event)">街へ戻る</button>
       </div>
     </div>
 
@@ -157,7 +157,7 @@
     </div>
 
     <button class="start-battle-btn" id="start-battle-btn" onclick="startBattle(event)" ontouchend="startBattle(event)">バトル開始（スタミナ1）</button>
-    <button class="retreat-battle-btn" id="retreat-battle-btn" onclick="retreatBattle(event)">退却する</button>
+    <button class="retreat-battle-btn" id="retreat-battle-btn" onclick="retreatBattle(event)">退却</button>
 
     <div class="ally-section">
       <div class="units-grid">
@@ -207,7 +207,7 @@
         </div>
         <div class="grid-3" id="party-slots" style="margin-bottom:10px;"></div>
         <button class="btn-coral" id="vehicle-upgrade-btn" onclick="upgradeUnit()">
-          戦車・探索船を強化 Lv.<span id="ally-lv">1</span>（費用: <span id="up-cost">50</span> G）
+          戦車を強化 Lv.<span id="ally-lv">1</span>（費用: <span id="up-cost">500</span> G）
         </button>
       </div>
 
@@ -271,11 +271,11 @@
       <div class="card">
         <div class="card-title">
           <span>ショップ</span>
-          <span style="font-size:11px;color:#0288d1;">便利機能・戦車・船</span>
+          <span style="font-size:11px;color:#0288d1;">便利機能・戦車</span>
         </div>
         <div class="shop-sub-tabs">
           <button class="shop-sub-btn active" onclick="switchShopSub('gem', this)">便利機能 (GEM)</button>
-          <button class="shop-sub-btn" onclick="switchShopSub('vehicle', this)">戦車・船 (G)</button>
+          <button class="shop-sub-btn" onclick="switchShopSub('tank', this)">戦車 (G)</button>
         </div>
         <div id="shop-list">読み込み中...</div>
       </div>
@@ -435,17 +435,17 @@
     <button class="nav-item" onclick="switchTab('chat', this)">チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)">マイページ</button>
   </nav>
-  <script src="/monsters.js?v=25"></script>
-  <script src="/traits.js?v=25"></script>
-  <script src="/skills.js?v=25"></script>
-  <script src="/vehicle.js?v=25"></script>
-  <script src="/party.js?v=25"></script>
-  <script src="/breed.js?v=25"></script>
-  <script src="/cafe.js?v=25"></script>
-  <script src="/shop.js?v=25"></script>
-  <script src="/stage.js?v=25"></script>
-  <script src="/game.js?v=25"></script>
-  <script src="/social.js?v=25"></script>
+  <script src="/monsters.js?v=27"></script>
+  <script src="/traits.js?v=27"></script>
+  <script src="/skills.js?v=27"></script>
+  <script src="/vehicle.js?v=27"></script>
+  <script src="/party.js?v=27"></script>
+  <script src="/breed.js?v=27"></script>
+  <script src="/cafe.js?v=27"></script>
+  <script src="/shop.js?v=27"></script>
+  <script src="/stage.js?v=27"></script>
+  <script src="/game.js?v=27"></script>
+  <script src="/social.js?v=27"></script>
   <script>initCloudLoad();</script>
 </body>
 </html>
