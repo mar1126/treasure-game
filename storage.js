@@ -13,7 +13,10 @@ function triggerAutoSave(immediate = false) {
     savedAt: Date.now(), playerName, gold, gem,
     landTankTier, landTankLv, landUpCost,
     stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, waveStopMode,
-    cafeLv, cafeCost, staff, gardenItems, party, trainingSlots, state: cleanState,
+    cafeLv, cafeCost, staff, gardenItems,
+    unlockedMenus: typeof unlockedMenus !== 'undefined' ? unlockedMenus : ['tea'],
+    featuredMenuId: typeof featuredMenuId !== 'undefined' ? featuredMenuId : 'tea',
+    party, trainingSlots, state: cleanState,
     captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig
   };
   const jsonStr = JSON.stringify(payload);
@@ -52,6 +55,13 @@ function applySaveData(data) {
   staff = Array.isArray(data.staff) ? data.staff.slice(0, 3) : new Array(3).fill(null);
   while (staff.length < 3) staff.push(null);
   gardenItems = data.gardenItems || [];
+
+  if (typeof unlockedMenus !== 'undefined') {
+    unlockedMenus = Array.isArray(data.unlockedMenus) && data.unlockedMenus.length > 0 ? data.unlockedMenus : ['tea'];
+  }
+  if (typeof featuredMenuId !== 'undefined') {
+    featuredMenuId = data.featuredMenuId || 'tea';
+  }
 
   const rawParty = Array.isArray(data.party) ? data.party : [];
   party = [rawParty.slice(0, 1).pop() ?? null, rawParty.slice(1, 2).pop() ?? null, rawParty.slice(2, 3).pop() ?? null];
@@ -159,6 +169,6 @@ async function initCloudLoad() {
 
 window.addEventListener('beforeunload', () => {
   const cleanState = { stage: state.stage, floor: state.floor, wave: 1, maxStage: state.maxStage, maxFloorByStage: state.maxFloorByStage };
-  const payload = { savedAt: Date.now(), playerName, gold, gem, landTankTier, landTankLv, landUpCost, stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, waveStopMode, cafeLv, cafeCost, staff, gardenItems, party, trainingSlots, state: cleanState, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
+  const payload = { savedAt: Date.now(), playerName, gold, gem, landTankTier, landTankLv, landUpCost, stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, waveStopMode, cafeLv, cafeCost, staff, gardenItems, unlockedMenus: typeof unlockedMenus !== 'undefined' ? unlockedMenus : ['tea'], featuredMenuId: typeof featuredMenuId !== 'undefined' ? featuredMenuId : 'tea', party, trainingSlots, state: cleanState, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
   localStorage.setItem('treasure_save_' + userId, JSON.stringify(payload));
 });
