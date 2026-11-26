@@ -69,6 +69,25 @@
     .card { background: #ffffff; border: 1px solid #dceef5; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
     .card-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; color: #0277bd; display: flex; justify-content: space-between; align-items: center; }
     .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+    .mini-mon-card { border: 1.5px solid #cfd8dc; border-radius: 8px; padding: 3px 2px; background: #ffffff; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; aspect-ratio: 1 / 1.08; position: relative; overflow: hidden; }
+    .mini-mon-card.in-party { border-color: #4fc3f7; background: #f0f9ff; }
+    .mini-mon-card.train { border-color: #ffb74d; background: #fffdf5; }
+    .mini-mon-card.empty { border-style: dashed; background: #f8fdff; }
+    .mini-mon-card .m-top { display: flex; justify-content: space-between; align-items: center; font-size: 8.5px; font-weight: bold; line-height: 1; padding: 0 2px; }
+    .mini-mon-card .m-lv { color: #37474f; }
+    .mini-mon-card .m-tag { font-size: 7.5px; padding: 1px 3px; border-radius: 3px; color: #fff; }
+    .mini-mon-card .m-tag.party { background: #0288d1; }
+    .mini-mon-card .m-tag.train { background: #f57c00; }
+    .mini-mon-card .m-tag.staff { background: #43a047; }
+    .mini-mon-card .m-icon { flex: 1; display: flex; align-items: center; justify-content: center; }
+    .mini-mon-card .m-bot { font-size: 8.5px; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; }
+    .mini-mon-card .m-plus { color: #e65100; }
+    .mini-mon-card .m-nm { color: #546e7a; font-size: 8px; }
+    .mon-sub-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; border-bottom: 1.5px solid #e1f5fe; padding-bottom: 6px; }
+    .mon-sub-tab { background: none; border: none; padding: 5px 8px; font-size: 12px; font-weight: bold; color: #78909c; cursor: pointer; border-bottom: 2.5px solid transparent; display: inline-flex; align-items: center; gap: 5px; }
+    .mon-sub-tab.active { color: #ff7043; border-bottom-color: #ff7043; }
+    .box-plus-btn { background: #f1f5f9; border: 1px solid #cbd5e1; color: #334155; font-size: 11px; font-weight: bold; width: 20px; height: 20px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
     .slot-box { border: 1px solid #e0f2f1; border-radius: 10px; padding: 7px; text-align: center; background: #f8fdff; cursor: pointer; position: relative; }
     .slot-box.staff { background: #fff8e1; border: 2px dashed #ffb74d; }
     .slot-box .lvl { font-size: 10px; color: #ff7043; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
@@ -214,19 +233,24 @@
       </div>
 
       <div class="card">
-        <div class="card-title">
-          <span>訓練場（獲得EXPの10%を全員に分配）</span>
-          <span style="font-size:10px;color:#546e7a;">編成中以外を配置可</span>
+        <div class="mon-sub-bar">
+          <button class="mon-sub-tab active" id="tab-btn-mon-list" onclick="switchMonsterSubTab('list')">
+            <span>仲間一覧 <span id="mon-count-disp">1/50</span></span>
+            <span class="box-plus-btn" onclick="expandMonsterBox(event)">＋</span>
+          </button>
+          <button class="mon-sub-tab" id="tab-btn-mon-train" onclick="switchMonsterSubTab('train')">
+            <span>訓練場 <span id="train-count-disp">0/3</span></span>
+          </button>
         </div>
-        <div class="grid-3" id="training-slots"></div>
-      </div>
 
-      <div class="card">
-        <div class="card-title">
-          <span>仲間モンスター一覧</span>
-          <span style="font-size:11px;color:#546e7a;">タップで詳細・訓練・画像変更</span>
+        <div id="mon-sub-list">
+          <div class="grid-5" id="captured-list"></div>
         </div>
-        <div class="grid-3" id="captured-list"></div>
+
+        <div id="mon-sub-train" style="display:none;">
+          <div style="font-size:10px;color:#546e7a;margin-bottom:8px;">配置した仲間に戦闘獲得EXPの10%が分配されます（タップで解除）</div>
+          <div class="grid-5" id="training-slots"></div>
+        </div>
       </div>
     </div>
 
@@ -250,8 +274,7 @@
           <span>+<span id="cafe-rate">0</span> G/秒</span>
         </div>
 
-        <!-- ライブ店内アニメーションステージ＆VIPタップ接客 -->
-        <div id="cafe-live-stage" style="position:relative;height:148px;border-radius:12px;border:2px solid #81d4fa;overflow:hidden;margin-bottom:10px;background:linear-gradient(180deg,#b3e5fc 0%,#e0f7fa 50%,#dcedc8 51%,#c5e1a5 100%);"></div>
+        <div id="cafe-live-stage" style="position:relative;height:140px;border-radius:12px;border:2px solid #81d4fa;overflow:hidden;margin-bottom:10px;background:linear-gradient(180deg,#b3e5fc 0%,#e0f7fa 50%,#dcedc8 51%,#c5e1a5 100%);"></div>
 
         <div style="font-size:11px;color:#546e7a;margin-bottom:6px;">
           店員配置（タップで外す / 家具ボーナス: +<span id="garden-bonus">0</span>%）
@@ -262,16 +285,6 @@
         </button>
       </div>
 
-      <!-- メニュー開発＆本日のおすすめ -->
-      <div class="card">
-        <div class="card-title">
-          <span>メニュー開発・本日のおすすめ</span>
-          <span style="font-size:10px;color:#0288d1;">売上倍率UP</span>
-        </div>
-        <div id="cafe-menu-list"></div>
-      </div>
-
-      <!-- インテリア装飾 -->
       <div class="card">
         <div class="card-title"><span>ガーデン装飾ショップ（各+15%）</span></div>
         <div class="grid-3">
@@ -450,19 +463,19 @@
     <button class="nav-item" onclick="switchTab('chat', this)">チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)">マイページ</button>
   </nav>
-  <script src="/monsters.js?v=33"></script>
-  <script src="/traits.js?v=33"></script>
-  <script src="/skills.js?v=33"></script>
-  <script src="/vehicle.js?v=33"></script>
-  <script src="/party.js?v=33"></script>
-  <script src="/breed.js?v=33"></script>
-  <script src="/cafe.js?v=33"></script>
-  <script src="/shop.js?v=33"></script>
-  <script src="/stage.js?v=33"></script>
-  <script src="/game.js?v=33"></script>
-  <script src="/storage.js?v=33"></script>
-  <script src="/battle.js?v=33"></script>
-  <script src="/social.js?v=33"></script>
+  <script src="/monsters.js?v=35"></script>
+  <script src="/traits.js?v=35"></script>
+  <script src="/skills.js?v=35"></script>
+  <script src="/vehicle.js?v=35"></script>
+  <script src="/party.js?v=35"></script>
+  <script src="/breed.js?v=35"></script>
+  <script src="/cafe.js?v=35"></script>
+  <script src="/shop.js?v=35"></script>
+  <script src="/stage.js?v=35"></script>
+  <script src="/game.js?v=35"></script>
+  <script src="/storage.js?v=35"></script>
+  <script src="/battle.js?v=35"></script>
+  <script src="/social.js?v=35"></script>
   <script>
     function renderTankCardsDirect(curTier) {
       const tanks = [
