@@ -11,24 +11,20 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Zen Maru Gothic", "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif; }
     body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
     .battle-area { background: linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%); color: white; padding: 6px 10px 8px; height: 236px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; overflow: hidden; }
-
     .stage-art-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
     .stage-custom-img { width: 100%; height: 100%; object-fit: cover; }
     .stage-vignette { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.32) 0%, rgba(0,0,0,0.06) 45%, rgba(0,0,0,0.42) 100%); pointer-events: none; }
-
     .battle-header { display: flex; justify-content: space-between; align-items: center; font-size: 11px; z-index: 4; gap: 4px; position: relative; }
     .area-badge { background: rgba(0,0,0,0.42); padding: 3px 9px; border-radius: 6px; font-weight: 600; border: 1px solid rgba(255,255,255,0.65); white-space: nowrap; cursor: pointer; }
     .hud-mini-btn { background: rgba(0,0,0,0.48); color: #fff; border: 1px solid rgba(255,255,255,0.8); padding: 2px 7px; border-radius: 5px; font-weight: 600; font-size: 10px; cursor: pointer; white-space: nowrap; }
     .hud-mini-btn.active { background: #ffca28; color: #263238; border-color: #fff; }
     .hud-toggle-btn { background: rgba(0,0,0,0.45); color: #fff; border: 1px solid rgba(255,255,255,0.8); padding: 2px 7px; border-radius: 5px; font-weight: 600; font-size: 10px; cursor: pointer; white-space: nowrap; display: none; }
     .hud-toggle-btn.active { background: #ffca28; color: #263238; border-color: #fff; box-shadow: 0 0 8px #ffea00; }
-
     .enemy-section { display: flex; align-items: flex-end; justify-content: center; gap: 12px; position: relative; margin-top: 2px; z-index: 3; min-height: 78px; }
     .enemy-slot { text-align: center; width: 102px; position: relative; transition: opacity 0.2s; }
     .enemy-slot.dead { opacity: 0.25; filter: grayscale(100%); }
     .e-name { font-size: 9.5px; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,0.95); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .e-sprite { height: 54px; display: flex; align-items: center; justify-content: center; margin-top: 1px; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.5)); }
-
     .ally-section { display: flex; flex-direction: column; align-items: center; width: 100%; position: relative; z-index: 3; }
     .units-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; max-width: 340px; }
     .unit { text-align: center; background: transparent; border: none; padding: 0 2px; position: relative; transition: opacity 0.2s; }
@@ -201,7 +197,6 @@
       </div>
     </div>
   </div>
-
   <div class="status-bar">
     <div class="profile-mini">
       <div class="mini-avatar" id="hud-my-icon">ス</div>
@@ -260,6 +255,7 @@
         </div>
       </div>
     </div>
+
     <div class="tab-pane" id="tab-cafe">
       <div class="card">
         <div class="card-title">
@@ -287,7 +283,6 @@
         </div>
       </div>
     </div>
-
     <div class="tab-pane" id="tab-shop">
       <div class="card">
         <div class="card-title">
@@ -330,14 +325,12 @@
           <button class="btn-blue" onclick="generateAI('bg')">アイコン背景を生成（<span id="bg-cost">200</span> GEM）</button>
         </div>
 
-                <div class="ai-sub-pane" id="ai-sub-stamp">
-          <!-- 未選択時（お手本6枚目と同じ点線枠） -->
+        <div class="ai-sub-pane" id="ai-sub-stamp">
           <div id="stamp-select-empty" onclick="openStampMonsterModal()" style="border:1.5px dashed #94a3b8;border-radius:14px;padding:24px 16px;display:flex;align-items:center;gap:14px;background:#ffffff;cursor:pointer;margin-bottom:12px;">
             <div style="width:68px;height:68px;flex-shrink:0;border-radius:12px;border:1.5px solid #cbd5e1;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-size:26px;color:#64748b;">✎</div>
             <div style="font-size:14px;font-weight:bold;color:#334155;line-height:1.4;">スタンプにしたいモンスターを選択する</div>
           </div>
 
-          <!-- 選択済み時（お手本9枚目と同じ「元の絵 → 完成プレビュー」画面） -->
           <div id="stamp-select-active" style="display:none;">
             <div style="border:1.5px solid #e2e8f0;border-radius:14px;padding:12px;background:#ffffff;margin-bottom:12px;">
               <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:10px;">
@@ -364,11 +357,8 @@
 
           <div class="grid-3" id="stamp-gallery" style="margin-top:12px;"></div>
         </div>
-
-        </div>
       </div>
     </div>
-
     <div class="tab-pane" id="tab-chat">
       <div class="card" style="padding:0;overflow:hidden;display:flex;flex-direction:column;height:calc(100vh - 365px);min-height:295px;">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #e2e8f0;background:#ffffff;">
@@ -424,6 +414,16 @@
       </div>
     </div>
   </div>
+
+  <!-- スタンプ用モンスター＆着せ替え選択モーダル -->
+  <div class="modal-overlay" id="stamp-picker-modal" onclick="closeStampMonsterModal()" style="z-index:1120;">
+    <div class="modal-card" onclick="event.stopPropagation()" style="border-color:#ff7043;">
+      <div id="stamp-modal-title" style="font-size:16px;font-weight:bold;color:#263238;margin-bottom:10px;">スタンプにしたいモンスターを選択</div>
+      <div id="stamp-modal-body" style="margin-bottom:12px;"></div>
+      <button class="btn-gray" style="background:#ffffff;color:#334155;border:1.5px solid #cbd5e1;" onclick="closeStampMonsterModal()">閉じる</button>
+    </div>
+  </div>
+
   <!-- 配合確認モーダル -->
   <div class="modal-overlay" id="breed-confirm-modal" onclick="closeBreedConfirmModal()" style="z-index:1060;">
     <div class="modal-card" onclick="event.stopPropagation()" style="border-color:#ff7043;">
@@ -441,7 +441,6 @@
       <button class="btn-gray" style="background:#cfd8dc;color:#37474f;" onclick="closeFloorSelectModal()">閉じる</button>
     </div>
   </div>
-
   <!-- モンスター詳細モーダル -->
   <div class="modal-overlay" id="mon-modal" onclick="closeMonModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
@@ -503,19 +502,19 @@
     <button class="nav-item" onclick="switchTab('chat', this)">チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)">マイページ</button>
   </nav>
-  <script src="/monsters.js?v=40"></script>
-  <script src="/traits.js?v=40"></script>
-  <script src="/skills.js?v=40"></script>
-  <script src="/vehicle.js?v=40"></script>
-  <script src="/party.js?v=40"></script>
-  <script src="/breed.js?v=40"></script>
-  <script src="/cafe.js?v=40"></script>
-  <script src="/shop.js?v=40"></script>
-  <script src="/stage.js?v=40"></script>
-  <script src="/game.js?v=40"></script>
-  <script src="/storage.js?v=40"></script>
-  <script src="/battle.js?v=40"></script>
-  <script src="/social.js?v=40"></script>
+  <script src="/monsters.js?v=42"></script>
+  <script src="/traits.js?v=42"></script>
+  <script src="/skills.js?v=42"></script>
+  <script src="/vehicle.js?v=42"></script>
+  <script src="/party.js?v=42"></script>
+  <script src="/breed.js?v=42"></script>
+  <script src="/cafe.js?v=42"></script>
+  <script src="/shop.js?v=42"></script>
+  <script src="/stage.js?v=42"></script>
+  <script src="/game.js?v=42"></script>
+  <script src="/storage.js?v=42"></script>
+  <script src="/battle.js?v=42"></script>
+  <script src="/social.js?v=42"></script>
   <script>
     function renderTankCardsDirect(curTier) {
       const tanks = [
