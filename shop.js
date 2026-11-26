@@ -1,15 +1,6 @@
 // 便利機能（ジェム）＆ 兵器工房（ゴールド）ショップシステム (shop.js)
 let shopSubTab = 'gem';
 
-const SHOP_TANKS = [
-  { tier: 1, name: '軽装バリスタ車', cost: 5000,     baseAtk: 25,   interval: 3.4, desc: '大型の連射弩弓を積んだ軽快な移動砲台' },
-  { tier: 2, name: '鉄輪キャノン車', cost: 45000,    baseAtk: 80,   interval: 3.2, desc: '大砲を1門搭載した鉄輪補強の砲撃車' },
-  { tier: 3, name: '蒸気装甲車',     cost: 350000,   baseAtk: 250,  interval: 3.0, desc: '魔導蒸気機関で走る装甲板付きの砲撃車両' },
-  { tier: 4, name: '魔導軽戦車',     cost: 2500000,  baseAtk: 780,  interval: 2.9, desc: '魔力弾を放つ旋回砲塔を備えた軽戦車' },
-  { tier: 5, name: '鋼鉄中戦車',     cost: 15000000, baseAtk: 2400, interval: 2.8, desc: '厚い鋼鉄装甲と連装砲を備えた主力戦車' },
-  { tier: 6, name: '重装攻城戦車',   cost: 80000000, baseAtk: 7500, interval: 2.7, desc: '城壁をも砕く大口径砲を積んだ重戦車' }
-];
-
 function getStaminaIntervalMs() {
   return staminaFastUnlocked ? 20000 : 60000;
 }
@@ -21,31 +12,38 @@ function switchShopSub(subName, btn) {
   renderShop();
 }
 
+function makeTankCardHtml(tier, name, cost, baseAtk, interval, desc, curTier) {
+  let btnHtml = '<button class="shop-buy-btn done" disabled>未解放</button>';
+  if (curTier >= tier) {
+    btnHtml = '<button class="shop-buy-btn done" disabled>所持済</button>';
+  } else if (curTier === tier - 1) {
+    btnHtml = `<button class="shop-buy-btn" onclick="buyShopTank(${tier})">${cost.toLocaleString()} G</button>`;
+  }
+  return `
+    <div class="shop-item-card">
+      <div class="shop-item-info">
+        <div class="shop-item-title">Rank ${tier}：${name}</div>
+        <div class="shop-item-desc">${desc}<br>基本砲撃力: <b>${baseAtk.toLocaleString()}</b>（${interval}秒ごと）</div>
+      </div>
+      <div class="shop-item-action">${btnHtml}</div>
+    </div>
+  `;
+}
+
 function renderShop() {
   const box = document.getElementById('shop-list');
   if (!box) return;
 
   if (shopSubTab === 'tank') {
     const curTier = Number(landTankTier) || 0;
-    let html = `<div style="font-size:11px;color:#546e7a;margin-bottom:8px;">購入した戦車は全ステージで自動的に砲撃援護を行います（ランク順に購入可能）。</div>`;
-    for (let i = 0; i < SHOP_TANKS.length; i++) {
-      const item = SHOP_TANKS.slice(i, i + 1).pop();
-      const owned = curTier >= item.tier;
-      const canBuy = curTier === item.tier - 1;
-      let btnHtml = `<button class="shop-buy-btn done" disabled>未解放</button>`;
-      if (owned) btnHtml = `<button class="shop-buy-btn done" disabled>所持済</button>`;
-      else if (canBuy) btnHtml = `<button class="shop-buy-btn" onclick="buyShopTank(${item.tier})">${item.cost.toLocaleString()} G</button>`;
-      html += `
-        <div class="shop-item-card">
-          <div class="shop-item-info">
-            <div class="shop-item-title">Rank ${item.tier}：${item.name}</div>
-            <div class="shop-item-desc">${item.desc}<br>基本砲撃力: <b>${item.baseAtk.toLocaleString()}</b>（${item.interval}秒ごと）</div>
-          </div>
-          <div class="shop-item-action">${btnHtml}</div>
-        </div>
-      `;
-    }
-    box.innerHTML = html;
+    box.innerHTML =
+      `<div style="font-size:11px;color:#546e7a;margin-bottom:8px;">購入した戦車は全ステージで自動的に砲撃援護を行います（ランク順に購入可能）。</div>` +
+      makeTankCardHtml(1, '軽装バリスタ車', 5000, 25, 3.4, '大型の連射弩弓を積んだ軽快な移動砲台', curTier) +
+      makeTankCardHtml(2, '鉄輪キャノン車', 45000, 80, 3.2, '大砲を1門搭載した鉄輪補強の砲撃車', curTier) +
+      makeTankCardHtml(3, '蒸気装甲車', 350000, 250, 3.0, '魔導蒸気機関で走る装甲板付きの砲撃車両', curTier) +
+      makeTankCardHtml(4, '魔導軽戦車', 2500000, 780, 2.9, '魔力弾を放つ旋回砲塔を備えた軽戦車', curTier) +
+      makeTankCardHtml(5, '鋼鉄中戦車', 15000000, 2400, 2.8, '厚い鋼鉄装甲と連装砲を備えた主力戦車', curTier) +
+      makeTankCardHtml(6, '重装攻城戦車', 80000000, 7500, 2.7, '城壁をも砕く大口径砲を積んだ重戦車', curTier);
     return;
   }
 
@@ -100,17 +98,24 @@ function renderShop() {
 }
 
 function buyShopTank(targetTier) {
-  const item = SHOP_TANKS.find(x => x.tier === targetTier);
-  if (!item) return;
+  const costs = { 1: 5000, 2: 45000, 3: 350000, 4: 2500000, 5: 15000000, 6: 80000000 };
+  const names = { 1: '軽装バリスタ車', 2: '鉄輪キャノン車', 3: '蒸気装甲車', 4: '魔導軽戦車', 5: '鋼鉄中戦車', 6: '重装攻城戦車' };
+  const cost = costs[targetTier];
+  const name = names[targetTier];
+  if (!cost || !name) return;
+
   const curTier = Number(landTankTier) || 0;
   if (targetTier <= curTier) return alert('すでに購入済みです');
   if (targetTier > curTier + 1) return alert('ひとつ前のランクから順番に購入してください');
-  if (gold < item.cost) return alert(`ゴールドが足りません（${item.cost.toLocaleString()} G 必要）`);
-  gold -= item.cost;
+  if (gold < cost) return alert(`ゴールドが足りません（${cost.toLocaleString()} G 必要）`);
+
+  gold -= cost;
   landTankTier = targetTier;
   if (landTankTier === 1) { landTankLv = 1; landUpCost = 500; }
-  updateUI(); renderShop(); triggerAutoSave(true);
-  showToast(`${item.name}を購入しました`);
+  updateUI();
+  renderShop();
+  triggerAutoSave(true);
+  showToast(`${name}を購入しました`);
 }
 
 function buyShopItem(type) {
@@ -138,5 +143,7 @@ function buyShopItem(type) {
     gem -= 100; gold += amount;
     showToast(`${amount.toLocaleString()} G を獲得しました`);
   }
-  updateUI(); renderShop(); triggerAutoSave(true);
+  updateUI();
+  renderShop();
+  triggerAutoSave(true);
 }
