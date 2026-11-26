@@ -176,13 +176,149 @@ function tryAutoRecruit(enemyObj) {
   showToast(`${sp.name}が仲間になりました (${captured.length}/${limit})`);
   return true;
 }
-function startBattle(e) {
-  if (e) { e.preventDefault(); e.stopPropagation(); }
-  if (state.inBattle) return;
-  if (typeof resetBattleAllies === 'function') resetBattleAllies();
-  const aliveCheck = battleAllies.filter(u => u !== null && u.hp > 0);
-  if (aliveCheck.length === 0) {
-    autoActive = false;
-    updateUI();
-    return alert('バトルパーティにモンスターが編成されていません！');
+function renderParty() {
+  const el = document.getElementById('party-slots');
+  if (!el) return;
+  el.innerHTML = party.slice(0, 3).map((monId, slotIdx) => {
+    const m = captured.find(x => x.id === monId);
+    if (!m) return `<div class="slot-box"><div class="lvl">枠${slotIdx + 1}</div><div class="icon">＋</div><div class="name">空き枠</div><div class="sub">一覧から編成</div></div>`;
+    const disp = getMonsterVisual(m), idx = captured.findIndex(x => x.id === monId), st = getMonStats(m);
+    const plusTag = st.plus > 0 ? `+${st.plus}` : '';
+    return `<div class="slot-box" onclick="openMonModal(${idx})"><div class="lvl"><span>Lv.${st.lv}/${st.maxLv}</span>${renderElementBadge(st.elem)}</div><div class="icon">${renderSprite(disp, 36)}</div><div class="name">${m.name}${plusTag}</div><div class="sub">HP:${st.maxHp} ATK:${st.atk}</div></div>`;
+  }).join('');
+}
+
+function renderTraining() {
+  const el = document.getElementById('training-slots');
+  const cntEl = document.getElementById('train-count-disp');
+  const limit = Math.min(20, Math.max(3, Number(maxTrainingSlots) || 3));
+  if (!Array.isArray(trainingSlots)) trainingSlots = [];
+  while (trainingSlots.length < limit) trainingSlots.push(null);
+  trainingSlots = trainingSlots.slice(0, limit);
+
+  const activeCount = trainingSlots.filter(id => id && captured.some(x => x.id === id)).length;
+  if (cntEl) cntEl.textContent = `${activeCount}/${limit}`;
+
+  if (!el) return;
+  el.innerHTML = trainingSlots.map((monId, slotIdx) => {
+    const m = captured.find(x => x.id === monId);
+    if (!m) {
+      return `<div class="mini-mon-card empty" onclick="alert('「仲間一覧」タブからモンスターをタップし、「訓練場に配置する」を選んでください（戦闘EXPの10%を獲得）')">
+        <div class="m-top">訓練${slotIdx + 1}</div>
+        <div class="m-icon" style="opacity:0.4;font-size:18px;">＋</div>
+        <div class="m-bot">空き</div>
+      </div>`;
+    }
+    const disp = getMonsterVisual(m), st = getMonStats(m);
+    const plusText = st.plus > 0 ? `+${st.plus}` : '';
+    return `<div class="mini-mon-card train" onclick="removeFromTraining(${slotIdx})">
+      <div class="m-top"><span class="m-lv">Lv.${st.lv}</span><span class="m-tag train">解除</span></div>
+      <div class="m-icon">${renderSprite(disp, 30, '6px')}</div>
+      <div class="m-bot">${plusText ? `<span class="m-plus">${plusText}</span>` : `<span class="m-nm">${m.name}</span>`}</div>
+    </div>`;
+  }).join('');
+}
+
+function assignTrainingFromModal() {
+  const m = captured.slice(selectedMonIdx, selectedMonIdx + 1).pop();
+  if (!m) return;
+  if (party.includes(m.id)) return alert('バトル編成中のモンスターは訓練場に入れられません。先にパーティから外してください。');
+  const limit = Math.min(20, Math.max(3, Number(maxTrainingSlots) || 3));
+  if (!Array.isArray(trainingSlots)) trainingSlots = [];
+  while (trainingSlots.length < limit) trainingSlots.push(null);
+
+  if (trainingSlots.includes(m.id)) return alert('すでに訓練場に入っています。');
+  const empty = trainingSlots.findIndex(x => x === null);
+  if (empty === -1) return alert(`訓練場（${limit}枠）がいっぱいです。「訓練場」タブの［＋］ボタンで枠を拡張するか、配置中の仲間を外してください。`);
+  trainingSlots.splice(empty, 1, m.id);
+  closeMonModal();
+  renderTraining(); renderCaptured(); triggerAutoSave();
+  showToast(`${m.name}を訓練場に配置しました`);
+}
+
+function removeFromTraining(slotIdx) {
+  trainingSlots.splice(slotIdx, 1, null);
+  renderTraining(); renderCaptured(); triggerAutoSave();
+  showToast('訓練場から外しました');
+}
+
+function renderCaptured() {
+  const el = document.getElementById('captured-list');
+  const cntEl = document.getElementById('mon-count-disp');
+  const limit = Number(maxCaptured) || 50;
+  if (cntEl) cntEl.textContent = `${captured.length}/${limit}`;
+
+  if (!el || captured.length === 0) return;
+  el.innerHTML = captured.map((m, i) => {
+    const disp = getMonsterVisual(m);
+    const inParty = party.includes(m.id);
+    const inTrain = (trainingSlots || []).includes(m.id);
+    const inStaff = (staff || []).includes(m.id);
+    const st = getMonStats(m);
+    const plusText = st.plus > 0 ? `+${st.plus}` : '';
+
+    let statusBadge = '';
+    if (inParty) statusBadge = '<span class="m-tag party">編成</span>';
+    else if (inTrain) statusBadge = '<span class="m-tag train">訓練</span>';
+    else if (inStaff) statusBadge = '<span class="m-tag staff">店員</span>';
+
+    return `<div class="mini-mon-card ${inParty ? 'in-party' : ''}" onclick="openMonModal(${i})">
+      <div class="m-top"><span class="m-lv">Lv.${st.lv}</span>${statusBadge}</div>
+      <div class="m-icon">${renderSprite(disp, 30, '6px')}</div>
+      <div class="m-bot">${plusText ? `<span class="m-plus">${plusText}</span>` : `<span class="m-nm">${m.name}</span>`}</div>
+    </div>`;
+  }).join('');
+}
+
+function openMonModal(idx) {
+  selectedMonIdx = idx;
+  const m = captured.slice(idx, idx + 1).pop(); if (!m) return;
+  const disp = getMonsterVisual(m), st = getMonStats(m);
+  const elInfo = getElementInfo(st.elem);
+  const resInfo = getElementInfo(elInfo.resistTo);
+  const weakInfo = getElementInfo(elInfo.weakTo);
+  const plusTag = st.plus > 0 ? ` +${st.plus}` : '';
+  const needExp = getNextLevelExp(st.lv);
+  const expText = st.lv >= st.maxLv ? 'MAX（上限到達）' : `${m.exp || 0} / ${needExp}`;
+
+  document.getElementById('modal-mon-sprite').innerHTML = renderSprite(disp, 64, '12px');
+  document.getElementById('modal-mon-name').textContent = `${m.name}${plusTag}`;
+  document.getElementById('modal-mon-rarity').textContent = `配合値: +${st.plus}`;
+  document.getElementById('modal-mon-lv').innerHTML = `Lv.${st.lv} / ${st.maxLv}<br><span style="font-size:10px;color:#546e7a;font-weight:normal;">EXP: ${expText}</span>`;
+  document.getElementById('modal-mon-atk').innerHTML = `HP:${st.maxHp} / ATK:${st.atk}<br>DEF:${st.def} / CT:${st.ct}秒`;
+  document.getElementById('modal-mon-terrain').innerHTML = `${renderElementBadge(st.elem)} <b>${elInfo.name}属性</b><br><span style="font-size:11px;color:#455a64;font-weight:normal;">耐性: ${resInfo.name}（半減） / 弱点: ${weakInfo.name}（1.5倍）</span>`;
+
+  const skillIds = Array.from(new Set(Array.isArray(m.skills) && m.skills.length > 0 ? m.skills : [getSpeciesInnateSkillId(m.name)]));
+  document.getElementById('modal-mon-skill').innerHTML = skillIds.map((sid) => {
+    const sk = getSkillById(sid);
+    return `<div style="margin-bottom:4px;">${renderElementBadge(sk.elem)} <b>${sk.name}</b><br><span style="font-size:10px;color:#546e7a;font-weight:normal;">${sk.desc}（発動率${Math.round(sk.rate * 100)}%）</span></div>`;
+  }).join('');
+
+  const traitIds = Array.from(new Set(Array.isArray(m.traits) && m.traits.length > 0 ? m.traits : [getSpeciesInnateTraitId(m.name)]));
+  document.getElementById('modal-mon-trait').innerHTML = traitIds.map((tid) => {
+    const tr = getMonsterTrait(tid);
+    return `<div style="margin-bottom:3px;"><b>・${tr.name}</b> <span style="font-size:10px;color:#546e7a;font-weight:normal;">(${tr.desc})</span></div>`;
+  }).join('');
+
+  document.getElementById('modal-party-btn').textContent = party.includes(m.id) ? 'パーティから外す' : 'バトルパーティに編成する';
+  document.getElementById('mon-modal').style.display = 'flex';
+}
+function closeMonModal() { document.getElementById('mon-modal').style.display = 'none'; }
+
+function togglePartyFromModal() {
+  const m = captured.slice(selectedMonIdx, selectedMonIdx + 1).pop(); if (!m) return;
+  const pIdx = party.indexOf(m.id);
+  if (pIdx !== -1) {
+    if (party.filter(x => x !== null).length <= 1) return alert('パーティには最低1体必要です');
+    party.splice(pIdx, 1, null); showToast(`${m.name}をパーティから外しました`);
+  } else {
+    if ((trainingSlots || []).includes(m.id)) {
+      return alert('訓練場に入っているモンスターはバトル編成に入れられません。先に訓練場から外してください。');
+    }
+    const empty = party.findIndex(x => x === null);
+    if (empty === -1) return alert('パーティ（3枠）がいっぱいです');
+    party.splice(empty, 1, m.id); showToast(`${m.name}をパーティに編成しました`);
   }
+  if (!state.inBattle) resetBattleAllies();
+  renderParty(); renderCaptured(); updateUI(); triggerAutoSave(); openMonModal(selectedMonIdx);
+}
