@@ -12,7 +12,7 @@ let selectedMonIdx = -1;
 let autoUnlocked = false, autoActive = false;
 let speed2xUnlocked = false, speed2xActive = false;
 let staminaFastUnlocked = false;
-let waveStopMode = false; // false: 階層最後まで(5W連戦), true: 1ウェーブ毎に停止
+let waveStopMode = false;
 
 const MAX_STAMINA = 30;
 let stamina = MAX_STAMINA;
@@ -240,8 +240,9 @@ function renderSprite(displayVal, size = 32, round = '8px') {
   }
   if (displayVal.startsWith('EMBLEM:')) {
     const parts = displayVal.split(':');
-    const elInfo = typeof getElementInfo === 'function' ? getElementInfo(parts) : { color: '#546e7a', bg: '#eceff1' };
-    const char = parts || '魔';
+    const elemKey = parts.slice(1, 2).pop() || 'none';
+    const char = parts.slice(2, 3).pop() || '魔';
+    const elInfo = typeof getElementInfo === 'function' ? getElementInfo(elemKey) : { color: '#546e7a', bg: '#eceff1' };
     const fontSize = Math.max(12, Math.floor(size * 0.48));
     return `<span style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;background:${elInfo.bg};color:${elInfo.color};border:2px solid ${elInfo.color};font-weight:900;font-size:${fontSize}px;box-shadow:0 2px 5px rgba(0,0,0,0.2);">${char}</span>`;
   }
@@ -535,7 +536,6 @@ function handleWaveClear() {
     state.wave++;
     state.enemies = typeof getFixedWaveEnemies === 'function' ? getFixedWaveEnemies(state.stage, state.floor, state.wave) : [];
 
-    // 「1W停止」設定のときはここで一旦停止（次のバトル開始ボタンで続きのウェーブへ）
     if (waveStopMode) {
       state.inBattle = false;
       if (autoActive) autoActive = false;
