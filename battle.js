@@ -1,337 +1,316 @@
-// 戦闘ロジック・ウェーブ進行・退却・経験値処理 (battle.js)
+// バトル進行・ターンCT・スキル・報酬計算 (battle.js)
+let battleLoopTimer = null;
+let lastTickAt = Date.now();
+
 function startBattle(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
   if (state.inBattle) return;
 
-  if (typeof resetBattleAllies === 'function') resetBattleAllies();
-  const aliveCheck = battleAllies.filter(u => u !== null && u.hp > 0);
-  if (aliveCheck.length === 0) {
-    autoActive = false;
-    updateUI();
-    return alert('バトルパーティにモンスターが編成されていません！');
-  }
-
   syncStamina();
-  if (state.wave === 1) {
-    if (stamina < 1) {
-      autoActive = false;
-      updateUI();
-      return alert('スタミナが不足しています（1回復までお待ちください）');
+  if (stamina <= 0) {
+    return alert('スタミナが足りません（時間経過またはショップで回復できます）');
+  }
+
+  const hasAliveAlly = Array.isArray(battleAllies) && battleAllies.some(u => u && u.maxHp > 0);
+  if (!hasAliveAlly) resetBattleAllies();
+
+  stamina = Math.max(0, stamina - 1);
+  staminaUpdatedAt = Date.now();
+
+  battleAllies.forEach(u => {
+    if (u) {
+      u.hp = u.maxHp;
+      const st = u.monRef ? getMonStats(u.monRef) : { initCt: 0 };
+      u.ct = Number((u.maxCt * (st.initCt || 0)).toFixed(2));
     }
-    stamina -= 1;
-    if (stamina === MAX_STAMINA - 1) staminaUpdatedAt = Date.now();
-  }
+  });
 
-  state.inBattle = true;
-  state.shipCt = 0;
-
+  state.enemies = [];
   ensureWaveEnemies();
-  if (state.enemies.every(en => en.hp <= 0)) {
-    state.enemies = getFixedWaveEnemies(state.stage, state.floor, state.wave);
-  }
-
-  const startBtn = document.getElementById('start-battle-btn');
-  if (startBtn) startBtn.style.display = 'none';
+  state.shipCt = 0;
+  state.inBattle = true;
+  lastTickAt = Date.now();
   updateUI();
-  triggerAutoSave();
 }
 
 function retreatBattle(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
-  if (!state.inBattle && state.wave <= 1) return;
-
   state.inBattle = false;
   autoActive = false;
-  state.shipCt = 0;
-  state.wave = 1;
-  state.enemies = getFixedWaveEnemies(state.stage, state.floor, 1);
-
-  if (typeof resetBattleAllies === 'function') resetBattleAllies();
-  for (let i = 0; i < 3; i++) {
-    const eBar = document.querySelector(`#enemy-slot-${i} .e-ct-fill`);
-    if (eBar) eBar.style.width = '0%';
-    const aBar = document.querySelector(`#ally-slot-${i} .ally-ct-bar`);
-    if (aBar) aBar.style.width = '0%';
-  }
-
+  resetBattleAllies();
+  state.enemies = [];
+  ensureWaveEnemies();
   updateUI();
-  triggerAutoSave();
-  showToast(`階層から退却しました（${state.floor}-1 へ戻りました）`);
+  showToast('バトルから退却しました');
 }
 
-function advanceToNextWave() {
-  state.wave++;
-  if (state.wave > 5) {
-    state.wave = 1;
-    state.floor++;
-    if (state.floor > 50) {
-      if (state.stage < 10) {
-        state.stage++;
-        state.floor = 1;
-        state.maxStage = Math.max(state.maxStage || 1, state.stage);
-        if (!state.maxFloorByStage) state.maxFloorByStage = {};
-        state.maxFloorByStage[state.stage] = Math.max(state.maxFloorByStage[state.stage] || 1, 1);
-        const nextStg = getStageInfo(state.stage);
-        showToast(`新ステージ解放！Stage${state.stage}「${nextStg.name}」へ進出！`);
-      } else {
-        state.floor = 50;
-      }
+function calcElementMultiplier(atkElem, defElem) {
+  if (!atkElem || atkElem === 'none' || !defElem || defElem === 'none') return 1.0;
+  const info = typeof getElementInfo === 'function' ? getElementInfo(defElem) : null;
+  if (!info) return 1.0;
+  if (info.weakTo === atkElem) return 1.5;
+  if (info.resistTo === atkElem) return 0.5;
+  return 1.0;
+}
+
+function performAllyTurn(slotIdx) {
+  const u = battleAllies.slice(slotIdx, slotIdx + 1).pop();
+  if (!u || u.hp <= 0) return;
+
+  const aliveEnemies = (state.enemies || []).map((en, idx) => ({ en, idx })).filter(x => x.en && x.en.hp > 0);
+  if (aliveEnemies.length === 0) return;
+
+  triggerMotion(`ally-slot-${slotIdx}`, 'atk-motion');
+
+  const st = u.monRef ? getMonStats(u.monRef) : { elem: u.elem || 'none', bonusSkillRate: 0, bonusSkillDmg: 0, lifesteal: 0, lowHpAtk: 0, elemBoosts: {} };
+  let baseAtk = u.atk || 10;
+  if (st.lowHpAtk > 0 && (u.hp / (u.maxHp || 1)) <= 0.4) {
+    baseAtk = Math.floor(baseAtk * (1 + st.lowHpAtk));
+  }
+
+  const skillIds = (u.monRef && Array.isArray(u.monRef.skills)) ? u.monRef.skills : [];
+  let chosenSkill = null;
+  for (const sid of skillIds) {
+    const sk = typeof getSkillById === 'function' ? getSkillById(sid) : null;
+    if (sk && Math.random() < (sk.rate + (st.bonusSkillRate || 0))) {
+      chosenSkill = sk;
+      break;
     }
-    if (!state.maxFloorByStage) state.maxFloorByStage = {};
-    state.maxFloorByStage[state.stage] = Math.max(state.maxFloorByStage[state.stage] || 1, state.floor);
-    state.enemies = getFixedWaveEnemies(state.stage, state.floor, 1);
+  }
 
-    if (typeof resetBattleAllies === 'function') resetBattleAllies();
+  const atkElem = chosenSkill ? chosenSkill.elem : (st.elem || 'none');
+  const elemBoost = 1 + ((st.elemBoosts && st.elemBoosts[atkElem]) ? st.elemBoosts[atkElem] : 0);
+  const mult = chosenSkill ? (chosenSkill.mult * (1 + (st.bonusSkillDmg || 0))) : 1.0;
 
-    if (autoActive && stamina >= 1) {
+  if (chosenSkill && chosenSkill.type === 'heal') {
+    const healAmt = Math.max(5, Math.floor(baseAtk * mult));
+    battleAllies.forEach((ally, aIdx) => {
+      if (ally && ally.hp > 0) {
+        ally.hp = Math.min(ally.maxHp, ally.hp + healAmt);
+        showDamagePopup(`ally-slot-${aIdx}`, `+${healAmt}`, 'ship-dmg');
+      }
+    });
+    return;
+  }
+
+  const targets = (chosenSkill && chosenSkill.aoe) ? aliveEnemies : [aliveEnemies.slice(0, 1).pop()];
+  let totalDealt = 0;
+
+  targets.forEach(({ en, idx }) => {
+    const eMult = calcElementMultiplier(atkElem, en.elem);
+    const raw = (baseAtk * mult * elemBoost * eMult) - ((en.def || 0) * 0.4);
+    const dmg = Math.max(1, Math.floor(raw * (0.92 + Math.random() * 0.16)));
+    en.hp = Math.max(0, en.hp - dmg);
+    totalDealt += dmg;
+    triggerMotion(`enemy-slot-${idx}`, 'hit-motion');
+    showDamagePopup(`enemy-slot-${idx}`, chosenSkill ? `${chosenSkill.name} ${dmg}` : `${dmg}`, chosenSkill ? 'crit' : '');
+  });
+
+  if (st.lifesteal > 0 && totalDealt > 0) {
+    const drain = Math.max(1, Math.floor(totalDealt * st.lifesteal));
+    u.hp = Math.min(u.maxHp, u.hp + drain);
+  }
+}
+function performTankTurn() {
+  const atk = typeof getTankSupportAtk === 'function' ? getTankSupportAtk() : 0;
+  if (atk <= 0) return;
+  const aliveEnemies = (state.enemies || []).map((en, idx) => ({ en, idx })).filter(x => x.en && x.en.hp > 0);
+  if (aliveEnemies.length === 0) return;
+
+  aliveEnemies.forEach(({ en, idx }) => {
+    const dmg = Math.max(1, Math.floor(atk * (0.9 + Math.random() * 0.2)));
+    en.hp = Math.max(0, en.hp - dmg);
+    triggerMotion(`enemy-slot-${idx}`, 'hit-motion');
+    showDamagePopup(`enemy-slot-${idx}`, `砲撃 ${dmg}`, 'ship-dmg');
+  });
+}
+
+function performEnemyTurn(enemyIdx) {
+  const en = (state.enemies || []).slice(enemyIdx, enemyIdx + 1).pop();
+  if (!en || en.hp <= 0) return;
+
+  const aliveAllies = (battleAllies || []).map((al, idx) => ({ al, idx })).filter(x => x.al && x.al.hp > 0);
+  if (aliveAllies.length === 0) return;
+
+  triggerMotion(`enemy-slot-${enemyIdx}`, 'atk-motion');
+  const pick = aliveAllies.slice(Math.floor(Math.random() * aliveAllies.length), Math.floor(Math.random() * aliveAllies.length) + 1).pop() || aliveAllies.slice(0, 1).pop();
+  const { al, idx } = pick;
+
+  const eMult = calcElementMultiplier(en.elem, al.elem);
+  const raw = ((en.atk || 10) * eMult) - ((al.def || 0) * 0.45);
+  const dmg = Math.max(1, Math.floor(raw * (0.92 + Math.random() * 0.16)));
+  al.hp = Math.max(0, al.hp - dmg);
+  triggerMotion(`ally-slot-${idx}`, 'hit-motion');
+  showDamagePopup(`ally-slot-${idx}`, `-${dmg}`, 'ally-dmg');
+}
+
+function handleWaveCleared() {
+  const floorNum = ((Number(state.stage) || 1) - 1) * 20 + (Number(state.floor) || 1);
+  const waveNum = Number(state.wave) || 1;
+  const isBoss = waveNum === 5;
+
+  let goldBonusMult = 1.0;
+  (battleAllies || []).forEach(u => {
+    if (u && u.monRef) {
+      const st = getMonStats(u.monRef);
+      if (st.goldMult > 1) goldBonusMult += (st.goldMult - 1);
+    }
+  });
+
+  const gainGold = Math.floor((18 + floorNum * 14) * (isBoss ? 2.5 : 1.0) * goldBonusMult);
+  const gainExp = Math.floor((14 + floorNum * 9) * (isBoss ? 2.2 : 1.0));
+  gold += gainGold;
+
+  if (isBoss && Math.random() < 0.35) {
+    gem += 5;
+    showToast(`強敵撃破ボーナス！ +${gainGold}G / +5 GEM`);
+  }
+
+  let anyLeveled = false;
+  (party || []).forEach(monId => {
+    if (!monId) return;
+    const m = captured.find(x => x.id === monId);
+    if (m && grantExpToMonster(m, gainExp)) anyLeveled = true;
+  });
+
+  const trainExp = Math.max(1, Math.floor(gainExp * 0.10));
+  (trainingSlots || []).forEach(monId => {
+    if (!monId) return;
+    const m = captured.find(x => x.id === monId);
+    if (m && grantExpToMonster(m, trainExp)) anyLeveled = true;
+  });
+
+  (state.enemies || []).forEach(en => {
+    if (en && typeof tryAutoRecruit === 'function') tryAutoRecruit(en);
+  });
+
+  if (anyLeveled) {
+    if (typeof renderParty === 'function') renderParty();
+    if (typeof renderCaptured === 'function') renderCaptured();
+    if (typeof renderTraining === 'function') renderTraining();
+  }
+
+  if (waveNum < 5) {
+    state.wave = waveNum + 1;
+    state.enemies = [];
+    ensureWaveEnemies();
+    if (waveStopMode) {
+      state.inBattle = false;
+      resetBattleAllies();
+    }
+  } else {
+    const curStage = Number(state.stage) || 1;
+    const curFloor = Number(state.floor) || 1;
+    if (!state.maxFloorByStage) state.maxFloorByStage = { 1: 1 };
+
+    let nextStage = curStage;
+    let nextFloor = curFloor + 1;
+    if (nextFloor > 20) {
+      nextStage = Math.min(10, curStage + 1);
+      nextFloor = 1;
+    }
+
+    state.maxStage = Math.max(Number(state.maxStage) || 1, nextStage);
+    state.maxFloorByStage[nextStage] = Math.max(Number(state.maxFloorByStage[nextStage]) || 1, nextFloor);
+
+    state.stage = nextStage;
+    state.floor = nextFloor;
+    state.wave = 1;
+    state.enemies = [];
+    ensureWaveEnemies();
+    resetBattleAllies();
+
+    if (autoUnlocked && autoActive && stamina > 0) {
       stamina -= 1;
-      if (stamina === MAX_STAMINA - 1) staminaUpdatedAt = Date.now();
+      staminaUpdatedAt = Date.now();
       state.inBattle = true;
-      showToast(`次の階層 ${state.floor}-1 へ自動出撃！`);
     } else {
-      if (autoActive && stamina < 1) {
+      state.inBattle = false;
+      if (autoActive && stamina <= 0) {
         autoActive = false;
         showToast('スタミナ切れのためオート周回を停止しました');
       }
-      state.inBattle = false;
-    }
-  } else {
-    state.enemies = getFixedWaveEnemies(state.stage, state.floor, state.wave);
-
-    if (waveStopMode) {
-      state.inBattle = false;
-      showToast(`WAVE ${state.wave - 1} クリア！（${state.floor}-${state.wave} で待機中）`);
-    } else {
-      state.inBattle = true;
     }
   }
+
+  updateUI();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
 }
 
-function checkBattleTurnEnd(enemies) {
-  if (enemies.every(en => en.hp <= 0)) {
-    let totalGoldGain = 0;
-    let totalExpGain = 0;
-    enemies.forEach(en => {
-      totalGoldGain += Number(en.gold) || 10;
-      totalExpGain += Number(en.exp) || 8;
-    });
-
-    let goldBonusMult = 1.0;
-    battleAllies.forEach(u => {
-      if (u && u.hp > 0 && u.monRef) {
-        const st = getMonStats(u.monRef);
-        goldBonusMult += (st.goldMult - 1.0);
-      }
-    });
-    const finalGold = Math.floor(totalGoldGain * goldBonusMult);
-    gold += finalGold;
-
-    let anyLvUp = false;
-    battleAllies.forEach(u => {
-      if (u && u.hp > 0 && u.monRef) {
-        if (grantExpToMonster(u.monRef, totalExpGain)) anyLvUp = true;
-      }
-    });
-
-    const trainExp = Math.max(1, Math.floor(totalExpGain * 0.10));
-    (trainingSlots || []).forEach(monId => {
-      if (!monId) return;
-      const tm = captured.find(x => x.id === monId);
-      if (tm && grantExpToMonster(tm, trainExp)) anyLvUp = true;
-    });
-
-    if (anyLvUp) {
-      if (typeof renderParty === 'function') renderParty();
-      if (typeof renderCaptured === 'function') renderCaptured();
-      if (typeof renderTraining === 'function') renderTraining();
-      if (typeof updateSelectOptions === 'function') updateSelectOptions();
-    }
-
-    enemies.forEach(en => {
-      if (typeof tryAutoRecruit === 'function') tryAutoRecruit(en);
-    });
-
-    if (state.wave < 5 && waveStopMode) {
-      showToast(`WAVE ${state.wave} 突破 (+${finalGold}G / +${totalExpGain}EXP)`);
-    } else {
-      showToast(`WAVEクリア (+${finalGold}G / +${totalExpGain}EXP)`);
-    }
-
-    advanceToNextWave();
-    updateUI();
-    triggerAutoSave();
-    return true;
-  }
-
-  const aliveAllies = battleAllies.filter(u => u !== null && u.hp > 0);
-  if (aliveAllies.length === 0) {
-    state.inBattle = false;
-    autoActive = false;
-    state.wave = 1;
-    state.enemies = getFixedWaveEnemies(state.stage, state.floor, 1);
-    if (typeof resetBattleAllies === 'function') resetBattleAllies();
-    updateUI();
-    triggerAutoSave();
-    showToast(`全滅！${state.floor}-1 へ戻りました`);
-    return true;
-  }
-  return false;
-}
-setInterval(() => {
-  const enemies = ensureWaveEnemies();
-  const dt = speed2xActive ? 0.2 : 0.1;
+function tickBattleLoop() {
+  const now = Date.now();
+  const rawDt = Math.min(0.25, (now - lastTickAt) / 1000);
+  lastTickAt = now;
 
   if (!state.inBattle) {
     updateUI();
     return;
   }
 
-  const aliveStart = battleAllies.filter(u => u !== null && u.hp > 0);
-  if (aliveStart.length === 0) {
-    state.inBattle = false;
-    autoActive = false;
-    updateUI();
+  const spd = speed2xActive ? 2.0 : 1.0;
+  const dt = rawDt * spd;
+
+  const tankIv = typeof getTankInterval === 'function' ? getTankInterval() : 3.4;
+  if ((Number(landTankTier) || 0) > 0) {
+    state.shipCt = (Number(state.shipCt) || 0) + dt;
+    if (state.shipCt >= tankIv) {
+      state.shipCt = 0;
+      performTankTurn();
+    }
+  }
+
+  for (let i = 0; i < 3; i++) {
+    const u = (battleAllies || []).slice(i, i + 1).pop();
+    const bar = document.getElementById(`ally-ct-${i}`);
+    if (!u || u.hp <= 0) {
+      if (bar) bar.style.width = '0%';
+      continue;
+    }
+    u.ct = (Number(u.ct) || 0) + dt;
+    if (u.ct >= (u.maxCt || 1.8)) {
+      u.ct = 0;
+      performAllyTurn(i);
+    }
+    if (bar) bar.style.width = `${Math.min(100, (u.ct / (u.maxCt || 1.8)) * 100)}%`;
+  }
+
+  const enemies = Array.isArray(state.enemies) ? state.enemies : [];
+  for (let i = 0; i < enemies.length; i++) {
+    const en = enemies.slice(i, i + 1).pop();
+    const slot = document.getElementById(`enemy-slot-${i}`);
+    const bar = slot ? slot.querySelector('.e-ct-fill') : null;
+    if (!en || en.hp <= 0) {
+      if (bar) bar.style.width = '0%';
+      continue;
+    }
+    en.ct = (Number(en.ct) || 0) + dt;
+    if (en.ct >= (en.maxCt || 2.0)) {
+      en.ct = 0;
+      performEnemyTurn(i);
+    }
+    if (bar) bar.style.width = `${Math.min(100, (en.ct / (en.maxCt || 2.0)) * 100)}%`;
+  }
+
+  const anyEnemyAlive = enemies.some(e => e && e.hp > 0);
+  if (!anyEnemyAlive) {
+    handleWaveCleared();
     return;
   }
 
-  const tankAtk = typeof getTankSupportAtk === 'function' ? getTankSupportAtk() : 0;
-  if (tankAtk > 0) {
-    const tankIv = typeof getTankInterval === 'function' ? getTankInterval() : 3.2;
-    state.shipCt += dt;
-    if (state.shipCt >= tankIv) {
-      state.shipCt = 0;
-      const aliveIdx = enemies.map((e, idx) => e.hp > 0 ? idx : -1).filter(idx => idx !== -1);
-      if (aliveIdx.length > 0) {
-        const tIdx = aliveIdx[Math.floor(Math.random() * aliveIdx.length)];
-        const targetEnemy = enemies.slice(tIdx, tIdx + 1).pop();
-        if (targetEnemy) {
-          targetEnemy.hp -= tankAtk;
-          triggerMotion(`enemy-slot-${tIdx}`, 'hit-motion');
-          showDamagePopup(`enemy-slot-${tIdx}`, `砲撃 -${tankAtk}`, 'ship-dmg');
-          if (checkBattleTurnEnd(enemies)) return;
-        }
-      }
-    }
-  }
-
-  for (let i = 0; i < 3; i++) {
-    const unit = battleAllies.slice(i, i + 1).pop();
-    const ctBar = document.querySelector(`#ally-slot-${i} .ally-ct-bar`);
-    if (!unit || unit.hp <= 0) {
-      if (ctBar) ctBar.style.width = '0%';
-      continue;
-    }
-
-    unit.ct += dt;
-    if (ctBar) ctBar.style.width = `${Math.min(100, (unit.ct / unit.maxCt) * 100)}%`;
-
-    if (unit.ct >= unit.maxCt) {
-      unit.ct = 0;
-      if (ctBar) ctBar.style.width = '0%';
-
-      const aliveIdx = enemies.map((e, idx) => e.hp > 0 ? idx : -1).filter(idx => idx !== -1);
-      if (aliveIdx.length === 0) break;
-
-      const tIdx = aliveIdx[Math.floor(Math.random() * aliveIdx.length)];
-      const targetEnemy = enemies.slice(tIdx, tIdx + 1).pop();
-      if (!targetEnemy) continue;
-
-      triggerMotion(`ally-slot-${i}`, 'atk-motion');
-
-      let dmg = Math.max(1, unit.atk - Math.floor((targetEnemy.def || 0) / 2));
-      let label = `-${dmg}`;
-      let popType = '';
-
-      if (unit.monRef && typeof getMonStats === 'function' && typeof getSkillById === 'function') {
-        const st = getMonStats(unit.monRef);
-        let activeAtk = st.atk;
-        if (st.lowHpAtk > 0 && unit.hp <= unit.maxHp * 0.5) {
-          activeAtk = Math.floor(activeAtk * (1 + st.lowHpAtk));
-        }
-        dmg = Math.max(1, activeAtk - Math.floor((targetEnemy.def || 0) / 2));
-
-        const skills = Array.isArray(unit.monRef.skills) ? unit.monRef.skills : [];
-        let triggeredSkill = null;
-        for (const sid of skills) {
-          const sk = getSkillById(sid);
-          if (sk && Math.random() < ((sk.rate || 0.25) + st.bonusSkillRate)) {
-            triggeredSkill = sk;
-            break;
-          }
-        }
-
-        if (triggeredSkill) {
-          const mult = (triggeredSkill.mult || 1.2) + st.bonusSkillDmg;
-          const elemBonus = (triggeredSkill.elem && st.elemBoosts && st.elemBoosts[triggeredSkill.elem]) ? (1 + st.elemBoosts[triggeredSkill.elem]) : 1.0;
-          const elemMod = typeof calcElementMultiplier === 'function' ? calcElementMultiplier(triggeredSkill.elem, targetEnemy.elem) : 1.0;
-          dmg = Math.max(1, Math.floor(activeAtk * mult * elemBonus * elemMod) - Math.floor((targetEnemy.def || 0) / 2));
-          label = `${triggeredSkill.name} -${dmg}`;
-          popType = 'crit';
-        } else {
-          const elemMod = typeof calcElementMultiplier === 'function' ? calcElementMultiplier(unit.elem, targetEnemy.elem) : 1.0;
-          dmg = Math.max(1, Math.floor(activeAtk * elemMod) - Math.floor((targetEnemy.def || 0) / 2));
-          label = elemMod > 1.0 ? `弱点 -${dmg}` : `-${dmg}`;
-          if (elemMod > 1.0) popType = 'crit';
-        }
-
-        if (st.lifesteal > 0) {
-          const heal = Math.max(1, Math.floor(dmg * st.lifesteal));
-          unit.hp = Math.min(unit.maxHp, unit.hp + heal);
-        }
-      }
-
-      targetEnemy.hp -= dmg;
-      triggerMotion(`enemy-slot-${tIdx}`, 'hit-motion');
-      showDamagePopup(`enemy-slot-${tIdx}`, label, popType);
-
-      if (checkBattleTurnEnd(enemies)) return;
-    }
-  }
-
-  for (let i = 0; i < 3; i++) {
-    const e = enemies.slice(i, i + 1).pop();
-    const eCtBar = document.querySelector(`#enemy-slot-${i} .e-ct-fill`);
-    if (!e || e.hp <= 0) {
-      if (eCtBar) eCtBar.style.width = '0%';
-      continue;
-    }
-
-    e.ct = (e.ct || 0) + dt;
-    const maxECt = e.maxCt || 2.2;
-    if (eCtBar) eCtBar.style.width = `${Math.min(100, (e.ct / maxECt) * 100)}%`;
-
-    if (e.ct >= maxECt) {
-      e.ct = 0;
-      if (eCtBar) eCtBar.style.width = '0%';
-
-      const aliveAllies = battleAllies.map((u, idx) => (u && u.hp > 0) ? idx : -1).filter(idx => idx !== -1);
-      if (aliveAllies.length === 0) break;
-
-      const aIdx = aliveAllies[Math.floor(Math.random() * aliveAllies.length)];
-      const targetAlly = battleAllies.slice(aIdx, aIdx + 1).pop();
-      if (!targetAlly) continue;
-
-      triggerMotion(`enemy-slot-${i}`, 'atk-motion');
-
-      const elemMod = typeof calcElementMultiplier === 'function' ? calcElementMultiplier(e.elem, targetAlly.elem) : 1.0;
-      const dmg = Math.max(1, Math.floor((e.atk || 5) * elemMod) - Math.floor((targetAlly.def || 0) / 2));
-      targetAlly.hp = Math.max(0, targetAlly.hp - dmg);
-
-      triggerMotion(`ally-slot-${aIdx}`, 'hit-motion');
-      showDamagePopup(`ally-slot-${aIdx}`, `-${dmg}`, 'ally-dmg');
-
-      if (checkBattleTurnEnd(enemies)) return;
-    }
+  const anyAllyAlive = (battleAllies || []).some(u => u && u.hp > 0);
+  if (!anyAllyAlive) {
+    state.inBattle = false;
+    autoActive = false;
+    resetBattleAllies();
+    state.enemies = [];
+    ensureWaveEnemies();
+    updateUI();
+    showToast('パーティが全滅しました…強化や配合で再挑戦しよう！');
+    return;
   }
 
   updateUI();
-}, 100);
+}
 
-setInterval(() => {
-  const inc = typeof getCafeIncome === 'function' ? getCafeIncome() : 0;
-  if (inc > 0) {
-    gold += inc;
-    const gEl = document.getElementById('gold');
-    if (gEl) gEl.textContent = gold.toLocaleString();
-  }
-}, 1000);
+if (battleLoopTimer) clearInterval(battleLoopTimer);
+battleLoopTimer = setInterval(tickBattleLoop, 80);
