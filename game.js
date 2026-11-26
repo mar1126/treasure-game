@@ -310,3 +310,42 @@ function renderSprite(disp, size = 36, fontSize = '14px') {
 function updateSelectOptions() {
   if (typeof refreshAiSpeciesSelects === 'function') refreshAiSpeciesSelects();
 }
+function ensureWaveEnemies() {
+  if (!Array.isArray(state.enemies)) state.enemies = [];
+  const alive = state.enemies.filter(e => e && e.hp > 0);
+  if (alive.length > 0) return;
+
+  if (typeof generateWaveEnemies === 'function') {
+    state.enemies = generateWaveEnemies(state.stage || 1, state.floor || 1, state.wave || 1);
+    return;
+  }
+
+  const stInfo = typeof getCurrentStageInfo === 'function' ? getCurrentStageInfo() : { id: 1, monsters: ['スライム', 'プチバット', 'ゴブリン'] };
+  const pool = Array.isArray(stInfo.monsters) && stInfo.monsters.length > 0 ? stInfo.monsters : ['スライム'];
+  const floorNum = ((Number(state.stage) || 1) - 1) * 20 + (Number(state.floor) || 1);
+  const waveNum = Number(state.wave) || 1;
+  const isBoss = waveNum === 5;
+  const count = isBoss ? 1 : (floorNum >= 5 ? 3 : (floorNum >= 2 ? 2 : 1));
+  const scale = Math.pow(1.18, floorNum - 1) * (1 + (waveNum - 1) * 0.12) * (isBoss ? 2.2 : 1.0);
+
+  state.enemies = [];
+  for (let i = 0; i < count; i++) {
+    const spName = pool[(floorNum + waveNum + i) % pool.length];
+    const sp = typeof getSpeciesData === 'function' ? getSpeciesData(spName) : { name: spName, elem: 'none', baseHp: 70, baseAtk: 10, baseDef: 2, ct: 2.0 };
+    const maxHp = Math.floor((sp.baseHp || 70) * scale);
+    const atk = Math.floor((sp.baseAtk || 10) * scale);
+    const def = Math.floor((sp.baseDef || 2) * scale);
+    state.enemies.push({
+      name: isBoss ? `[強敵] ${sp.name}` : sp.name,
+      rawName: sp.name,
+      elem: sp.elem || 'none',
+      maxHp,
+      hp: maxHp,
+      atk,
+      def,
+      maxCt: sp.ct || 2.0,
+      ct: Number(((i * 0.4)).toFixed(2)),
+      isBoss
+    });
+  }
+}
