@@ -11,25 +11,25 @@ function toggleExtend(prefix) {
 }
 function renderSpeciesGallery() {
   const spName = document.getElementById('ai-species-sel').value, box = document.getElementById('species-skin-gallery');
-  if (!spName || !speciesSkins[spName]) { box.innerHTML = '<p style="grid-column:span 3;font-size:11px;color:#78909c;">先にモンスターを捕獲してください</p>'; return; }
+  if (!spName || !speciesSkins[spName]) { box.innerHTML = '<p style="grid-column:span 3;font-size:11px;color:#78909c;">先にモンスターを仲間にしてください</p>'; return; }
   const data = speciesSkins[spName];
-  const defVisual = typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual(spName, data.defaultIcon) : data.defaultIcon;
+  const defVisual = typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual(spName) : `EMBLEM:none:${spName.slice(0, 1)}`;
   let html = `<div class="slot-box ${data.activeIdx === -1 ? 'selected' : ''}" onclick="selectSkin('${spName}', -1)"><div class="lvl">標準</div><div class="icon">${renderSprite(defVisual, 36)}</div><div class="name">デフォルト</div></div>`;
   html += data.list.map((img, i) => `<div class="slot-box ${data.activeIdx === i ? 'selected' : ''}" onclick="selectSkin('${spName}', ${i})"><div class="lvl">限定#${i + 1}</div><div class="icon">${renderSprite(img, 36)}</div><div class="name">着せ替え${i + 1}</div></div>`).join('');
   box.innerHTML = html;
 }
 function selectSkin(spName, idx) {
-  speciesSkins[spName].activeIdx = idx; renderSpeciesGallery(); renderCaptured(); renderCafe(); updateIconPreview(); showToast(`✨ ${spName}の見た目を変更！`);
+  speciesSkins[spName].activeIdx = idx; renderSpeciesGallery(); renderCaptured(); renderCafe(); updateIconPreview(); showToast(`${spName}の見た目を変更しました`);
 }
 async function generateAI(type) {
   const prefix = type === 'monster' ? 'mon' : type, isExt = document.getElementById(`${prefix}-ext`).checked, cost = isExt ? 250 : 200;
-  if (gem < cost) return alert(`ジェム不足(${cost}💎必要)`);
+  if (gem < cost) return alert(`ジェム不足 (${cost} 必要)`);
   const promptInput = document.getElementById(`ai-${prefix}-prompt`).value;
   if (!promptInput) return alert('プロンプトを入力してください');
   let spName = '', stampText = '';
-  if (type === 'monster') { spName = document.getElementById('ai-species-sel').value; if (!spName) return alert('先にモンスターを捕獲してください'); }
+  if (type === 'monster') { spName = document.getElementById('ai-species-sel').value; if (!spName) return alert('先にモンスターを仲間にしてください'); }
   else if (type === 'stamp') { spName = document.getElementById('stamp-species-sel').value; stampText = document.getElementById('stamp-text').value; }
-  const statusEl = document.getElementById('ai-status'); statusEl.textContent = '🎨 AI描画中...（約10秒）'; gem -= cost; updateUI();
+  const statusEl = document.getElementById('ai-status'); statusEl.textContent = 'AI描画中...（約10秒）'; gem -= cost; updateUI();
   try {
     const res = await fetch('/api/ai-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: spName ? `${spName} (${promptInput})` : promptInput, type, stampText }) });
     const data = await res.json();
@@ -37,7 +37,7 @@ async function generateAI(type) {
       if (type === 'monster') { speciesSkins[spName].list.push(data.image); speciesSkins[spName].activeIdx = speciesSkins[spName].list.length - 1; iconConfig.species = spName; renderSpeciesGallery(); renderCaptured(); renderCafe(); }
       else if (type === 'bg') { aiBackgrounds.push({ name: promptInput.slice(0, 8), img: data.image }); iconConfig.bgIdx = aiBackgrounds.length - 1; }
       else if (type === 'stamp') { aiStamps.push({ text: stampText || 'スタンプ', img: data.image }); renderStamps(); }
-      updateSelectOptions(); updateIconPreview(); triggerAutoSave(true); statusEl.textContent = '✨ 完成＆自動保存しました！';
+      updateSelectOptions(); updateIconPreview(); triggerAutoSave(true); statusEl.textContent = '完成＆自動保存しました';
     } else statusEl.textContent = 'エラー: ' + (data.error || '生成失敗');
   } catch (e) { statusEl.textContent = '通信エラー'; }
 }
@@ -47,11 +47,11 @@ function renderStamps() {
   document.getElementById('chat-stamp-bar').innerHTML = html || '<p style="grid-column:span 3;font-size:11px;color:#78909c;">AIアトリエでスタンプを作ると並びます</p>';
 }
 function updateSelectOptions() {
-  const names = Object.keys(speciesSkins), spOpts = names.map(n => `<option value="${n}">${speciesSkins[n].defaultIcon} ${n}</option>`).join('');
-  document.getElementById('ai-species-sel').innerHTML = spOpts || '<option value="">未捕獲</option>';
-  document.getElementById('stamp-species-sel').innerHTML = '<option value="🦊 フォックス">🦊 フォックス(相棒)</option>' + spOpts;
-  document.getElementById('icon-char-sel').innerHTML = '<option value="デフォルト">🦊 デフォルト</option>' + spOpts;
-  document.getElementById('icon-bg-sel').innerHTML = '<option value="-1">デフォルト(水色グラデ)</option>' + aiBackgrounds.map((b, i) => `<option value="${i}">AI背景: ${b.name}</option>`).join('');
+  const names = Object.keys(speciesSkins), spOpts = names.map(n => `<option value="${n}">${n}</option>`).join('');
+  document.getElementById('ai-species-sel').innerHTML = spOpts || '<option value="">未獲得</option>';
+  document.getElementById('stamp-species-sel').innerHTML = '<option value="スライム">スライム</option>' + spOpts;
+  document.getElementById('icon-char-sel').innerHTML = '<option value="デフォルト">デフォルト</option>' + spOpts;
+  document.getElementById('icon-bg-sel').innerHTML = '<option value="-1">デフォルト背景</option>' + aiBackgrounds.map((b, i) => `<option value="${i}">AI背景: ${b.name}</option>`).join('');
 }
 function updateIconPreview(save = true) {
   iconConfig.species = document.getElementById('icon-char-sel').value;
@@ -62,12 +62,12 @@ function updateIconPreview(save = true) {
   iconConfig.rotate = parseInt(document.getElementById('icon-rot').value);
   const preview = document.getElementById('icon-preview-box'), charLayer = document.getElementById('icon-char-layer');
   preview.style.backgroundImage = (iconConfig.bgIdx >= 0 && aiBackgrounds[iconConfig.bgIdx]) ? `url(${aiBackgrounds[iconConfig.bgIdx].img})` : 'linear-gradient(135deg, #4fc3f7, #0288d1)';
-  const sp = speciesSkins[iconConfig.species], disp = sp ? getSpeciesDisplay(iconConfig.species, sp.defaultIcon) : (typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual('フォックス', '🦊') : '🦊');
-  charLayer.innerHTML = (disp.startsWith('data:image') || disp.startsWith('/')) ? renderSprite(disp, 76, '10px') : `<span style="font-size:52px;">${disp}</span>`;
+  const disp = speciesSkins[iconConfig.species] ? getSpeciesDisplay(iconConfig.species) : (typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual('スライム') : 'EMBLEM:water:ス');
+  charLayer.innerHTML = renderSprite(disp, 76, '10px');
   charLayer.style.transform = `translate(${iconConfig.x}px, ${iconConfig.y}px) scale(${iconConfig.scale}) rotate(${iconConfig.rotate}deg)`;
   const mini = document.getElementById('hud-my-icon');
   mini.style.backgroundImage = preview.style.backgroundImage;
-  mini.innerHTML = (disp.startsWith('data:image') || disp.startsWith('/')) ? renderSprite(disp, 26, '6px') : disp;
+  mini.innerHTML = renderSprite(disp, 26, '6px');
   if (save) triggerAutoSave();
 }
 function switchTab(tabName, btn) {
@@ -89,14 +89,13 @@ async function loadFromCloudById() {
   if (!targetId) return;
   const res = await fetch(`/api/save?user_id=${encodeURIComponent(targetId)}`);
   const row = await res.json();
-  if (row && row.save_json) { userId = targetId; localStorage.setItem('treasure_uid', userId); document.getElementById('my-user-id').textContent = userId; applySaveData(JSON.parse(row.save_json)); alert('データを復元しました！'); }
+  if (row && row.save_json) { userId = targetId; localStorage.setItem('treasure_uid', userId); document.getElementById('my-user-id').textContent = userId; applySaveData(JSON.parse(row.save_json)); alert('データを復元しました'); }
   else alert('データが見つかりません');
 }
 async function sendChat(stampImg = null) {
   const msg = stampImg ? `[STAMP]${stampImg}` : document.getElementById('chat-input').value;
   if (!msg) return; if (!stampImg) document.getElementById('chat-input').value = '';
-  const sp = speciesSkins[iconConfig.species];
-  const iconData = JSON.stringify({ emoji: sp ? sp.defaultIcon : '🦊', rotate: iconConfig.rotate });
+  const iconData = JSON.stringify({ name: playerName.slice(0, 1), rotate: iconConfig.rotate });
   await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: playerName, icon_json: iconData, message: msg }) });
   loadChat();
 }
@@ -105,9 +104,8 @@ async function loadChat() {
   try {
     const res = await fetch('/api/chat'); const list = await res.json();
     document.getElementById('chat-messages').innerHTML = list.map(c => {
-      const ic = JSON.parse(c.icon_json || '{"emoji":"🦊","rotate":0}');
       const body = c.message.startsWith('[STAMP]') ? `<img src="${c.message.replace('[STAMP]', '')}" style="width:72px;height:72px;border-radius:10px;display:block;margin-top:4px;">` : c.message;
-      return `<div class="chat-msg"><span style="display:inline-block;transform:rotate(${ic.rotate}deg)">${ic.emoji}</span> <b>${c.user_name}</b>: ${body}</div>`;
+      return `<div class="chat-msg"><b>${c.user_name}</b>: ${body}</div>`;
     }).join('') || 'まだメッセージがありません';
   } catch (e) {}
 }
@@ -115,9 +113,9 @@ async function loadRanking() {
   try {
     const res = await fetch('/api/ranking'); const list = await res.json();
     document.getElementById('ranking-list').innerHTML = list.map((r, i) => {
-      const lText = r.land_stage ? `S${r.land_stage}-${r.land_area}` : `${r.land_area}F`;
-      const sText = r.sea_stage ? `S${r.sea_stage}-${r.sea_area}` : `${r.sea_area}F`;
-      return `<div style="padding:6px 0;border-bottom:1px solid #eceff1;"><b>#${i + 1} ${r.user_name}</b> - 🌲陸 ${lText} / 🌊海 ${sText}</div>`;
+      const stg = r.land_stage || 1;
+      const flr = r.land_area || 1;
+      return `<div style="padding:6px 0;border-bottom:1px solid #eceff1;"><b>#${i + 1} ${r.user_name}</b> - Stage${stg} (${flr}F)</div>`;
     }).join('');
   } catch (e) {}
 }
