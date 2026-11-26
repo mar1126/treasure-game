@@ -57,8 +57,12 @@ let state = {
   maxFloorByStage: { 1: 1 },
   inBattle: false,
   shipCt: 0,
-  enemies: []
+  enemies: [],
+  logs: [],
+  drops: [],
+  turnQueue: []
 };
+
 
 function showToast(msg) {
   const el = document.getElementById('capture-msg');
