@@ -1,3 +1,29 @@
+function optimizeJapaneseArtTerms(text) {
+  let s = String(text || "");
+  const dict = [
+    [/擬人化/g, "humanized anime girl version, human female character, "],
+    [/美少女|美女/g, "beautiful anime girl, pretty face, "],
+    [/イケメン|美少年/g, "handsome anime boy, "],
+    [/頭身高く|高い頭身|スタイリッシュな頭身|長身/g, "tall slender body, 8 heads tall proportions, long legs, adult proportions, NOT chibi, "],
+    [/ちび|ミニキャラ|デフォルメ/g, "cute chibi character, "],
+    [/エルフ/g, "elf ears, "],
+    [/弓使い|アーチャー/g, "archer holding a bow, "],
+    [/騎士|鎧/g, "knight in fantasy armor, "],
+    [/魔法使い|魔女/g, "mage with magic staff, "],
+    [/ドレス/g, "elegant fantasy dress, "],
+    [/水着/g, "stylish summer swimsuit, "],
+    [/メイド/g, "cute maid outfit, "],
+    [/着物|和服/g, "traditional Japanese kimono, "],
+    [/ゴスロリ/g, "gothic lolita dress, "],
+    [/猫耳/g, "cat ears, "],
+    [/翼|羽/g, "angel wings, "]
+  ];
+  for (const [regex, rep] of dict) {
+    s = s.replace(regex, rep);
+  }
+  return s;
+}
+
 export async function onRequestPost({ request, env }) {
   try {
     const ai = env.AI || Object.values(env).find(v => v && typeof v.run === "function");
@@ -13,9 +39,10 @@ export async function onRequestPost({ request, env }) {
     const rawPrompt = String(body.prompt || "").slice(0, 500);
     const stampText = String(body.stamp_text || "").slice(0, 20);
 
-    // 1. 日本語の種族名とユーザープロンプトを英語に自動翻訳
+    const preTranslatedPrompt = optimizeJapaneseArtTerms(rawPrompt);
     let enSpecies = species;
-    let enPrompt = rawPrompt;
+    let enPrompt = preTranslatedPrompt;
+
     try {
       if (/[^\x00-\x7F]/.test(species)) {
         const trSp = await ai.run("@cf/meta/m2m100-1.2b", {
@@ -25,9 +52,9 @@ export async function onRequestPost({ request, env }) {
         });
         if (trSp && trSp.translated_text) enSpecies = trSp.translated_text;
       }
-      if (rawPrompt && /[^\x00-\x7F]/.test(rawPrompt)) {
+      if (preTranslatedPrompt && /[^\x00-\x7F]/.test(preTranslatedPrompt)) {
         const trPr = await ai.run("@cf/meta/m2m100-1.2b", {
-          text: rawPrompt,
+          text: preTranslatedPrompt,
           source_lang: "japanese",
           target_lang: "english"
         });
@@ -35,14 +62,13 @@ export async function onRequestPost({ request, env }) {
       }
     } catch (e) {}
 
-    // 2. ユーザーの指示（擬人化など）を最優先にしたプロンプト構築
     let fullPrompt = "";
     if (type === "monster") {
-      fullPrompt = `${enPrompt}, inspired by ${enSpecies}, Japanese anime game character illustration, vibrant colors, crisp lineart, centered full body, isolated on solid pure white background, masterpiece, high quality, no text`;
+      fullPrompt = `${enPrompt}, motif of ${enSpecies}, high-end Japanese social game character art, detailed anime illustration, vibrant colors, crisp lineart, centered full body standing pose, isolated on solid pure white background #FFFFFF, masterpiece, best quality, no text`;
     } else if (type === "bg") {
-      fullPrompt = `${enPrompt}, Japanese anime fantasy game background art, vibrant lighting, detailed digital painting, scenic view, no characters, no text`;
+      fullPrompt = `${enPrompt}, high-end Japanese anime fantasy game background art, vibrant lighting, detailed digital painting, scenic view, no characters, no text`;
     } else if (type === "stamp") {
-      fullPrompt = `${enPrompt}, cute chibi anime character sticker inspired by ${enSpecies}, expressive face, thick white sticker border, isolated on solid pure white background, high quality game stamp`;
+      fullPrompt = `${enPrompt}, cute expressive anime character sticker, motif of ${enSpecies}, thick clean white sticker outline, isolated on solid pure white background #FFFFFF, high quality game chat stamp`;
     }
 
     const result = await ai.run("@cf/black-forest-labs/flux-1-schnell", {
@@ -52,11 +78,8 @@ export async function onRequestPost({ request, env }) {
 
     if (!result || !result.image) {
       return new Response(JSON.stringify({
-        error: "安全フィルターまたは生成エラーにより画像を作成できませんでした。表現を少し変えてお試しください。"
-      }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" }
-      });
+        error: "生成できませんでした。表現を少し変えてお試しください。"
+      }), { status: 500, headers: { "Content-Type": "application/json" } });
     }
 
     const dataUrl = `data:image/jpeg;base64,${result.image}`;
@@ -71,10 +94,7 @@ export async function onRequestPost({ request, env }) {
     });
   } catch (e) {
     return new Response(JSON.stringify({
-      error: "生成エラー（不適切な表現が含まれているか通信エラーの可能性があります）"
-    }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" }
-    });
+      error: "AI生成エラーが発生しました"
+    }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
 }
