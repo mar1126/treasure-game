@@ -349,3 +349,19 @@ function ensureWaveEnemies() {
     });
   }
 }
+function getDefaultMonsterVisual(speciesName) {
+  const sp = typeof getSpeciesData === 'function' ? getSpeciesData(speciesName) : { name: speciesName, elem: 'none' };
+  const elem = sp.elem || 'none';
+  const label = String(sp.name || speciesName || '魔').slice(0, 1);
+  return `EMBLEM:${elem}:${label}`;
+}
+
+function getSpeciesDisplay(speciesName) {
+  const name = String(speciesName || '').replace(/^\[強敵\]\s*/, '');
+  const spData = (speciesSkins && typeof speciesSkins === 'object') ? speciesSkins[name] : null;
+  if (spData && Array.isArray(spData.list) && typeof spData.activeIdx === 'number' && spData.activeIdx >= 0) {
+    const img = spData.list.slice(spData.activeIdx, spData.activeIdx + 1).pop();
+    if (img) return img;
+  }
+  return getDefaultMonsterVisual(name);
+}
