@@ -199,3 +199,98 @@ STAGE_DATA.forEach(stObj => {
   STAGE_MONSTERS[stObj.stage] = list;
   ALL_MONSTER_SPECIES.push(...list);
 });
+function getSpeciesData(name) {
+  const clean = String(name || '').replace(/^\[強敵\]\s*/, '');
+  return ALL_MONSTER_SPECIES.find(x => x.name === clean) || ALL_MONSTER_SPECIES;
+}
+
+function getStageInfo(stg) {
+  return STAGE_DATA.find(s => s.stage === stg) || STAGE_DATA;
+}
+
+function getFixedWaveEnemies(stg, floor, wave) {
+  const curPool = STAGE_MONSTERS[stg] || STAGE_MONSTERS;
+  const prevPool = stg > 1 ? STAGE_MONSTERS[stg - 1] : null;
+  const seed = stg * 10000 + floor * 17 + wave * 7;
+
+  let count = 1;
+  if (wave === 5) count = (floor % 2 === 0) ? 3 : 2;
+  else if (wave >= 3) count = 2 + (seed % 2);
+  else count = 1 + ((floor + wave) % 2);
+
+  const sameSpeciesWave = ((floor * 3 + wave) % 3 === 0) && count >= 2;
+  const mainIdx = (floor + wave * 2) % 10;
+
+  const stageScale = Math.pow(2.4, stg - 1);
+  const floorScale = 1 + (floor - 1) * 0.13;
+  const waveScale = (wave === 5) ? 1.32 : (1 + (wave - 1) * 0.05);
+  const totalMult = stageScale * floorScale * waveScale;
+
+  const enemies = [];
+  for (let i = 0; i < count; i++) {
+    let sp;
+    if (prevPool && i > 0 && ((floor + wave + i) % 3 === 0)) {
+      sp = prevPool[(floor + i * 2) % 10];
+    } else {
+      let pickIdx = sameSpeciesWave ? mainIdx : (mainIdx + i * 3) % 10;
+      if (wave === 5 && i === 0) pickIdx = 9;
+      sp = curPool[pickIdx];
+    }
+
+    const maxHp = Math.floor(sp.baseHp * 1.45 * totalMult);
+    enemies.push({
+      slot: i,
+      name: (wave === 5 && i === 0) ? `[強敵] ${sp.name}` : sp.name,
+      rawName: sp.name,
+      elem: sp.elem,
+      maxHp,
+      hp: maxHp,
+      atk: Math.floor(sp.baseAtk * 0.78 * totalMult),
+      def: Math.floor(sp.baseDef * 0.65 * totalMult),
+      ct: sp.ct,
+      curCt: i * 0.35,
+      expReward: Math.floor((14 + stg * 16 + floor * 3) * (wave === 5 ? 1.5 : 1.0) / count),
+      goldReward: Math.floor((16 + stg * 20 + floor * 4) * (wave === 5 ? 1.5 : 1.0) / count)
+    });
+  }
+  return enemies;
+}
+
+function getBreedResultSpecies(monA, monB) {
+  const spA = getSpeciesData(monA.name);
+  const spB = getSpeciesData(monB.name);
+
+  let targetStage = Math.min(spA.stage, spB.stage);
+  const nextPlus = Math.max(monA.plus || 0, monB.plus || 0) + 1;
+
+  if (spA.stage === spB.stage && nextPlus >= 2 && spA.stage < 10) {
+    targetStage = spA.stage + 1;
+  } else if (spA.stage !== spB.stage) {
+    targetStage = Math.floor((spA.stage + spB.stage) / 2);
+  }
+
+  const pool = STAGE_MONSTERS[targetStage];
+  let resIdx = (spA.idx + spB.idx + 1) % pool.length;
+  if (pool[resIdx].name === spA.name || pool[resIdx].name === spB.name) {
+    resIdx = (resIdx + 2) % pool.length;
+  }
+  return pool[resIdx];
+}
+
+const validDefaultMonsterImages = {};
+function initDefaultMonsterImages() {
+  ALL_MONSTER_SPECIES.forEach(m => {
+    if (!m.imgFile || validDefaultMonsterImages[m.name]) return;
+    const img = new Image();
+    img.onload = () => { validDefaultMonsterImages[m.name] = m.imgFile; };
+    img.src = m.imgFile;
+  });
+}
+
+function getDefaultMonsterVisual(name) {
+  const sp = getSpeciesData(name);
+  if (validDefaultMonsterImages[sp.name]) return validDefaultMonsterImages[sp.name];
+  return `EMBLEM:${sp.elem}:${sp.name.slice(0, 1)}`;
+}
+
+window.addEventListener('DOMContentLoaded', initDefaultMonsterImages);
