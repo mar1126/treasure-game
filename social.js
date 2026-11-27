@@ -44,7 +44,7 @@ function renderMiniIconHtml(cfg) {
   const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(spName) : 'EMBLEM:water:ス';
   const bgObj = (typeof c.bgIdx === 'number' && c.bgIdx >= 0 && Array.isArray(aiBackgrounds)) ? aiBackgrounds[c.bgIdx] : null;
   const bgUrl = bgObj ? (typeof bgObj === 'string' ? bgObj : bgObj.img) : '';
-  const bgStyle = bgUrl ? `background-image:url(${bgUrl});` : 'background:linear-gradient(135deg,#4fc3f7,#0288d1);';
+  const bgStyle = bgUrl ? `background-image:url(${bgUrl});background-color:#ffffff;` : 'background:#ffffff;';
   const tx = Math.round((c.x || 0) * 0.3);
   const ty = Math.round((c.y || 0) * 0.3);
   return `<div style="width:36px;height:36px;flex-shrink:0;border-radius:10px;border:1.5px solid #cbd5e1;${bgStyle}background-size:cover;display:flex;align-items:center;justify-content:center;overflow:hidden;">
@@ -327,7 +327,8 @@ function updateIconPreview(shouldSave = true) {
   const bgObj = (iconConfig.bgIdx >= 0 && Array.isArray(aiBackgrounds)) ? aiBackgrounds[iconConfig.bgIdx] : null;
   const bgUrl = bgObj ? (typeof bgObj === 'string' ? bgObj : bgObj.img) : '';
   if (previewBox) {
-    previewBox.style.backgroundImage = bgUrl ? `url(${bgUrl})` : 'linear-gradient(135deg, #4fc3f7, #0288d1)';
+    previewBox.style.backgroundImage = bgUrl ? `url(${bgUrl})` : 'none';
+    previewBox.style.backgroundColor = '#ffffff';
   }
   if (miniHud) {
     miniHud.innerHTML = `
@@ -335,7 +336,8 @@ function updateIconPreview(shouldSave = true) {
         ${renderSprite(disp, 22, '4px')}
       </div>
     `;
-    miniHud.style.backgroundImage = bgUrl ? `url(${bgUrl})` : 'linear-gradient(135deg, #4fc3f7, #0288d1)';
+    miniHud.style.backgroundImage = bgUrl ? `url(${bgUrl})` : 'none';
+    miniHud.style.backgroundColor = '#ffffff';
   }
   if (shouldSave && typeof triggerAutoSave === 'function') triggerAutoSave();
 }
