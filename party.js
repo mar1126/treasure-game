@@ -1,4 +1,4 @@
-// パーティ編成・訓練場・仲間一覧・モンスター詳細・野に還す(逃がす) (party.js)
+// パーティ編成・訓練場・仲間一覧(横4列)・配合・野に還す (party.js)
 let selectedMonsterIdx = null;
 let synthBaseIdx = null;
 let synthMaterialIdx = null;
@@ -10,7 +10,6 @@ function getMonsterMaxLevel(mon) {
 
 function getTrainingCap() {
   if (typeof trainSlotCap !== 'undefined') return Number(trainSlotCap) || 3;
-  if (typeof unlockedTrainSlots !== 'undefined') return Number(unlockedTrainSlots) || 3;
   if (Array.isArray(trainingSlots) && trainingSlots.length > 0) return trainingSlots.length;
   return 3;
 }
@@ -45,10 +44,11 @@ function resetBattleAllies() {
       if (m) {
         const st = getMonsterBattleStats(m);
         const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(m.name) : null;
-        const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : (m.display || sp?.display || 'EMBLEM:none:魔');
+        const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : (m.disp || sp?.disp || 'EMBLEM:none:魔');
         battleAllies[i] = {
           id: m.id,
           name: m.name,
+          disp: disp,
           display: disp,
           elem: m.elem || sp?.elem || 'none',
           skillId: m.skillId || sp?.skillId || null,
@@ -198,6 +198,7 @@ function removeFromTraining(slotIdx) {
   renderCaptured();
   if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
 }
+
 function renderCaptured() {
   const box = document.getElementById('captured-list');
   if (!box) return;
@@ -212,14 +213,11 @@ function renderCaptured() {
 
   const parentCard = box.closest('.card');
   if (parentCard && !document.getElementById('bulk-release-bar')) {
-    const titleEl = parentCard.querySelector('.card-title') || parentCard.firstElementChild;
-    if (titleEl) {
-      const bar = document.createElement('div');
-      bar.id = 'bulk-release-bar';
-      bar.style.cssText = 'display:flex;justify-content:flex-end;margin:4px 0 8px;';
-      bar.innerHTML = `<button onclick="releaseBulkMonsters()" style="padding:5px 10px;border-radius:8px;border:1px solid #f59e0b;background:#fffbeb;color:#b45309;font-size:10.5px;font-weight:bold;cursor:pointer;">🍃 未編成をまとめて逃がす（素材獲得）</button>`;
-      titleEl.insertAdjacentElement('afterend', bar);
-    }
+    const bar = document.createElement('div');
+    bar.id = 'bulk-release-bar';
+    bar.style.cssText = 'display:flex;justify-content:flex-end;margin:6px 0 8px;';
+    bar.innerHTML = `<button onclick="releaseBulkMonsters()" style="padding:5px 10px;border-radius:8px;border:1px solid #f59e0b;background:#fffbeb;color:#b45309;font-size:10.5px;font-weight:bold;cursor:pointer;">🍃 未編成をまとめて逃がす（素材獲得）</button>`;
+    box.parentNode.insertBefore(bar, box);
   }
 
   if (!Array.isArray(captured) || captured.length === 0) {
@@ -252,13 +250,26 @@ function renderCaptured() {
     `;
   }).join('');
 }
-
 function openMonsterModal(idx) {
   const m = (captured || [])[idx];
-  const modal = document.getElementById('monster-modal');
-  const body = document.getElementById('monster-modal-body');
-  if (!m || !modal || !body) return;
+  if (!m) return;
   selectedMonsterIdx = idx;
+
+  let modal = document.getElementById('monster-modal');
+  let body = document.getElementById('monster-modal-body');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'monster-modal';
+    modal.onclick = closeMonsterModal;
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.62);display:none;align-items:center;justify-content:center;z-index:9997;';
+    modal.innerHTML = `<div id="monster-modal-body" onclick="event.stopPropagation()" style="background:#fff;border-radius:16px;padding:16px;width:90%;max-width:340px;"></div>`;
+    document.body.appendChild(modal);
+    body = document.getElementById('monster-modal-body');
+  }
+  if (!body) {
+    modal.innerHTML = `<div id="monster-modal-body" onclick="event.stopPropagation()" style="background:#fff;border-radius:16px;padding:16px;width:90%;max-width:340px;"></div>`;
+    body = document.getElementById('monster-modal-body');
+  }
 
   const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔';
   const st = getMonsterBattleStats(m);
@@ -328,4 +339,112 @@ function toggleMonsterLock(idx) {
   openMonsterModal(idx);
   renderCaptured();
   if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
+}
+
+function openSynthesisModal() {
+  synthBaseIdx = null;
+  synthMaterialIdx = null;
+  let modal = document.getElementById('synth-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'synth-modal';
+    modal.onclick = closeSynthesisModal;
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.62);display:none;align-items:center;justify-content:center;z-index:9997;';
+    modal.innerHTML = `<div id="synth-modal-body" onclick="event.stopPropagation()" style="background:#fff;border-radius:16px;padding:16px;width:92%;max-width:350px;max-height:85vh;overflow-y:auto;"></div>`;
+    document.body.appendChild(modal);
+  }
+  renderSynthesisModalBody();
+  modal.style.display = 'flex';
+}
+
+function closeSynthesisModal() {
+  const modal = document.getElementById('synth-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function selectSynthMonster(idx) {
+  if (synthBaseIdx === idx) {
+    synthBaseIdx = null;
+    synthMaterialIdx = null;
+  } else if (synthMaterialIdx === idx) {
+    synthMaterialIdx = null;
+  } else if (synthBaseIdx === null) {
+    synthBaseIdx = idx;
+  } else {
+    const baseM = captured[synthBaseIdx];
+    const matM = captured[idx];
+    if (!baseM || !matM || baseM.name !== matM.name) {
+      return alert('配合には同じ種類のモンスターを2体選択してください！');
+    }
+    if (matM.locked) return alert('ロック中のモンスターは素材にできません');
+    synthMaterialIdx = idx;
+  }
+  renderSynthesisModalBody();
+}
+
+function renderSynthesisModalBody() {
+  const body = document.getElementById('synth-modal-body');
+  if (!body) return;
+  const baseM = synthBaseIdx !== null ? captured[synthBaseIdx] : null;
+  const matM = synthMaterialIdx !== null ? captured[synthMaterialIdx] : null;
+
+  let listHtml = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-height:220px;overflow-y:auto;margin:8px 0;">`;
+  (captured || []).forEach((m, idx) => {
+    if (!m) return;
+    if (baseM && m.name !== baseM.name) return;
+    const isBase = synthBaseIdx === idx;
+    const isMat = synthMaterialIdx === idx;
+    const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔';
+    listHtml += `
+      <div onclick="selectSynthMonster(${idx})" style="border:2px solid ${isBase ? '#0284c7' : (isMat ? '#ff7043' : '#e2e8f0')};background:${isBase ? '#e0f2fe' : (isMat ? '#fff3e0' : '#fff')};border-radius:10px;padding:5px 2px;text-align:center;cursor:pointer;">
+        <div style="font-size:9px;font-weight:bold;color:${isBase ? '#0284c7' : '#ff7043'};">${isBase ? 'ベース' : (isMat ? '素材' : '')}</div>
+        <div style="display:flex;justify-content:center;">${renderSprite(disp, 32, '6px')}</div>
+        <div style="font-size:9.5px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
+        <div style="font-size:8.5px;color:#475569;">Lv.${m.lv || 1} ★${m.star || 0}</div>
+      </div>
+    `;
+  });
+  listHtml += `</div>`;
+
+  body.innerHTML = `
+    <div style="font-size:15px;font-weight:900;color:#6d28d9;margin-bottom:4px;">🔮 モンスター配合（限界突破）</div>
+    <div style="font-size:11px;color:#475569;">同種モンスターを配合するとベース個体の <b>★ランク</b> と <b>最大レベル上限</b> が上昇します！</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin:10px 0;padding:8px;background:#f8fafc;border-radius:10px;font-size:12px;font-weight:bold;">
+      <div>ベース: ${baseM ? `${baseM.name} (★${baseM.star || 0})` : '未選択'}</div>
+      <div>＋</div>
+      <div>素材: ${matM ? `${matM.name} (★${matM.star || 0})` : '未選択'}</div>
+    </div>
+    ${listHtml}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+      <button onclick="executeSynthesis()" style="padding:9px;border-radius:9px;border:none;background:${(baseM && matM) ? '#7c3aed' : '#cbd5e1'};color:#fff;font-size:12px;font-weight:bold;cursor:pointer;">配合する</button>
+      <button onclick="closeSynthesisModal()" style="padding:9px;border-radius:9px;border:none;background:#64748b;color:#fff;font-size:12px;font-weight:bold;cursor:pointer;">閉じる</button>
+    </div>
+  `;
+}
+
+function executeSynthesis() {
+  if (synthBaseIdx === null || synthMaterialIdx === null) return;
+  const baseM = captured[synthBaseIdx];
+  const matM = captured[synthMaterialIdx];
+  if (!baseM || !matM || baseM.name !== matM.name) return;
+  if (matM.locked) return alert('ロック中のモンスターは素材にできません');
+
+  const inParty = (party || []).some(v => v === synthMaterialIdx || v === matM.id);
+  const inTrain = (trainingSlots || []).some(v => v === synthMaterialIdx || v === matM.id);
+  const inStaff = (staff || []).some(v => v === synthMaterialIdx || v === matM.id);
+  if (inParty || inTrain || inStaff) {
+    return alert('編成・訓練場・酒場に配置中のモンスターは素材にできません');
+  }
+
+  baseM.star = (Number(baseM.star) || 0) + 1 + (Number(matM.star) || 0);
+  captured.splice(synthMaterialIdx, 1);
+  fixIndicesAfterSplice(synthMaterialIdx);
+
+  closeSynthesisModal();
+  if (!state?.inBattle) resetBattleAllies();
+  renderParty();
+  renderCaptured();
+  if (typeof updateUI === 'function') updateUI();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(true);
+  showToast(`配合成功！「${baseM.name}」が ★${baseM.star} に限界突破しました！`);
 }
