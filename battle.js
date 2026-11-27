@@ -1,6 +1,10 @@
-// バトル進行・ターンCT・スキル・バトルエフェクト・報酬計算 (battle.js)
+// バトル進行・ターンCT・ハイクオリティCanvasパーティクルエフェクト・報酬計算 (battle.js)
 let battleLoopTimer = null;
 let lastTickAt = Date.now();
+let fxParticles = [];
+let fxBeams = [];
+let fxRings = [];
+let fxAnimId = null;
 
 (function injectBattleFxStyles() {
   if (typeof document === 'undefined' || document.getElementById('ff-battle-fx-style')) return;
@@ -9,44 +13,99 @@ let lastTickAt = Date.now();
   st.textContent = `
     @keyframes battleAreaShake {
       0%, 100% { transform: translate(0, 0); }
-      20% { transform: translate(-4px, 3px); }
-      40% { transform: translate(4px, -3px); }
-      60% { transform: translate(-3px, -2px); }
-      80% { transform: translate(3px, 2px); }
+      15% { transform: translate(-5px, 4px); }
+      35% { transform: translate(5px, -3px); }
+      55% { transform: translate(-4px, -2px); }
+      75% { transform: translate(3px, 3px); }
     }
-    .battle-area.shake-fx { animation: battleAreaShake 0.28s ease-out; }
+    .battle-area.shake-fx { animation: battleAreaShake 0.3s ease-out; }
     .fx-screen-flash {
       position: absolute; inset: 0; pointer-events: none; z-index: 18;
-      animation: fxFlashOut 0.35s ease-out forwards;
+      animation: fxFlashOut 0.36s ease-out forwards;
     }
     @keyframes fxFlashOut {
-      0% { opacity: 0.45; }
+      0% { opacity: 0.52; }
       100% { opacity: 0; }
-    }
-    .fx-hit-burst {
-      position: absolute; width: 76px; height: 76px;
-      transform: translate(-50%, -50%) scale(0.4);
-      pointer-events: none; z-index: 22;
-      animation: fxBurstPop 0.42s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-    @keyframes fxBurstPop {
-      0% { opacity: 1; transform: translate(-50%, -50%) scale(0.35) rotate(-12deg); }
-      55% { opacity: 1; transform: translate(-50%, -50%) scale(1.15) rotate(6deg); }
-      100% { opacity: 0; transform: translate(-50%, -50%) scale(1.35) rotate(12deg); }
-    }
-    .fx-heal-spark {
-      position: absolute; width: 64px; height: 64px;
-      transform: translate(-50%, -50%);
-      pointer-events: none; z-index: 22;
-      animation: fxHealFloat 0.65s ease-out forwards;
-    }
-    @keyframes fxHealFloat {
-      0% { opacity: 0.95; transform: translate(-50%, -30%) scale(0.7); }
-      100% { opacity: 0; transform: translate(-50%, -95%) scale(1.25); }
     }
   `;
   document.head.appendChild(st);
 })();
+
+function ensureFxCanvas() {
+  const layer = document.getElementById('fx-layer');
+  if (!layer) return null;
+  let cvs = document.getElementById('ff-fx-canvas');
+  if (!cvs) {
+    cvs = document.createElement('canvas');
+    cvs.id = 'ff-fx-canvas';
+    cvs.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:21;';
+    layer.appendChild(cvs);
+  }
+  const rect = layer.getBoundingClientRect();
+  if (rect.width > 0 && rect.height > 0 && (cvs.width !== Math.round(rect.width) || cvs.height !== Math.round(rect.height))) {
+    cvs.width = Math.round(rect.width);
+    cvs.height = Math.round(rect.height);
+  }
+  if (!fxAnimId) {
+    fxAnimId = requestAnimationFrame(renderFxCanvasLoop);
+  }
+  return cvs;
+}
+
+function renderFxCanvasLoop() {
+  const cvs = document.getElementById('ff-fx-canvas');
+  if (cvs && cvs.width > 0 && cvs.height > 0) {
+    const ctx = cvs.getContext('2d');
+    ctx.clearRect(0, 0, cvs.width, cvs.height);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (let i = fxBeams.length - 1; i >= 0; i--) {
+      const b = fxBeams[i];
+      b.life -= 0.075;
+      if (b.life <= 0) { fxBeams.splice(i, 1); continue; }
+      ctx.strokeStyle = b.color;
+      ctx.globalAlpha = Math.max(0, b.life);
+      ctx.lineWidth = b.width * b.life;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(b.x1, b.y1);
+      ctx.lineTo(b.x2, b.y2);
+      ctx.stroke();
+    }
+
+    for (let i = fxRings.length - 1; i >= 0; i--) {
+      const r = fxRings[i];
+      r.life -= 0.055;
+      r.radius += r.grow;
+      if (r.life <= 0) { fxRings.splice(i, 1); continue; }
+      ctx.strokeStyle = r.color;
+      ctx.globalAlpha = Math.max(0, r.life);
+      ctx.lineWidth = Math.max(1, r.lineWidth * r.life);
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    for (let i = fxParticles.length - 1; i >= 0; i--) {
+      const p = fxParticles[i];
+      p.life -= p.decay;
+      if (p.life <= 0) { fxParticles.splice(i, 1); continue; }
+      p.vx *= p.drag;
+      p.vy = p.vy * p.drag + p.gravity;
+      p.x += p.vx;
+      p.y += p.vy;
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(0.8, p.size * p.life), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+  fxAnimId = requestAnimationFrame(renderFxCanvasLoop);
+}
 
 function getTargetCenterInFxLayer(targetId) {
   const fx = document.getElementById('fx-layer');
@@ -61,7 +120,7 @@ function getTargetCenterInFxLayer(targetId) {
   };
 }
 
-function triggerScreenFlash(color = 'rgba(255,255,255,0.6)', shake = false) {
+function triggerScreenFlash(color = 'rgba(255,255,255,0.65)', shake = false) {
   const bg = document.getElementById('battle-bg');
   const fx = document.getElementById('fx-layer');
   if (shake && bg) {
@@ -72,87 +131,106 @@ function triggerScreenFlash(color = 'rgba(255,255,255,0.6)', shake = false) {
   if (fx) {
     const div = document.createElement('div');
     div.className = 'fx-screen-flash';
-    div.style.background = `radial-gradient(circle, ${color} 0%, transparent 75%)`;
+    div.style.background = `radial-gradient(circle, ${color} 0%, transparent 76%)`;
     fx.appendChild(div);
     setTimeout(() => div.remove(), 380);
   }
 }
-
 function spawnHitEffect(targetId, elem = 'none', isSkill = false) {
+  ensureFxCanvas();
   const pos = getTargetCenterInFxLayer(targetId);
   if (!pos) return;
-  const el = document.createElement('div');
-  el.className = 'fx-hit-burst';
-  el.style.left = `${pos.x}px`;
-  el.style.top = `${pos.y}px`;
-  if (isSkill) {
-    el.style.width = '94px';
-    el.style.height = '94px';
+  const { x, y } = pos;
+  const count = isSkill ? 34 : 20;
+  const scale = isSkill ? 1.35 : 1.0;
+
+  const palettes = {
+    fire:  ['#ff3d00', '#ff9100', '#ffd740', '#ffffff'],
+    water: ['#00b0ff', '#40c4ff', '#b3e5fc', '#ffffff'],
+    wind:  ['#00e676', '#aeea00', '#ffee58', '#ffffff'],
+    sky:   ['#00e5ff', '#b2ebf2', '#ffee58', '#ffffff'],
+    earth: ['#8d6e63', '#ffb300', '#ffe082', '#ffffff'],
+    light: ['#ffd600', '#ffff8d', '#fff9c4', '#ffffff'],
+    dark:  ['#aa00ff', '#e040fb', '#7c4dff', '#f8bbd0'],
+    tank:  ['#ff3d00', '#ffab00', '#ffd740', '#ffffff'],
+    none:  ['#80deea', '#e0f7fa', '#ffd54f', '#ffffff']
+  };
+  const colors = palettes[elem] || palettes.none;
+
+  fxRings.push({ x, y, radius: 6, grow: 3.2 * scale, color: colors[0], lineWidth: 5 * scale, life: 1.0 });
+  if (isSkill || elem === 'tank' || elem === 'light') {
+    fxRings.push({ x, y, radius: 3, grow: 2.0 * scale, color: '#ffffff', lineWidth: 3.5 * scale, life: 0.9 });
   }
 
-  let svg = '';
-  if (elem === 'fire') {
-    svg = `<svg viewBox="0 0 100 100" width="100%" height="100%">
-      <circle cx="50" cy="50" r="36" fill="none" stroke="#ff5722" stroke-width="6" stroke-dasharray="18 10"/>
-      <polygon points="50,8 62,36 92,38 68,58 76,88 50,70 24,88 32,58 8,38 38,36" fill="#ff9800" opacity="0.88"/>
-      <circle cx="50" cy="50" r="18" fill="#fff59d"/>
-    </svg>`;
-  } else if (elem === 'water') {
-    svg = `<svg viewBox="0 0 100 100" width="100%" height="100%">
-      <circle cx="50" cy="50" r="38" fill="none" stroke="#29b6f6" stroke-width="5"/>
-      <circle cx="50" cy="50" r="24" fill="none" stroke="#b3e5fc" stroke-width="4" stroke-dasharray="12 8"/>
-      <polygon points="50,10 58,42 90,50 58,58 50,90 42,58 10,50 42,42" fill="#4fc3f7" opacity="0.9"/>
-    </svg>`;
-  } else if (elem === 'wind' || elem === 'sky' || elem === 'earth') {
-    svg = `<svg viewBox="0 0 100 100" width="100%" height="100%">
-      <polyline points="58,6 34,46 54,48 36,94" fill="none" stroke="#ffee58" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-      <polyline points="58,6 34,46 54,48 36,94" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="50" cy="50" r="36" fill="none" stroke="#66bb6a" stroke-width="4" stroke-dasharray="20 12"/>
-    </svg>`;
+  if (elem === 'tank') {
+    const cvs = document.getElementById('ff-fx-canvas');
+    const startX = cvs ? cvs.width * 0.5 : x;
+    const startY = cvs ? cvs.height : y + 120;
+    fxBeams.push({ x1: startX, y1: startY, x2: x, y2: y, color: '#ffab00', width: 9, life: 1.0 });
+    fxBeams.push({ x1: startX, y1: startY, x2: x, y2: y, color: '#ffffff', width: 4, life: 1.0 });
+  } else if (elem === 'wind' || elem === 'sky') {
+    const zig1X = x - 18 * scale, zig1Y = y - 16 * scale;
+    const zig2X = x + 16 * scale, zig2Y = y + 4 * scale;
+    fxBeams.push({ x1: x + 10 * scale, y1: y - 42 * scale, x2: zig1X, y2: zig1Y, color: '#ffee58', width: 6 * scale, life: 1.0 });
+    fxBeams.push({ x1: zig1X, y1: zig1Y, x2: zig2X, y2: zig2Y, color: '#ffffff', width: 6 * scale, life: 1.0 });
+    fxBeams.push({ x1: zig2X, y1: zig2Y, x2: x - 8 * scale, y2: y + 42 * scale, color: '#ffee58', width: 6 * scale, life: 1.0 });
   } else if (elem === 'light') {
-    svg = `<svg viewBox="0 0 100 100" width="100%" height="100%">
-      <polygon points="50,4 58,42 96,50 58,58 50,96 42,58 4,50 42,42" fill="#fff176"/>
-      <circle cx="50" cy="50" r="30" fill="none" stroke="#ffd54f" stroke-width="5"/>
-    </svg>`;
+    fxBeams.push({ x1: x, y1: y - 44 * scale, x2: x, y2: y + 44 * scale, color: '#fff59d', width: 7 * scale, life: 1.0 });
+    fxBeams.push({ x1: x - 44 * scale, y1: y, x2: x + 44 * scale, y2: y, color: '#ffffff', width: 7 * scale, life: 1.0 });
   } else if (elem === 'dark') {
-    svg = `<svg viewBox="0 0 100 100" width="100%" height="100%">
-      <circle cx="50" cy="50" r="35" fill="#4a148c" opacity="0.55"/>
-      <path d="M18,22 L82,78 M82,22 L18,78 M50,12 L50,88" stroke="#e040fb" stroke-width="7" stroke-linecap="round"/>
-    </svg>`;
-  } else if (elem === 'tank') {
-    svg = `<svg viewBox="0 0 100 100" width="100%" height="100%">
-      <circle cx="50" cy="50" r="42" fill="#ff7043" opacity="0.7"/>
-      <polygon points="50,6 64,34 94,32 72,54 84,84 50,68 16,84 28,54 6,32 36,34" fill="#ffca28"/>
-      <circle cx="50" cy="50" r="20" fill="#ffffff"/>
-    </svg>`;
-  } else {
-    svg = `<svg viewBox="0 0 100 100" width="100%" height="100%">
-      <path d="M16,18 L84,82" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
-      <path d="M84,18 L16,82" stroke="#80deea" stroke-width="6" stroke-linecap="round"/>
-      <circle cx="50" cy="50" r="14" fill="#ffffff" opacity="0.9"/>
-    </svg>`;
+    for (let k = -1; k <= 1; k++) {
+      fxBeams.push({
+        x1: x - 28 * scale + k * 9, y1: y - 28 * scale - k * 9,
+        x2: x + 28 * scale + k * 9, y2: y + 28 * scale - k * 9,
+        color: '#e040fb', width: 4.5 * scale, life: 1.0
+      });
+    }
+  } else if (elem === 'none') {
+    fxBeams.push({ x1: x - 30 * scale, y1: y - 26 * scale, x2: x + 30 * scale, y2: y + 26 * scale, color: '#ffffff', width: 6 * scale, life: 1.0 });
+    fxBeams.push({ x1: x + 30 * scale, y1: y - 26 * scale, x2: x - 30 * scale, y2: y + 26 * scale, color: '#80deea', width: 5 * scale, life: 1.0 });
   }
 
-  el.innerHTML = svg;
-  pos.fx.appendChild(el);
-  setTimeout(() => el.remove(), 440);
+  for (let i = 0; i < count; i++) {
+    const ang = (Math.PI * 2 * i) / count + (Math.random() * 0.45 - 0.22);
+    const spd = (1.6 + Math.random() * 4.4) * scale;
+    fxParticles.push({
+      x,
+      y,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd - (elem === 'fire' ? 1.2 : 0),
+      drag: 0.91,
+      gravity: elem === 'water' ? 0.14 : (elem === 'fire' ? -0.08 : 0.03),
+      size: (2.4 + Math.random() * 3.4) * scale,
+      color: colors[i % colors.length],
+      life: 1.0,
+      decay: 0.032 + Math.random() * 0.025
+    });
+  }
 }
 
 function spawnHealEffect(targetId) {
+  ensureFxCanvas();
   const pos = getTargetCenterInFxLayer(targetId);
   if (!pos) return;
-  const el = document.createElement('div');
-  el.className = 'fx-heal-spark';
-  el.style.left = `${pos.x}px`;
-  el.style.top = `${pos.y}px`;
-  el.innerHTML = `<svg viewBox="0 0 100 100" width="100%" height="100%">
-    <path d="M50,18 V42 M38,30 H62" stroke="#69f0ae" stroke-width="7" stroke-linecap="round"/>
-    <path d="M24,48 V64 M16,56 H32" stroke="#b9f6ca" stroke-width="5" stroke-linecap="round"/>
-    <path d="M76,44 V60 M68,52 H84" stroke="#b9f6ca" stroke-width="5" stroke-linecap="round"/>
-  </svg>`;
-  pos.fx.appendChild(el);
-  setTimeout(() => el.remove(), 660);
+  const { x, y } = pos;
+  fxRings.push({ x, y: y + 10, radius: 8, grow: 1.8, color: '#69f0ae', lineWidth: 3.5, life: 1.0 });
+  const colors = ['#00e676', '#69f0ae', '#b9f6ca', '#ffffff'];
+  for (let i = 0; i < 22; i++) {
+    fxParticles.push({
+      x: x + (Math.random() * 44 - 22),
+      y: y + (Math.random() * 24 - 6),
+      vx: (Math.random() - 0.5) * 0.8,
+      vy: -(1.4 + Math.random() * 2.4),
+      drag: 0.96,
+      gravity: -0.04,
+      size: 2.5 + Math.random() * 3.0,
+      color: colors[i % colors.length],
+      life: 1.0,
+      decay: 0.025 + Math.random() * 0.02
+    });
+  }
 }
+
 function spawnDamagePopup(targetId, text, typeClass = '') {
   const pos = getTargetCenterInFxLayer(targetId);
   if (!pos) return;
@@ -181,7 +259,6 @@ function showBattleBanner(msg, duration = 1800) {
   el.style.display = 'block';
   setTimeout(() => { el.style.display = 'none'; }, duration);
 }
-
 function performAllyTurn(slotIdx) {
   const unit = battleAllies[slotIdx];
   if (!unit || unit.hp <= 0) return;
@@ -247,7 +324,7 @@ function performTankTurn() {
   if (livingEnemies.length === 0) return;
 
   const tankAtk = typeof getTankSupportAtk === 'function' ? getTankSupportAtk() : 25;
-  triggerScreenFlash('rgba(255, 167, 38, 0.55)', true);
+  triggerScreenFlash('rgba(255, 167, 38, 0.58)', true);
 
   livingEnemies.forEach(({ e, i }) => {
     const dmg = Math.max(1, Math.floor(tankAtk * (0.9 + Math.random() * 0.2)));
@@ -275,6 +352,7 @@ function performEnemyTurn(enemyIdx) {
   spawnHitEffect(`ally-slot-${target.i}`, enemy.elem || 'none', false);
   spawnDamagePopup(`ally-slot-${target.i}`, `-${dmg}`, 'ally-dmg');
 }
+
 function handleWaveCleared() {
   const isBoss = state.wave >= 3;
   const stageNum = Number(state.stage) || 1;
@@ -338,9 +416,13 @@ function handleWaveCleared() {
     }
     state.wave = 1;
 
-    if (Number(state.stage) > Number(maxStage || 1) || (Number(state.stage) === Number(maxStage || 1) && Number(state.floor) > Number(maxFloor || 1))) {
-      maxStage = Number(state.stage);
-      maxFloor = Number(state.floor);
+    if (typeof recordClearedStageFloor === 'function') {
+      recordClearedStageFloor(state.stage, state.floor);
+    } else if (typeof state.maxStage !== 'undefined') {
+      if (state.stage > state.maxStage || (state.stage === state.maxStage && state.floor > (state.maxFloor || 1))) {
+        state.maxStage = state.stage;
+        state.maxFloor = state.floor;
+      }
     }
 
     if (waveStopMode || !autoActive) {
@@ -363,7 +445,6 @@ function handleWaveCleared() {
   if (typeof updateUI === 'function') updateUI();
   if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
 }
-
 function updateBattleBarsOnly() {
   for (let i = 0; i < 3; i++) {
     const a = battleAllies[i];
@@ -463,6 +544,7 @@ function startBattleLoop() {
   lastTickAt = Date.now();
   battleLoopTimer = setInterval(tickBattleLoop, 60);
 }
+
 function startBattle(ev) {
   if (ev && ev.cancelable) ev.preventDefault();
   if (state.inBattle) return;
@@ -530,6 +612,7 @@ function toggleSpeedMode(ev) {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', () => {
+    ensureFxCanvas();
     startBattleLoop();
   });
 }
