@@ -1,457 +1,331 @@
-// パーティ編成・経験値成長・属性耐性・見た目選択システム (party.js)
-function ensureStarterMonster() {
-  if (!Array.isArray(captured)) captured = [];
-  if (captured.length === 0) {
-    const sp = getSpeciesData('スライム');
-    const starter = {
-      id: 'M_STARTER',
-      name: sp.name,
-      elem: sp.elem,
-      lv: 1,
-      maxLv: 10,
-      exp: 0,
-      plus: 0,
-      bonusHp: 0,
-      bonusAtk: 0,
-      bonusDef: 0,
-      baseHp: sp.baseHp,
-      baseAtk: sp.baseAtk,
-      baseDef: sp.baseDef,
-      ct: sp.ct,
-      skills: [getSpeciesInnateSkillId(sp.name)],
-      traits: [getSpeciesInnateTraitId(sp.name)],
-      customSkin: null,
-      customBgIdx: -1
-    };
-    captured.push(starter);
-    if (!speciesSkins[sp.name]) {
-      speciesSkins[sp.name] = { list: [], activeIdx: -1 };
-    }
-  }
+// パーティ編成・訓練場・仲間一覧・モンスター詳細・野に還す(逃がす) (party.js)
+let selectedMonsterIdx = null;
+let synthBaseIdx = null;
+let synthMaterialIdx = null;
+
+function getMonsterMaxLevel(mon) {
+  const star = Number(mon?.star || 0);
+  return 20 + star * 10;
 }
 
-function getNextLevelExp(lv) {
-  return Math.floor(25 * Math.pow(1.22, lv - 1));
-}
+function getMonsterBattleStats(mon) {
+  if (!mon) return { maxHp: 50, atk: 10, ctMax: 2.0 };
+  const lv = Math.max(1, Number(mon.lv) || 1);
+  const star = Number(mon.star || 0);
+  const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(mon.name) : null;
+  const rar = mon.rarity || sp?.rarity || 'N';
+  const rarMul = rar === 'UR' ? 2.1 : (rar === 'SR' ? 1.65 : (rar === 'R' ? 1.3 : 1.0));
+  const starMul = 1 + star * 0.22;
 
-function getMonsterVisual(m) {
-  if (!m) return 'EMBLEM:none:?';
-  if (m.customSkin) return m.customSkin;
-  return getSpeciesDisplay(m.name);
-}
+  const tavernBonus = typeof getTavernRecipeBonus === 'function' ? getTavernRecipeBonus() : { atkPct: 0, hpPct: 0 };
+  const hpMul = 1 + (tavernBonus.hpPct || 0) / 100;
+  const atkMul = 1 + (tavernBonus.atkPct || 0) / 100;
 
-function renderElementBadge(elemId) {
-  const el = typeof getElementInfo === 'function' ? getElementInfo(elemId) : { name: '無', color: '#546e7a', bg: '#eceff1' };
-  return `<span style="display:inline-block;padding:1px 4px;border-radius:4px;font-size:8.5px;font-weight:bold;color:${el.color};background:${el.bg};border:1px solid ${el.color}44;">${el.name}</span>`;
-}
-
-function getMonStats(m) {
-  const sp = typeof getSpeciesData === 'function' ? getSpeciesData(m.name) : { elem: 'none', baseHp: 60, baseAtk: 10, baseDef: 3, ct: 1.8 };
-  const lv = Number(m.lv) || 1;
-  const bHp = Number(m.baseHp) || sp.baseHp || 60;
-  const bAtk = Number(m.baseAtk) || sp.baseAtk || 10;
-  const bDef = Number(m.baseDef) || sp.baseDef || 3;
-  const inhHp = Number(m.bonusHp) || 0;
-  const inhAtk = Number(m.bonusAtk) || 0;
-  const inhDef = Number(m.bonusDef) || 0;
-
-  let maxHp = Math.floor((bHp + inhHp) * (1 + (lv - 1) * 0.16));
-  let atk = Math.floor((bAtk + inhAtk) * (1 + (lv - 1) * 0.15));
-  let def = Math.floor((bDef + inhDef) * (1 + (lv - 1) * 0.14));
-  let ct = Number(m.ct) || sp.ct || 1.8;
-
-  const traitIds = Array.from(new Set(Array.isArray(m.traits) ? m.traits : (m.traitId ? [m.traitId] : [])));
-  let hpMult = 1.0, atkMult = 1.0, defMult = 1.0, ctReduce = 0;
-  let bonusSkillRate = 0, bonusSkillDmg = 0, lifesteal = 0, initCt = 0, lowHpAtk = 0, expMult = 1.0, goldMult = 1.0;
-  const elemBoosts = { fire: 0, water: 0, earth: 0, sky: 0, dark: 0, light: 0 };
-
-  traitIds.forEach(tid => {
-    const tr = getMonsterTrait(tid);
-    if (!tr) return;
-    if (tr.stat === 'hp') hpMult += tr.val;
-    if (tr.stat === 'atk') atkMult += tr.val;
-    if (tr.stat === 'def') defMult += tr.val;
-    if (tr.stat === 'ct') ctReduce += tr.val;
-    if (tr.stat === 'rate') bonusSkillRate += tr.val;
-    if (tr.stat === 'skillMult') bonusSkillDmg += tr.val;
-    if (tr.stat === 'heal') lifesteal += tr.val;
-    if (tr.stat === 'initCt') initCt += tr.val;
-    if (tr.stat === 'lowHpAtk') lowHpAtk += tr.val;
-    if (tr.stat === 'exp') expMult += tr.val;
-    if (tr.stat === 'gold') goldMult += tr.val;
-    if (tr.stat.startsWith('elem_')) {
-      const k = tr.stat.replace('elem_', '');
-      if (elemBoosts[k] !== undefined) elemBoosts[k] += tr.val;
-    }
-  });
-
-  hpMult = Math.min(2.2, hpMult);
-  atkMult = Math.min(2.2, atkMult);
-  defMult = Math.min(2.2, defMult);
-  ctReduce = Math.min(0.40, ctReduce);
-  bonusSkillRate = Math.min(0.35, bonusSkillRate);
-  bonusSkillDmg = Math.min(0.80, bonusSkillDmg);
-  lifesteal = Math.min(0.35, lifesteal);
-  initCt = Math.min(0.80, initCt);
-
-  maxHp = Math.floor(maxHp * hpMult);
-  atk = Math.floor(atk * atkMult);
-  def = Math.floor(def * defMult);
-  ct = Math.max(0.65, Number((ct * (1.0 - ctReduce)).toFixed(2)));
-
-  return {
-    name: m.name, elem: m.elem || sp.elem || 'none', lv, maxLv: Number(m.maxLv) || 10, plus: Number(m.plus) || 0,
-    maxHp, atk, def, ct, bonusSkillRate, bonusSkillDmg, lifesteal, initCt, lowHpAtk, expMult, goldMult, elemBoosts
-  };
-}
-
-function grantExpToMonster(m, amount) {
-  if (!m || amount <= 0) return false;
-  const maxLv = Number(m.maxLv) || 10;
-  if ((m.lv || 1) >= maxLv) { m.lv = maxLv; m.exp = 0; return false; }
-  const st = getMonStats(m);
-  m.exp = (Number(m.exp) || 0) + Math.floor(amount * st.expMult);
-  let leveledUp = false;
-  while ((m.lv || 1) < maxLv) {
-    const need = getNextLevelExp(m.lv || 1);
-    if (m.exp >= need) { m.exp -= need; m.lv = (m.lv || 1) + 1; leveledUp = true; }
-    else break;
-  }
-  if ((m.lv || 1) >= maxLv) m.exp = 0;
-  return leveledUp;
+  const baseHp = sp?.baseHp || 65;
+  const baseAtk = sp?.baseAtk || 14;
+  const maxHp = Math.floor((baseHp + (lv - 1) * 18) * rarMul * starMul * hpMul);
+  const atk = Math.floor((baseAtk + (lv - 1) * 4.5) * rarMul * starMul * atkMul);
+  const ctMax = Math.max(0.85, (sp?.ctMax || 2.1) - star * 0.05);
+  return { maxHp, atk, ctMax };
 }
 
 function resetBattleAllies() {
-  ensureStarterMonster();
-  if (!Array.isArray(party)) party = new Array(3).fill(null);
-  while (party.length < 3) party.push(null);
-  const limit = Math.min(20, Math.max(3, Number(maxTrainingSlots) || 3));
-  if (!Array.isArray(trainingSlots)) trainingSlots = [];
-  while (trainingSlots.length < limit) trainingSlots.push(null);
-
-  const validIds = party.filter(id => id && captured.some(m => m.id === id) && !trainingSlots.includes(id));
-  if (validIds.length === 0 && captured.length > 0) {
-    party = new Array(3).fill(null);
-    const avail = captured.filter(m => !trainingSlots.includes(m.id));
-    avail.slice(0, 3).forEach((m, i) => party.splice(i, 1, m.id));
+  battleAllies = [null, null, null];
+  for (let i = 0; i < 3; i++) {
+    const val = (party || [])[i];
+    if (val !== null && val !== undefined) {
+      const m = (captured || [])[val] || (captured || []).find(x => x && x.id === val);
+      if (m) {
+        const st = getMonsterBattleStats(m);
+        const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(m.name) : null;
+        battleAllies[i] = {
+          id: m.id,
+          name: m.name,
+          elem: m.elem || sp?.elem || 'none',
+          skillId: m.skillId || sp?.skillId || null,
+          hp: st.maxHp,
+          maxHp: st.maxHp,
+          atk: st.atk,
+          ct: 0,
+          ctMax: st.ctMax
+        };
+      }
+    }
   }
+  if (typeof renderBattleUnits === 'function') renderBattleUnits();
+}
 
-  battleAllies = party.slice(0, 3).map(monId => {
-    if (!monId) return null;
-    const m = captured.find(x => x.id === monId);
-    if (!m) return null;
-    const st = getMonStats(m);
-    return {
-      name: st.name, elem: st.elem, lv: st.lv, plus: st.plus,
-      maxHp: st.maxHp, hp: st.maxHp, atk: st.atk, def: st.def,
-      maxCt: st.ct, ct: Number((st.ct * st.initCt).toFixed(2)), monRef: m
-    };
-  });
+function grantExpToMonster(mon, amount) {
+  if (!mon || amount <= 0) return;
+  const maxLv = getMonsterMaxLevel(mon);
+  if ((Number(mon.lv) || 1) >= maxLv) {
+    mon.lv = maxLv;
+    mon.exp = 0;
+    return;
+  }
+  mon.lv = Number(mon.lv) || 1;
+  mon.exp = (Number(mon.exp) || 0) + Number(amount);
+  let need = Math.floor(25 * Math.pow(1.22, mon.lv - 1));
+  while (mon.exp >= need && mon.lv < maxLv) {
+    mon.exp -= need;
+    mon.lv += 1;
+    need = Math.floor(25 * Math.pow(1.22, mon.lv - 1));
+  }
+  if (mon.lv >= maxLv) {
+    mon.lv = maxLv;
+    mon.exp = 0;
+  }
 }
 
 function tryAutoRecruit(enemyObj) {
-  if (Math.random() >= 0.30) return false;
-  const limit = Number(maxCaptured) || 50;
-  if (captured.length >= limit) {
-    showToast(`仲間枠が上限(${limit}体)のため仲間にできませんでした`);
-    return false;
+  if (!enemyObj) return;
+  const cap = typeof maxCaptured !== 'undefined' ? Number(maxCaptured) : 50;
+  if (!Array.isArray(captured) || captured.length >= cap) return;
+
+  const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(enemyObj.name) : null;
+  if (!sp) return;
+  const rarList = ['N', 'R', 'SR', 'UR'];
+  const rarIdx = Math.max(0, rarList.indexOf(sp.rarity || 'N'));
+  const stageNum = Number(state?.stage || 1);
+  const catchRate = Math.max(0.06, 0.35 - (stageNum - 1) * 0.02 - rarIdx * 0.05);
+
+  if (Math.random() < catchRate) {
+    const lv = Math.max(1, (stageNum - 1) * 4 + Math.floor((Number(state?.floor || 1) - 1) / 3) + 1);
+    const newMon = typeof createMonsterInstance === 'function'
+      ? createMonsterInstance(sp, lv)
+      : { id: Date.now() + Math.random(), name: sp.name, lv, exp: 0, star: 0, elem: sp.elem, rarity: sp.rarity, locked: false };
+    captured.push(newMon);
+    showToast(`「${newMon.name}」が仲間になった！`);
   }
-  const rawName = (enemyObj.rawName || enemyObj.name).replace(/^\[強敵\]\s*/, '');
-  const sp = getSpeciesData(rawName);
-  const newMon = {
-    id: 'M' + Date.now() + Math.floor(Math.random() * 999),
-    name: sp.name, elem: sp.elem, lv: 1, maxLv: 10, exp: 0, plus: 0,
-    bonusHp: 0, bonusAtk: 0, bonusDef: 0, baseHp: sp.baseHp, baseAtk: sp.baseAtk, baseDef: sp.baseDef, ct: sp.ct,
-    skills: [getSpeciesInnateSkillId(sp.name)], traits: [getSpeciesInnateTraitId(sp.name)],
-    customSkin: null, customBgIdx: -1
-  };
-  captured.push(newMon);
-  if (!speciesSkins[sp.name]) speciesSkins[sp.name] = { list: [], activeIdx: -1 };
-  const emptySlot = party.findIndex(x => x === null);
-  if (emptySlot !== -1 && !trainingSlots.includes(newMon.id)) {
-    party.splice(emptySlot, 1, newMon.id);
-  }
-  resetBattleAllies();
-  renderParty(); renderCaptured(); renderTraining(); updateSelectOptions(); renderSpeciesGallery();
-  showToast(`${sp.name}が仲間になりました (${captured.length}/${limit})`);
-  return true;
 }
+function fixIndicesAfterSplice(removedIdx) {
+  if (Array.isArray(party)) {
+    party = party.map(v => (typeof v === 'number' && v >= 0 && v < 1000) ? (v === removedIdx ? null : (v > removedIdx ? v - 1 : v)) : v);
+  }
+  if (Array.isArray(trainingSlots)) {
+    trainingSlots = trainingSlots.map(v => (typeof v === 'number' && v >= 0 && v < 1000) ? (v === removedIdx ? null : (v > removedIdx ? v - 1 : v)) : v);
+  }
+  if (Array.isArray(staff)) {
+    staff = staff.map(v => (typeof v === 'number' && v >= 0 && v < 1000) ? (v === removedIdx ? null : (v > removedIdx ? v - 1 : v)) : v);
+  }
+}
+
 function renderParty() {
-  const el = document.getElementById('party-slots');
-  if (!el) return;
-  el.innerHTML = party.slice(0, 3).map((monId, slotIdx) => {
-    const m = captured.find(x => x.id === monId);
-    if (!m) {
-      return `<div class="slot-box" style="aspect-ratio:1/1.05;display:flex;flex-direction:column;justify-content:center;align-items:center;border:1.5px solid #cbd5e1;background:#ffffff;padding:4px;">
-        <div style="font-size:22px;color:#cbd5e1;">＋</div>
-        <div class="sub">枠${slotIdx + 1}</div>
-      </div>`;
+  const box = document.getElementById('party-slots');
+  if (!box) return;
+  let html = '';
+  for (let i = 0; i < 3; i++) {
+    const val = (party || [])[i];
+    const m = (val !== null && val !== undefined) ? ((captured || [])[val] || (captured || []).find(x => x && x.id === val)) : null;
+    if (m) {
+      const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔';
+      const st = getMonsterBattleStats(m);
+      html += `
+        <div onclick="removeFromParty(${i})" style="border:1.5px solid #4fc3f7;background:#f0f9ff;border-radius:12px;padding:8px 4px;text-align:center;cursor:pointer;">
+          <div style="display:flex;justify-content:center;">${renderSprite(disp, 42, '8px')}</div>
+          <div style="font-size:10.5px;font-weight:bold;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
+          <div style="font-size:9.5px;color:#0284c7;font-weight:bold;">Lv.${m.lv || 1} ★${m.star || 0}</div>
+          <div style="font-size:9px;color:#64748b;">HP${st.maxHp} 攻${st.atk}</div>
+        </div>
+      `;
+    } else {
+      html += `
+        <div style="border:1.5px dashed #cbd5e1;background:#f8fafc;border-radius:12px;padding:18px 4px;text-align:center;color:#94a3b8;font-size:11px;font-weight:bold;">
+          空き枠 ${i + 1}
+        </div>
+      `;
     }
-    const disp = getMonsterVisual(m), idx = captured.findIndex(x => x.id === monId), st = getMonStats(m);
-    const plusTag = st.plus > 0 ? `+${st.plus}` : '';
-    return `<div class="slot-box" onclick="openMonModal(${idx})" style="aspect-ratio:1/1.05;padding:4px;display:flex;flex-direction:column;justify-content:space-between;border:1.5px solid #90caf9;background:#ffffff;">
-      <div class="lvl" style="font-size:10px;line-height:1;"><span>Lv.${st.lv}</span>${renderElementBadge(st.elem)}</div>
-      <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;">${renderSprite(disp, 78, '12px')}</div>
-      <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;font-weight:bold;line-height:1;">
-        <span style="color:#e65100;">${plusTag}</span>
-        <span style="color:#546e7a;font-size:8.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${m.name}</span>
-      </div>
-    </div>`;
-  }).join('');
+  }
+  box.innerHTML = html;
+}
+
+function removeFromParty(slotIdx) {
+  if (!Array.isArray(party)) return;
+  party[slotIdx] = null;
+  if (!state?.inBattle) resetBattleAllies();
+  renderParty();
+  renderCaptured();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
 }
 
 function renderTraining() {
-  const el = document.getElementById('training-slots');
-  const cntEl = document.getElementById('train-count-disp');
-  const limit = Math.min(20, Math.max(3, Number(maxTrainingSlots) || 3));
-  if (!Array.isArray(trainingSlots)) trainingSlots = [];
-  while (trainingSlots.length < limit) trainingSlots.push(null);
-  trainingSlots = trainingSlots.slice(0, limit);
-
-  const activeCount = trainingSlots.filter(id => id && captured.some(x => x.id === id)).length;
-  if (cntEl) cntEl.textContent = `${activeCount}/${limit}`;
-
-  if (!el) return;
-  el.innerHTML = trainingSlots.map((monId, slotIdx) => {
-    const m = captured.find(x => x.id === monId);
-    if (!m) {
-      return `<div class="mini-mon-card empty" onclick="alert('「仲間一覧」タブからモンスターをタップし、「訓練場に配置する」を選んでください（戦闘EXPの10%を獲得）')">
-        <div class="m-top">訓練${slotIdx + 1}</div>
-        <div class="m-icon" style="opacity:0.4;font-size:18px;">＋</div>
-        <div class="m-bot">空き</div>
-      </div>`;
+  const box = document.getElementById('training-slots');
+  if (!box) return;
+  const maxSlots = Number(unlockedTrainSlots) || 2;
+  let html = '';
+  for (let i = 0; i < 4; i++) {
+    if (i >= maxSlots) {
+      const cost = (i + 1) * 50;
+      html += `
+        <div onclick="unlockTrainingSlot(${i}, ${cost})" style="border:1.5px dashed #90caf9;background:#e3f2fd;border-radius:10px;padding:10px 4px;text-align:center;cursor:pointer;color:#1565c0;font-size:10px;font-weight:bold;">
+          🔒 枠解放<br>${cost} GEM
+        </div>
+      `;
+      continue;
     }
-    const disp = getMonsterVisual(m), st = getMonStats(m);
-    const plusText = st.plus > 0 ? `+${st.plus}` : '';
-    return `<div class="mini-mon-card train" onclick="removeFromTraining(${slotIdx})">
-      <div class="m-top"><span class="m-lv">Lv.${st.lv}</span><span class="m-tag train">解除</span></div>
-      <div class="m-icon">${renderSprite(disp, 48, '8px')}</div>
-      <div class="m-bot">${plusText ? `<span class="m-plus">${plusText}</span>` : `<span class="m-nm">${m.name}</span>`}</div>
-    </div>`;
-  }).join('');
+    const val = (trainingSlots || [])[i];
+    const m = (val !== null && val !== undefined) ? ((captured || [])[val] || (captured || []).find(x => x && x.id === val)) : null;
+    if (m) {
+      const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔';
+      html += `
+        <div onclick="removeFromTraining(${i})" style="border:1.5px solid #81c784;background:#f1f8e9;border-radius:10px;padding:6px 4px;text-align:center;cursor:pointer;">
+          <div style="display:flex;justify-content:center;">${renderSprite(disp, 34, '6px')}</div>
+          <div style="font-size:10px;font-weight:bold;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
+          <div style="font-size:9px;color:#2e7d32;font-weight:bold;">Lv.${m.lv || 1}/${getMonsterMaxLevel(m)}</div>
+        </div>
+      `;
+    } else {
+      html += `
+        <div style="border:1.5px dashed #cbd5e1;background:#f8fafc;border-radius:10px;padding:14px 4px;text-align:center;color:#94a3b8;font-size:10px;">
+          訓練枠 ${i + 1}
+        </div>
+      `;
+    }
+  }
+  box.innerHTML = html;
 }
 
-function assignTrainingFromModal() {
-  const m = captured.slice(selectedMonIdx, selectedMonIdx + 1).pop();
-  if (!m) return;
-  if (party.includes(m.id)) return alert('バトル編成中のモンスターは訓練場に入れられません。先にパーティから外してください。');
-  const limit = Math.min(20, Math.max(3, Number(maxTrainingSlots) || 3));
-  if (!Array.isArray(trainingSlots)) trainingSlots = [];
-  while (trainingSlots.length < limit) trainingSlots.push(null);
-
-  if (trainingSlots.includes(m.id)) return alert('すでに訓練場に入っています。');
-  const empty = trainingSlots.findIndex(x => x === null);
-  if (empty === -1) return alert(`訓練場（${limit}枠）がいっぱいです。「訓練場」タブの［＋］ボタンで枠を拡張するか、配置中の仲間を外してください。`);
-  trainingSlots.splice(empty, 1, m.id);
-  closeMonModal();
-  renderTraining(); renderCaptured(); triggerAutoSave();
-  showToast(`${m.name}を訓練場に配置しました`);
+function unlockTrainingSlot(slotIdx, cost) {
+  if (gem < cost) return alert(`GEMが足りません（${cost} GEM 必要）`);
+  if (!confirm(`${cost} GEM を消費して訓練枠を解放しますか？`)) return;
+  gem -= cost;
+  unlockedTrainSlots = Math.max(Number(unlockedTrainSlots) || 2, slotIdx + 1);
+  renderTraining();
+  if (typeof updateUI === 'function') updateUI();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(true);
 }
 
 function removeFromTraining(slotIdx) {
-  trainingSlots.splice(slotIdx, 1, null);
-  renderTraining(); renderCaptured(); triggerAutoSave();
-  showToast('訓練場から外しました');
+  if (!Array.isArray(trainingSlots)) return;
+  trainingSlots[slotIdx] = null;
+  renderTraining();
+  renderCaptured();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
 }
-
 function renderCaptured() {
-  const el = document.getElementById('captured-list');
-  const cntEl = document.getElementById('mon-count-disp');
-  const limit = Number(maxCaptured) || 50;
-  if (cntEl) cntEl.textContent = `${captured.length}/${limit}`;
+  const box = document.getElementById('captured-list');
+  if (!box) return;
 
-  if (!el || captured.length === 0) return;
-  el.innerHTML = captured.map((m, i) => {
-    const disp = getMonsterVisual(m);
-    const inParty = party.includes(m.id);
-    const inTrain = (trainingSlots || []).includes(m.id);
-    const inStaff = (staff || []).includes(m.id);
-    const st = getMonStats(m);
-    const plusText = st.plus > 0 ? `+${st.plus}` : '';
+  const cap = typeof maxCaptured !== 'undefined' ? Number(maxCaptured) : 50;
+  const countEl = document.getElementById('captured-count');
+  if (countEl) countEl.textContent = `${(captured || []).length} / ${cap}`;
 
-    let statusBadge = '';
-    if (inParty) statusBadge = '<span class="m-tag party">編成</span>';
-    else if (inTrain) statusBadge = '<span class="m-tag train">訓練</span>';
-    else if (inStaff) statusBadge = '<span class="m-tag staff">店員</span>';
-
-    return `<div class="mini-mon-card ${inParty ? 'in-party' : ''}" onclick="openMonModal(${i})">
-      <div class="m-top"><span class="m-lv">Lv.${st.lv}</span>${statusBadge}</div>
-      <div class="m-icon">${renderSprite(disp, 48, '8px')}</div>
-      <div class="m-bot">${plusText ? `<span class="m-plus">${plusText}</span>` : `<span class="m-nm">${m.name}</span>`}</div>
-    </div>`;
-  }).join('');
-}
-
-function openMonModal(idx) {
-  selectedMonIdx = idx;
-  const m = captured.slice(idx, idx + 1).pop(); if (!m) return;
-  const disp = getMonsterVisual(m), st = getMonStats(m);
-  const elInfo = getElementInfo(st.elem);
-  const resInfo = getElementInfo(elInfo.resistTo);
-  const weakInfo = getElementInfo(elInfo.weakTo);
-  const plusTag = st.plus > 0 ? ` +${st.plus}` : '';
-  const needExp = getNextLevelExp(st.lv);
-  const expText = st.lv >= st.maxLv ? 'MAX（上限到達）' : `${m.exp || 0} / ${needExp}`;
-
-  document.getElementById('modal-mon-sprite').innerHTML = renderSprite(disp, 68, '12px');
-  document.getElementById('modal-mon-name').textContent = `${m.name}${plusTag}`;
-  document.getElementById('modal-mon-rarity').textContent = `配合値: +${st.plus}`;
-  document.getElementById('modal-mon-lv').innerHTML = `Lv.${st.lv} / ${st.maxLv}<br><span style="font-size:10px;color:#546e7a;font-weight:normal;">EXP: ${expText}</span>`;
-  document.getElementById('modal-mon-atk').innerHTML = `HP:${st.maxHp} / ATK:${st.atk}<br>DEF:${st.def} / CT:${st.ct}秒`;
-  document.getElementById('modal-mon-terrain').innerHTML = `${renderElementBadge(st.elem)} <b>${elInfo.name}属性</b><br><span style="font-size:11px;color:#455a64;font-weight:normal;">耐性: ${resInfo.name}（半減） / 弱点: ${weakInfo.name}（1.5倍）</span>`;
-
-  const skillIds = Array.from(new Set(Array.isArray(m.skills) && m.skills.length > 0 ? m.skills : [getSpeciesInnateSkillId(m.name)]));
-  document.getElementById('modal-mon-skill').innerHTML = skillIds.map((sid) => {
-    const sk = getSkillById(sid);
-    return `<div style="margin-bottom:4px;">${renderElementBadge(sk.elem)} <b>${sk.name}</b><br><span style="font-size:10px;color:#546e7a;font-weight:normal;">${sk.desc}（発動率${Math.round(sk.rate * 100)}%）</span></div>`;
-  }).join('');
-
-  const traitIds = Array.from(new Set(Array.isArray(m.traits) && m.traits.length > 0 ? m.traits : [getSpeciesInnateTraitId(m.name)]));
-  document.getElementById('modal-mon-trait').innerHTML = traitIds.map((tid) => {
-    const tr = getMonsterTrait(tid);
-    return `<div style="margin-bottom:3px;"><b>・${tr.name}</b> <span style="font-size:10px;color:#546e7a;font-weight:normal;">(${tr.desc})</span></div>`;
-  }).join('');
-
-  document.getElementById('modal-party-btn').textContent = party.includes(m.id) ? 'パーティから外す' : 'バトルパーティに編成する';
-  document.getElementById('mon-modal').style.display = 'flex';
-}
-function closeMonModal() { document.getElementById('mon-modal').style.display = 'none'; }
-
-function togglePartyFromModal() {
-  const m = captured.slice(selectedMonIdx, selectedMonIdx + 1).pop(); if (!m) return;
-  const pIdx = party.indexOf(m.id);
-  if (pIdx !== -1) {
-    if (party.filter(x => x !== null).length <= 1) return alert('パーティには最低1体必要です');
-    party.splice(pIdx, 1, null); showToast(`${m.name}をパーティから外しました`);
-  } else {
-    if ((trainingSlots || []).includes(m.id)) {
-      return alert('訓練場に入っているモンスターはバトル編成に入れられません。先に訓練場から外してください。');
+  const parentCard = box.closest('.card');
+  if (parentCard && !document.getElementById('bulk-release-bar')) {
+    const titleEl = parentCard.querySelector('.card-title');
+    if (titleEl) {
+      const bar = document.createElement('div');
+      bar.id = 'bulk-release-bar';
+      bar.style.cssText = 'display:flex;justify-content:flex-end;margin:-4px 0 8px;';
+      bar.innerHTML = `<button onclick="releaseBulkMonsters()" style="padding:5px 10px;border-radius:8px;border:1px solid #f59e0b;background:#fffbeb;color:#b45309;font-size:10.5px;font-weight:bold;cursor:pointer;">🍃 未編成をまとめて逃がす（素材獲得）</button>`;
+      titleEl.insertAdjacentElement('afterend', bar);
     }
-    const empty = party.findIndex(x => x === null);
-    if (empty === -1) return alert('パーティ（3枠）がいっぱいです');
-    party.splice(empty, 1, m.id); showToast(`${m.name}をパーティに編成しました`);
   }
-  if (!state.inBattle) resetBattleAllies();
-  renderParty(); renderCaptured(); updateUI(); triggerAutoSave(); openMonModal(selectedMonIdx);
-}
-let skinPickerState = { monIdx: -1, selectedSkinIdx: -1, selectedBgIdx: -1, individualOnly: false };
 
-function openSkinPickerModal() {
-  const m = captured.slice(selectedMonIdx, selectedMonIdx + 1).pop();
-  if (!m) return;
-  if (!speciesSkins || typeof speciesSkins !== 'object') speciesSkins = {};
-  if (!speciesSkins[m.name]) speciesSkins[m.name] = { list: [], activeIdx: -1 };
-  const spData = speciesSkins[m.name];
-  if (!Array.isArray(spData.list)) spData.list = [];
-
-  let initialSkinIdx = spData.activeIdx ?? -1;
-  if (m.customSkin) {
-    const foundIdx = spData.list.indexOf(m.customSkin);
-    if (foundIdx !== -1) initialSkinIdx = foundIdx;
+  if (!Array.isArray(captured) || captured.length === 0) {
+    box.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#94a3b8;font-size:12px;padding:16px;">まだ仲間モンスターがいません</div>';
+    return;
   }
-  skinPickerState = {
-    monIdx: selectedMonIdx,
-    selectedSkinIdx: initialSkinIdx,
-    selectedBgIdx: (typeof m.customBgIdx === 'number') ? m.customBgIdx : (spData.activeBgIdx ?? -1),
-    individualOnly: Boolean(m.customSkin)
-  };
-  const titleEl = document.getElementById('skin-picker-title');
-  if (titleEl) titleEl.textContent = `${m.name}の画像`;
-  const chk = document.getElementById('skin-individual-chk');
-  if (chk) chk.checked = skinPickerState.individualOnly;
-  renderSkinPickerOptions();
-  const modal = document.getElementById('skin-picker-modal');
-  if (modal) modal.style.display = 'flex';
+
+  box.innerHTML = captured.map((m, idx) => {
+    if (!m) return '';
+    const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔';
+    const inParty = (party || []).some(v => v === idx || v === m.id);
+    const inTrain = (trainingSlots || []).some(v => v === idx || v === m.id);
+    const inStaff = (staff || []).some(v => v === idx || v === m.id);
+    const badge = inParty ? '<span style="background:#0284c7;color:#fff;padding:1px 4px;border-radius:4px;font-size:8.5px;">編成</span>'
+      : (inTrain ? '<span style="background:#2e7d32;color:#fff;padding:1px 4px;border-radius:4px;font-size:8.5px;">訓練</span>'
+      : (inStaff ? '<span style="background:#e65100;color:#fff;padding:1px 4px;border-radius:4px;font-size:8.5px;">酒場</span>' : ''));
+    const lockMark = m.locked ? '🔒' : '';
+    const rarBorder = m.rarity === 'UR' ? '#c084fc' : (m.rarity === 'SR' ? '#f59e0b' : (m.rarity === 'R' ? '#38bdf8' : '#e2e8f0'));
+
+    return `
+      <div onclick="openMonsterModal(${idx})" style="border:1.5px solid ${rarBorder};border-radius:10px;padding:6px 3px;text-align:center;background:#ffffff;cursor:pointer;position:relative;">
+        <div style="display:flex;justify-content:space-between;align-items:center;min-height:13px;padding:0 2px;">
+          <span>${badge}</span>
+          <span style="font-size:10px;">${lockMark}</span>
+        </div>
+        <div style="display:flex;justify-content:center;">${renderSprite(disp, 38, '8px')}</div>
+        <div style="font-size:10px;font-weight:bold;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
+        <div style="font-size:9px;color:#0284c7;font-weight:bold;">Lv.${m.lv || 1} ★${m.star || 0}</div>
+      </div>
+    `;
+  }).join('');
 }
 
-function closeSkinPickerModal() {
-  const modal = document.getElementById('skin-picker-modal');
+function openMonsterModal(idx) {
+  const m = (captured || [])[idx];
+  const modal = document.getElementById('monster-modal');
+  const body = document.getElementById('monster-modal-body');
+  if (!m || !modal || !body) return;
+  selectedMonsterIdx = idx;
+
+  const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔';
+  const st = getMonsterBattleStats(m);
+  const maxLv = getMonsterMaxLevel(m);
+  const skill = typeof getMonsterSkill === 'function' ? getMonsterSkill(m.skillId) : null;
+
+  body.innerHTML = `
+    <div style="text-align:center;">
+      <div style="display:flex;justify-content:center;margin-bottom:4px;">${renderSprite(disp, 64, '12px')}</div>
+      <div style="font-size:16px;font-weight:900;color:#1e293b;">${m.name} <span style="font-size:12px;color:#ff7043;">★${m.star || 0}</span></div>
+      <div style="font-size:12px;color:#0284c7;font-weight:bold;">Lv.${m.lv || 1} / ${maxLv} ｜ HP ${st.maxHp} ｜ 攻撃 ${st.atk}</div>
+      ${skill ? `<div style="margin-top:4px;font-size:11px;color:#6d28d9;background:#f3e8ff;padding:3px 8px;border-radius:8px;display:inline-block;">スキル: <b>${skill.name}</b>（${skill.desc}）</div>` : ''}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px;">
+      <button onclick="assignMonsterToParty(${idx})" style="padding:8px;border-radius:8px;border:none;background:#0284c7;color:#fff;font-size:11.5px;font-weight:bold;cursor:pointer;">⚔️ パーティ編成</button>
+      <button onclick="assignMonsterToTraining(${idx})" style="padding:8px;border-radius:8px;border:none;background:#2e7d32;color:#fff;font-size:11.5px;font-weight:bold;cursor:pointer;">🏋️ 訓練場へ配置</button>
+      <button onclick="toggleMonsterLock(${idx})" style="padding:8px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;font-size:11.5px;font-weight:bold;cursor:pointer;">${m.locked ? '🔓 ロック解除' : '🔒 保護ロック'}</button>
+      <button onclick="releaseSingleMonster(${idx})" style="padding:8px;border-radius:8px;border:1px solid #f59e0b;background:#fffbeb;color:#b45309;font-size:11.5px;font-weight:bold;cursor:pointer;">🍃 野に還す(素材)</button>
+    </div>
+    <button onclick="closeMonsterModal()" style="margin-top:10px;width:100%;padding:8px;border-radius:8px;border:none;background:#64748b;color:#fff;font-size:12px;font-weight:bold;cursor:pointer;">閉じる</button>
+  `;
+  modal.style.display = 'flex';
+}
+
+function closeMonsterModal() {
+  const modal = document.getElementById('monster-modal');
   if (modal) modal.style.display = 'none';
 }
 
-function selectPickerSkin(idx) {
-  skinPickerState.selectedSkinIdx = idx;
-  renderSkinPickerOptions();
-}
-
-function selectPickerBg(idx) {
-  skinPickerState.selectedBgIdx = idx;
-  renderSkinPickerOptions();
-}
-
-function renderSkinPickerOptions() {
-  const m = captured.slice(skinPickerState.monIdx, skinPickerState.monIdx + 1).pop();
+function assignMonsterToParty(idx) {
+  if (!Array.isArray(party)) party = [null, null, null];
+  const m = captured[idx];
   if (!m) return;
-  const spData = (speciesSkins && speciesSkins[m.name]) ? speciesSkins[m.name] : { list: [], activeIdx: -1 };
-  const list = Array.isArray(spData.list) ? spData.list : [];
-  const bgList = Array.isArray(aiBackgrounds) ? aiBackgrounds : [];
-  const defVisual = typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual(m.name) : `EMBLEM:none:${m.name.slice(0, 1)}`;
-
-  const imgRow = document.getElementById('skin-picker-images');
-  if (imgRow) {
-    const defSelected = skinPickerState.selectedSkinIdx === -1 ? 'selected' : '';
-    let html = `<div class="picker-thumb ${defSelected}" onclick="selectPickerSkin(-1)">${renderSprite(defVisual, 44, '6px')}</div>`;
-    html += list.map((imgData, idx) => {
-      const sel = skinPickerState.selectedSkinIdx === idx ? 'selected' : '';
-      return `<div class="picker-thumb ${sel}" onclick="selectPickerSkin(${idx})"><span class="picker-star">★</span>${renderSprite(imgData, 44, '6px')}</div>`;
-    }).join('');
-    imgRow.innerHTML = html;
-  }
-
-  const bgRow = document.getElementById('skin-picker-bgs');
-  if (bgRow) {
-    const noneSel = skinPickerState.selectedBgIdx === -1 ? 'selected' : '';
-    let bgHtml = `<div class="picker-thumb ${noneSel}" onclick="selectPickerBg(-1)" style="font-size:11px;font-weight:bold;color:#546e7a;">なし</div>`;
-    bgHtml += bgList.map((bg, idx) => {
-      const sel = skinPickerState.selectedBgIdx === idx ? 'selected' : '';
-      return `<div class="picker-thumb ${sel}" onclick="selectPickerBg(${idx})"><span class="picker-star">★</span><img src="${bg.img}" style="width:44px;height:44px;border-radius:6px;object-fit:cover;"></div>`;
-    }).join('');
-    bgRow.innerHTML = bgHtml;
-  }
-
-  const previewBox = document.getElementById('skin-picker-preview');
-  if (previewBox) {
-    const chosenVisual = (skinPickerState.selectedSkinIdx >= 0 && list[skinPickerState.selectedSkinIdx])
-      ? list[skinPickerState.selectedSkinIdx] : defVisual;
-    const chosenBg = (skinPickerState.selectedBgIdx >= 0 && bgList[skinPickerState.selectedBgIdx])
-      ? bgList[skinPickerState.selectedBgIdx].img : null;
-
-    previewBox.style.backgroundImage = chosenBg ? `url(${chosenBg})` : 'none';
-    previewBox.style.backgroundColor = chosenBg ? 'transparent' : '#f1f5f9';
-    previewBox.innerHTML = renderSprite(chosenVisual, 130, '10px');
-  }
-}
-
-function applySkinPicker() {
-  const m = captured.slice(skinPickerState.monIdx, skinPickerState.monIdx + 1).pop();
-  if (!m) return;
-  if (!speciesSkins[m.name]) speciesSkins[m.name] = { list: [], activeIdx: -1 };
-  const spData = speciesSkins[m.name];
-  const list = Array.isArray(spData.list) ? spData.list : [];
-  const isIndiv = document.getElementById('skin-individual-chk')?.checked || false;
-  const chosenImg = (skinPickerState.selectedSkinIdx >= 0 && list[skinPickerState.selectedSkinIdx])
-    ? list[skinPickerState.selectedSkinIdx] : null;
-
-  if (isIndiv) {
-    m.customSkin = chosenImg;
-    m.customBgIdx = skinPickerState.selectedBgIdx;
-  } else {
-    m.customSkin = null;
-    m.customBgIdx = -1;
-    spData.activeIdx = skinPickerState.selectedSkinIdx;
-    spData.activeBgIdx = skinPickerState.selectedBgIdx;
-  }
-
-  if (!state.inBattle && typeof resetBattleAllies === 'function') resetBattleAllies();
+  if (party.some(v => v === idx || v === m.id)) return alert('すでにパーティに編成されています');
+  const emptySlot = party.findIndex(v => v === null || v === undefined);
+  if (emptySlot === -1) return alert('パーティ枠（3体）がいっぱいです');
+  party[emptySlot] = idx;
+  if (!state?.inBattle) resetBattleAllies();
+  closeMonsterModal();
   renderParty();
   renderCaptured();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
+}
+
+function assignMonsterToTraining(idx) {
+  if (!Array.isArray(trainingSlots)) trainingSlots = [null, null, null, null];
+  const m = captured[idx];
+  if (!m) return;
+  if (trainingSlots.some(v => v === idx || v === m.id)) return alert('すでに訓練場に配置されています');
+  const maxSlots = Number(unlockedTrainSlots) || 2;
+  let emptySlot = -1;
+  for (let i = 0; i < maxSlots; i++) {
+    if (trainingSlots[i] === null || trainingSlots[i] === undefined) { emptySlot = i; break; }
+  }
+  if (emptySlot === -1) return alert('解放済みの訓練枠がいっぱいです');
+  trainingSlots[emptySlot] = idx;
+  closeMonsterModal();
   renderTraining();
-  if (typeof renderCafe === 'function') renderCafe();
-  if (typeof renderSpeciesGallery === 'function') renderSpeciesGallery();
-  if (typeof updateIconPreview === 'function') updateIconPreview(false);
-  updateUI();
-  triggerAutoSave(true);
-  closeSkinPickerModal();
-  openMonModal(skinPickerState.monIdx);
-  showToast(`${m.name}の見た目を変更しました`);
+  renderCaptured();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
+}
+
+function toggleMonsterLock(idx) {
+  const m = (captured || [])[idx];
+  if (!m) return;
+  m.locked = !m.locked;
+  openMonsterModal(idx);
+  renderCaptured();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
 }
