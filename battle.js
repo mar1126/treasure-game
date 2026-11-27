@@ -294,10 +294,13 @@ function handleWaveCleared() {
   }
 
   const partyIds = new Set();
-  party.forEach(idx => {
-    if (idx !== null && captured[idx]) {
-      partyIds.add(captured[idx].id);
-      grantMonsterExp(captured[idx], expGain);
+  party.forEach(val => {
+    if (val !== null) {
+      const m = captured[val] || captured.find(x => x && x.id === val);
+      if (m) {
+        partyIds.add(m.id);
+        grantMonsterExp(m, expGain);
+      }
     }
   });
 
@@ -422,7 +425,9 @@ function startBattle(ev) {
   if (ev && ev.cancelable) ev.preventDefault();
   if (state.inBattle) return;
 
-  const hasMember = party.some(idx => idx !== null && captured[idx]);
+  const hasMember = Array.isArray(party) && party.some(val =>
+    val !== null && (captured[val] || captured.some(m => m && m.id === val))
+  );
   if (!hasMember) {
     alert('パーティにモンスターを1体以上編成してください！');
     return;
