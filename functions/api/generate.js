@@ -7,44 +7,65 @@ const HUMANOID_SPECIES = [
   "騎士", "パラディン", "魔女", "ネクロマンサー", "ニンジャ", "サムライ"
 ];
 
-function buildJapaneseArtTags(text, speciesName, isMonsterType) {
-  let s = String(text || "");
-  const isHumanize = /擬人化|美少女|美女|イケメン|女の子|男の子|人型|メイド|巫女/.test(s);
-  const isHumanoidSpecies = HUMANOID_SPECIES.some(h => String(speciesName || "").includes(h));
-
-  const dict = [
-    [/擬人化/g, "humanized anime character version, human form, "],
-    [/美少女|美女/g, "beautiful Japanese anime girl, "],
-    [/イケメン|美少年/g, "handsome Japanese anime boy, "],
-    [/頭身高く|高い頭身/g, "tall 8 heads proportions, full body, NOT chibi, "],
-    [/手足なし|手足がない/g, "limbless blob body, no arms, no legs, no hands, no feet, "],
-    [/スライム/g, "cute translucent jelly slime monster, "],
-    [/ドラゴン|竜/g, "fierce fantasy dragon monster, "],
-    [/騎士|鎧/g, "fantasy armor, "],
-    [/魔法使い|魔女/g, "witch hat and magic staff, "],
-    [/メイド/g, "frilled maid outfit, "],
-    [/笑顔|スマイル/g, "big cheerful happy smile, "],
-    [/決めポーズ/g, "cool confident signature pose, "],
-    [/クール/g, "cool stylish expression, "],
-    [/手を振る/g, "waving hand happily, "],
-    [/怒り|ぷんぷん/g, "cute angry pouting expression, "],
-    [/泣き|涙/g, "crying with big anime tears, "],
-    [/驚き|びっくり/g, "shocked surprised expression, "]
-  ];
-
-  for (const [regex, rep] of dict) {
-    s = s.replace(regex, rep);
+async function fetchJapaneseWebContext(queryText) {
+  try {
+    const q = String(queryText || "").replace(/[!！@][^\s]+\s*/g, "").trim().slice(0, 40);
+    if (!q) return "";
+    const url = `https://wikipedia.org{encodeURIComponent(q)}&format=json&srlimit=2`;
+    const res = await fetch(url, { headers: { "User-Agent": "FantasyFrontierGame/1.0" } });
+    if (!res.ok) return "";
+    const data = await res.json();
+    const hits = (data && data.query && Array.isArray(data.query.search)) ? data.query.search : [];
+    const snippets = hits
+      .map(h => String(h.snippet || "").replace(/<[^>]+>/g, ""))
+      .filter(Boolean)
+      .join(" / ");
+    return snippets.slice(0, 220);
+  } catch (e) {
+    return "";
   }
+}
+
+async function understandJapanesePromptWithAI(ai, type, species, rawPrompt, webContext) {
+  const isHumanize = /擬人化|美少女|美女|イケメン|女の子|男の子|人型|メイド|巫女/.test(rawPrompt);
+  const isHumanoidSpecies = HUMANOID_SPECIES.some(h => String(species || "").includes(h));
+
+  try {
+    const sys =
+      "You are an expert Japanese-to-English visual prompt translator for Japanese anime/JRPG illustration (Flux). " +
+      "Understand Japanese slang, anime/manga tropes, fashion, and monster motifs accurately using the provided Japanese web context. " +
+      "Output ONLY a comma-separated list of concrete English visual tags (max 55 words, no sentences, no explanations). " +
+      "Rules: " +
+      "- If '擬人化' is requested, describe a humanized anime character (tall 8-head proportions, NOT chibi) keeping the monster's motif. " +
+      "- If '手足なし' is requested, explicitly write 'limbless blob body, no arms, no legs'. " +
+      "- If type is monster and NOT humanized and species is non-human, strictly describe a non-human fantasy monster creature (NO human, NO girl).";
+
+    const userMsg =
+      `Task Type: ${type}\n` +
+      `Monster Species: ${species} (Humanoid species: ${isHumanoidSpecies})\n` +
+      `Japanese User Prompt: ${rawPrompt}\n` +
+      (webContext ? `Japanese Reference Info: ${webContext}` : "");
+
+    const res = await ai.run("@cf/qwen/qwen2.5-7b-instruct", {
+      messages: [
+        { role: "system", content: sys },
+        { role: "user", content: userMsg }
+      ],
+      max_tokens: 120,
+      temperature: 0.3
+    });
+
+    const out = (res && typeof res.response === "string") ? res.response.trim() : "";
+    if (out && out.length > 4) {
+      return out.replace(/^["']|["']$/g, "");
+    }
+  } catch (e) {}
 
   let prefix = "";
-  if (isMonsterType && !isHumanize) {
-    if (isHumanoidSpecies) {
-      prefix = "fantasy RPG humanoid monster character, ";
-    } else {
-      prefix = "non-human fantasy RPG creature, pure monster design, NO human, NO girl, NO boy, ";
-    }
+  if (type === "monster" && !isHumanize && !isHumanoidSpecies) {
+    prefix = "non-human fantasy RPG creature, NO human, NO girl, ";
   }
-  return { tags: prefix + s, isHumanize };
+  return `${prefix}${species}, ${rawPrompt}`;
 }
 
 async function analyzeSourceCharacterImage(ai, base64DataUrl) {
@@ -58,7 +79,7 @@ async function analyzeSourceCharacterImage(ai, base64DataUrl) {
 
     const visionRes = await ai.run("@cf/llava-hf/llava-1.5-7b-hf", {
       image: Array.from(bytes),
-      prompt: "Describe this anime character's exact visual appearance in 35 words: hair color, hairstyle, eye color, headwear/ears/wings/horns, and outfit color/style. Be specific so an artist can draw the exact same character.",
+      prompt: "Describe this anime character's exact visual appearance in 35 words: hair color, hairstyle, eye color, headwear/ears/wings/horns, and outfit color/style.",
       max_tokens: 80
     });
     return (visionRes && visionRes.description) ? String(visionRes.description).trim() : "";
@@ -78,55 +99,36 @@ export async function onRequestPost({ request, env }) {
 
     const body = await request.json();
     const type = String(body.type || "monster");
-    const species = String(body.species || "Slime");
+    const species = String(body.species || "スライム");
     const rawPrompt = String(body.prompt || "").slice(0, 500);
     const stampText = String(body.stamp_text || "").slice(0, 20);
     const sourceImg = String(body.source_img || "");
 
-    const { tags: prePrompt } = buildJapaneseArtTags(rawPrompt, species, type === "monster");
-    let enSpecies = species;
-    let enPrompt = prePrompt;
+    // 1. 日本語Web検索で言葉の意味・特徴を取得
+    const webContext = await fetchJapaneseWebContext(rawPrompt || species);
 
-    try {
-      if (/[^\x00-\x7F]/.test(species)) {
-        const trSp = await ai.run("@cf/meta/m2m100-1.2b", {
-          text: species,
-          source_lang: "japanese",
-          target_lang: "english"
-        });
-        if (trSp && trSp.translated_text) enSpecies = trSp.translated_text;
-      }
-      if (enPrompt && /[^\x00-\x7F]/.test(enPrompt)) {
-        const trPr = await ai.run("@cf/meta/m2m100-1.2b", {
-          text: enPrompt,
-          source_lang: "japanese",
-          target_lang: "english"
-        });
-        if (trPr && trPr.translated_text) enPrompt = trPr.translated_text;
-      }
-    } catch (e) {}
+    // 2. 日本語に強い Qwen2.5 で意味を正しく理解して英語ビジュアルタグ化
+    const understoodTags = await understandJapanesePromptWithAI(ai, type, species, rawPrompt, webContext);
 
     const jpStyle = "Japanese JRPG character and monster illustration style, clean bold black outlines, vibrant cel shading, isolated on solid pure white background #FFFFFF, no western comic style, no 3D render, no text";
 
     let fullPrompt = "";
     if (type === "monster") {
-      fullPrompt = `${enPrompt}, ${enSpecies}, centered full body game sprite, ${jpStyle}`;
+      fullPrompt = `${understoodTags}, centered full body game sprite, ${jpStyle}`;
     } else if (type === "bg") {
-      fullPrompt = `${enPrompt}, Japanese anime fantasy RPG scenery background art, vibrant lighting, detailed digital painting, scenic view, no characters, no text`;
+      fullPrompt = `${understoodTags}, Japanese anime fantasy RPG scenery background art, vibrant lighting, detailed digital painting, scenic view, no characters, no text`;
     } else if (type === "stamp") {
       let charAppearance = "";
       if (sourceImg.startsWith("data:image")) {
         charAppearance = await analyzeSourceCharacterImage(ai, sourceImg);
       }
-      const subject = charAppearance
-        ? `Same character (${charAppearance})`
-        : `${enSpecies}`;
-      fullPrompt = `Cute chibi SD anime sticker illustration of ${subject}, ${enPrompt}, expressive face, upper body pose, thick clean white sticker border, isolated on solid pure white background #FFFFFF, Japanese LINE sticker style, no text`;
+      const subject = charAppearance ? `Same character (${charAppearance}), ` : "";
+      fullPrompt = `Cute chibi SD anime sticker illustration, ${subject}${understoodTags}, expressive face, upper body pose, thick clean white sticker border, isolated on solid pure white background #FFFFFF, Japanese LINE sticker style, no text`;
     }
 
     const result = await ai.run("@cf/black-forest-labs/flux-1-schnell", {
       prompt: fullPrompt,
-      steps: 4
+      steps: 3
     });
 
     if (!result || !result.image) {
