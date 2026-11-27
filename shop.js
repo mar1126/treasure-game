@@ -1,4 +1,4 @@
-// ショップ・アトリエ管理（顔特徴維持スタンプ＋白背景透明化＋管理者公式デフォルト対応）(shop.js)
+// ショップ・アトリエ管理（スキン・背景・スタンプ分解+50GEM＋元絵解析対応）(shop.js)
 const ADMIN_USER_IDS = ['H-ORM8PM4M'];
 function isAdminUser() {
   return ADMIN_USER_IDS.includes(String(userId || ''));
@@ -89,8 +89,9 @@ function switchAiSub(sub, btn) {
   if (target) target.classList.add('active');
   refreshAiSpeciesSelects();
   renderSpeciesGallery();
+  renderBgGallery();
   renderStampBuilderUI();
-  if (typeof renderStamps === 'function') renderStamps();
+  renderStamps();
 }
 
 function refreshAiSpeciesSelects() {
@@ -133,6 +134,59 @@ function toggleExtend(kind) {
   if (costEl) costEl.textContent = isExt ? '250' : '200';
   updateCharCount(kind);
 }
+function getAssetLockKey(kind, idPart, idx) {
+  return `${kind}:${idPart}:${idx}`;
+}
+
+function isAssetLocked(kind, idPart, idx) {
+  try {
+    const raw = localStorage.getItem('ff_asset_locks');
+    const map = raw ? JSON.parse(raw) : {};
+    return Boolean(map[getAssetLockKey(kind, idPart, idx)]);
+  } catch (e) {
+    return false;
+  }
+}
+
+function toggleAssetLock(kind, idPart, idx) {
+  try {
+    const raw = localStorage.getItem('ff_asset_locks');
+    const map = raw ? JSON.parse(raw) : {};
+    const k = getAssetLockKey(kind, idPart, idx);
+    if (map[k]) {
+      delete map[k];
+      showToast('ロックを解除しました 🔓');
+    } else {
+      map[k] = true;
+      showToast('保護ロックをかけました 🔒');
+    }
+    localStorage.setItem('ff_asset_locks', JSON.stringify(map));
+  } catch (e) {}
+
+  if (kind === 'skin') renderSpeciesGallery();
+  else if (kind === 'bg') renderBgGallery();
+  else if (kind === 'stamp') renderStamps();
+}
+
+function shiftAssetLocksAfterRemove(kind, idPart, removedIdx) {
+  try {
+    const raw = localStorage.getItem('ff_asset_locks');
+    const map = raw ? JSON.parse(raw) : {};
+    const prefix = `${kind}:${idPart}:`;
+    const nextMap = {};
+    Object.keys(map).forEach(k => {
+      if (!k.startsWith(prefix)) {
+        nextMap[k] = map[k];
+        return;
+      }
+      const n = Number(k.slice(prefix.length));
+      if (n < removedIdx) nextMap[k] = map[k];
+      else if (n > removedIdx) nextMap[`${prefix}${n - 1}`] = map[k];
+    });
+    localStorage.setItem('ff_asset_locks', JSON.stringify(nextMap));
+  } catch (e) {}
+}
+
 function renderSpeciesGallery() {
   refreshAiSpeciesSelects();
   const gal = document.getElementById('species-skin-gallery');
@@ -150,19 +204,140 @@ function renderSpeciesGallery() {
   const adminMode = isAdminUser();
   gal.innerHTML = list.map((imgData, idx) => {
     const isAct = spData.activeIdx === idx;
+    const locked = isAssetLocked('skin', spName, idx);
     const adminBtn = adminMode
-      ? `<button onclick="event.stopPropagation();promoteSkinToOfficialDefault('${spName}', ${idx})" style="margin-top:4px;width:100%;background:#0288d1;color:#fff;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">公式デフォルト化</button>`
+      ? `<button onclick="event.stopPropagation();promoteSkinToOfficialDefault('${spName}', ${idx})" style="margin-top:3px;width:100%;background:#0288d1;color:#fff;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">公式デフォルト化</button>`
       : '';
+    const disBtn = locked
+      ? `<button onclick="event.stopPropagation();alert('ロック中のため分解できません。右上の🔒ボタンで解除してください。')" style="margin-top:3px;width:100%;background:#cfd8dc;color:#546e7a;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">🔒 保護中</button>`
+      : `<button onclick="event.stopPropagation();dismantleSkin('${spName}', ${idx})" style="margin-top:3px;width:100%;background:#ef5350;color:#fff;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">分解 (+50GEM)</button>`;
+
     return `
       <div class="slot-box" onclick="equipSpeciesSkinFromGallery('${spName}', ${idx})" style="${isAct ? 'border:2px solid #ff7043;background:#fff8f6;' : ''}">
+        <button onclick="event.stopPropagation();toggleAssetLock('skin','${spName}',${idx})" style="position:absolute;top:3px;right:3px;background:rgba(255,255,255,0.9);border:1px solid #cbd5e1;border-radius:6px;padding:1px 4px;font-size:11px;cursor:pointer;">${locked ? '🔒' : '🔓'}</button>
         <img src="${imgData}" style="width:68px;height:68px;object-fit:contain;border-radius:8px;">
         <div style="font-size:10px;font-weight:bold;color:${isAct ? '#ff7043' : '#546e7a'};margin-top:3px;">${isAct ? '★ 適用中' : 'タップで適用'}</div>
         ${adminBtn}
+        ${disBtn}
       </div>
     `;
   }).join('');
 }
 
+function dismantleSkin(spName, idx) {
+  if (isAssetLocked('skin', spName, idx)) return alert('ロック中のため分解できません');
+  const spData = speciesSkins[spName];
+  if (!spData || !Array.isArray(spData.list) || !spData.list[idx]) return;
+  if (!confirm(`この「${spName}」のスキンを分解して 50 GEM に変換しますか？`)) return;
+
+  spData.list.splice(idx, 1);
+  if (spData.activeIdx === idx) spData.activeIdx = -1;
+  else if (spData.activeIdx > idx) spData.activeIdx -= 1;
+
+  (captured || []).forEach(m => {
+    if (m && m.name === spName && typeof m.customSkinIdx === 'number') {
+      if (m.customSkinIdx === idx) m.customSkinIdx = null;
+      else if (m.customSkinIdx > idx) m.customSkinIdx -= 1;
+    }
+  });
+
+  shiftAssetLocksAfterRemove('skin', spName, idx);
+  gem += 50;
+  if (!state.inBattle && typeof resetBattleAllies === 'function') resetBattleAllies();
+  if (typeof renderParty === 'function') renderParty();
+  if (typeof renderCaptured === 'function') renderCaptured();
+  renderSpeciesGallery();
+  updateUI();
+  triggerAutoSave(true);
+  showToast('スキンを分解して +50 GEM 獲得しました！');
+}
+
+function renderBgGallery() {
+  const gal = document.getElementById('bg-gallery');
+  if (!gal) return;
+  const list = Array.isArray(aiBackgrounds) ? aiBackgrounds : [];
+  if (list.length === 0) {
+    gal.innerHTML = `<div style="grid-column:1/-1;font-size:11px;color:#78909c;text-align:center;padding:8px;">生成したアイコン背景はまだありません</div>`;
+    return;
+  }
+
+  gal.innerHTML = list.map((bgItem, idx) => {
+    const imgUrl = typeof bgItem === 'string' ? bgItem : (bgItem.img || '');
+    const locked = isAssetLocked('bg', 'all', idx);
+    const disBtn = locked
+      ? `<button onclick="event.stopPropagation();alert('ロック中のため分解できません。右上の🔒ボタンで解除してください。')" style="margin-top:4px;width:100%;background:#cfd8dc;color:#546e7a;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">🔒 保護中</button>`
+      : `<button onclick="event.stopPropagation();dismantleBg(${idx})" style="margin-top:4px;width:100%;background:#ef5350;color:#fff;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">分解 (+50GEM)</button>`;
+
+    return `
+      <div class="slot-box">
+        <button onclick="event.stopPropagation();toggleAssetLock('bg','all',${idx})" style="position:absolute;top:3px;right:3px;background:rgba(255,255,255,0.9);border:1px solid #cbd5e1;border-radius:6px;padding:1px 4px;font-size:11px;cursor:pointer;">${locked ? '🔒' : '🔓'}</button>
+        <img src="${imgUrl}" style="width:68px;height:68px;object-fit:cover;border-radius:8px;">
+        ${disBtn}
+      </div>
+    `;
+  }).join('');
+}
+
+function dismantleBg(idx) {
+  if (isAssetLocked('bg', 'all', idx)) return alert('ロック中のため分解できません');
+  if (!Array.isArray(aiBackgrounds) || !aiBackgrounds[idx]) return;
+  if (!confirm('このアイコン背景を分解して 50 GEM に変換しますか？')) return;
+
+  aiBackgrounds.splice(idx, 1);
+  if (typeof iconConfig === 'object' && iconConfig !== null) {
+    if (Number(iconConfig.bgIdx) === idx) iconConfig.bgIdx = -1;
+    else if (Number(iconConfig.bgIdx) > idx) iconConfig.bgIdx = Number(iconConfig.bgIdx) - 1;
+  }
+
+  shiftAssetLocksAfterRemove('bg', 'all', idx);
+  gem += 50;
+  renderBgGallery();
+  if (typeof updateIconPreview === 'function') updateIconPreview(false);
+  updateUI();
+  triggerAutoSave(true);
+  showToast('アイコン背景を分解して +50 GEM 獲得しました！');
+}
+
+function renderStamps() {
+  const gal = document.getElementById('stamp-gallery');
+  if (!gal) return;
+  const list = Array.isArray(aiStamps) ? aiStamps : [];
+  if (list.length === 0) {
+    gal.innerHTML = '';
+    return;
+  }
+
+  gal.innerHTML = list.map((st, idx) => {
+    const imgUrl = typeof st === 'string' ? st : (st.img || '');
+    const locked = isAssetLocked('stamp', 'all', idx);
+    const disBtn = locked
+      ? `<button onclick="event.stopPropagation();alert('ロック中のため分解できません。右上の🔒ボタンで解除してください。')" style="margin-top:4px;width:100%;background:#cfd8dc;color:#546e7a;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">🔒 保護中</button>`
+      : `<button onclick="event.stopPropagation();dismantleStamp(${idx})" style="margin-top:4px;width:100%;background:#ef5350;color:#fff;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">分解 (+50GEM)</button>`;
+
+    return `
+      <div class="slot-box">
+        <button onclick="event.stopPropagation();toggleAssetLock('stamp','all',${idx})" style="position:absolute;top:3px;right:3px;background:rgba(255,255,255,0.9);border:1px solid #cbd5e1;border-radius:6px;padding:1px 4px;font-size:11px;cursor:pointer;">${locked ? '🔒' : '🔓'}</button>
+        <img src="${imgUrl}" style="width:68px;height:68px;object-fit:contain;border-radius:8px;">
+        ${disBtn}
+      </div>
+    `;
+  }).join('');
+}
+
+function dismantleStamp(idx) {
+  if (isAssetLocked('stamp', 'all', idx)) return alert('ロック中のため分解できません');
+  if (!Array.isArray(aiStamps) || !aiStamps[idx]) return;
+  if (!confirm('このスタンプを分解して 50 GEM に変換しますか？')) return;
+
+  aiStamps.splice(idx, 1);
+  shiftAssetLocksAfterRemove('stamp', 'all', idx);
+  gem += 50;
+  renderStamps();
+  if (typeof renderChatStampBar === 'function') renderChatStampBar();
+  updateUI();
+  triggerAutoSave(true);
+  showToast('スタンプを分解して +50 GEM 獲得しました！');
+}
 async function promoteSkinToOfficialDefault(spName, idx) {
   if (!isAdminUser()) return;
   const spData = speciesSkins[spName];
@@ -307,9 +482,7 @@ function flattenImageOnWhite(dataUrl) {
         ctx.fillRect(0, 0, size, size);
         ctx.drawImage(img, 0, 0, size, size);
         resolve(canvas.toDataURL('image/jpeg', 0.92));
-      } catch (e) {
-        resolve(dataUrl);
-      }
+      } catch (e) { resolve(dataUrl); }
     };
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
@@ -424,9 +597,7 @@ async function generateAI(type) {
     stampText = document.getElementById('stamp-text')?.value.trim() || '';
     rawInput = document.getElementById('ai-stamp-prompt')?.value.trim() || '';
     const vis = getStampSelectedSourceVisual();
-    if (String(vis).startsWith('data:image')) {
-      sourceImg = await flattenImageOnWhite(vis);
-    }
+    if (String(vis).startsWith('data:image')) sourceImg = await flattenImageOnWhite(vis);
   }
 
   let officialMonsterCmd = false;
@@ -493,6 +664,7 @@ async function generateAI(type) {
     } else if (type === 'bg') {
       if (!Array.isArray(aiBackgrounds)) aiBackgrounds = [];
       aiBackgrounds.push({ img: data.image, prompt: cleanPrompt });
+      renderBgGallery();
       if (typeof updateIconPreview === 'function') updateIconPreview(false);
       showToast('新しいアイコン背景を生成しました！');
     } else if (type === 'stamp') {
@@ -502,7 +674,7 @@ async function generateAI(type) {
       renderStampBuilderUI();
       if (!Array.isArray(aiStamps)) aiStamps = [];
       aiStamps.push({ img: finalStamp, text: stampText || species, species });
-      if (typeof renderStamps === 'function') renderStamps();
+      renderStamps();
       showToast('新しいチャットスタンプを生成しました！');
     }
 
