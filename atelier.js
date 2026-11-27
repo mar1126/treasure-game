@@ -1,4 +1,4 @@
-// アトリエ管理（AI生成・拡大プレビュー・左上分解ボタン・保護ロック）(atelier.js)
+// アトリエ管理（AI生成・拡大プレビュー・デフォルト戻し・分解・保護ロック）(atelier.js)
 const ADMIN_USER_IDS = ['H-ORM8PM4M'];
 function isAdminUser() {
   return ADMIN_USER_IDS.includes(String(userId || ''));
@@ -134,8 +134,13 @@ function openAssetPreviewModal(kind, idPart, idx, mode = 'view') {
   let isEquipped = false;
   if (kind === 'skin') {
     const spData = speciesSkins[idPart];
-    imgUrl = spData && spData.list ? spData.list[idx] : '';
-    isEquipped = spData && spData.activeIdx === idx;
+    if (idx < 0) {
+      imgUrl = typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual(idPart) : '';
+      isEquipped = !spData || Number(spData.activeIdx ?? -1) < 0;
+    } else {
+      imgUrl = spData && spData.list ? spData.list[idx] : '';
+      isEquipped = spData && spData.activeIdx === idx;
+    }
   } else if (kind === 'bg') {
     const item = aiBackgrounds[idx];
     imgUrl = typeof item === 'string' ? item : (item ? item.img : '');
@@ -145,7 +150,7 @@ function openAssetPreviewModal(kind, idPart, idx, mode = 'view') {
   }
   if (!imgUrl) return;
 
-  const isDefault = isOfficialDefaultAsset(kind, idPart, imgUrl);
+  const isDefault = (kind === 'skin' && idx < 0) || isOfficialDefaultAsset(kind, idPart, imgUrl);
   const locked = isAssetLocked(kind, idPart, idx);
   const isBg = kind === 'bg';
 
@@ -199,10 +204,12 @@ function openAssetPreviewModal(kind, idPart, idx, mode = 'view') {
     `;
   } else {
     let btns = '';
+    if (kind === 'skin' && !isEquipped) {
+      const targetIdx = isDefault ? -1 : idx;
+      const btnLabel = isDefault ? '★ デフォルトの見た目に戻す' : '★ このスキンを適用する';
+      btns += `<button onclick="event.stopPropagation();equipSpeciesSkinFromGallery('${idPart}',${targetIdx});closeAssetPreviewModal();" style="background:#ffffff;border:none;border-radius:12px;padding:10px;font-size:13px;font-weight:bold;color:#ff7043;cursor:pointer;">${btnLabel}</button>`;
+    }
     if (!isDefault) {
-      if (kind === 'skin' && !isEquipped) {
-        btns += `<button onclick="event.stopPropagation();equipSpeciesSkinFromGallery('${idPart}',${idx});closeAssetPreviewModal();" style="background:#ffffff;border:none;border-radius:12px;padding:10px;font-size:13px;font-weight:bold;color:#ff7043;cursor:pointer;">★ このスキンを適用する</button>`;
-      }
       btns += `<button onclick="event.stopPropagation();toggleAssetLock('${kind}','${idPart}',${idx});openAssetPreviewModal('${kind}','${idPart}',${idx},'view');" style="background:#ffffff;border:none;border-radius:12px;padding:10px;font-size:13px;font-weight:bold;color:#334155;cursor:pointer;">${locked ? '🔒 ロック解除する' : '🔓 保護ロックする'}</button>`;
       if (kind === 'skin' && isAdminUser()) {
         btns += `<button onclick="event.stopPropagation();promoteSkinToOfficialDefault('${idPart}',${idx});closeAssetPreviewModal();" style="background:#0288d1;border:none;border-radius:12px;padding:10px;font-size:13px;font-weight:bold;color:#ffffff;cursor:pointer;">【管理者】公式デフォルトに設定</button>`;
@@ -229,7 +236,7 @@ function executeDismantleAsset(kind, idPart, idx) {
 }
 
 function buildSquareAssetCard(kind, idPart, idx, imgUrl, isEquipped) {
-  const isDefault = isOfficialDefaultAsset(kind, idPart, imgUrl);
+  const isDefault = (kind === 'skin' && idx < 0) || isOfficialDefaultAsset(kind, idPart, imgUrl);
   const locked = isAssetLocked(kind, idPart, idx);
   const borderStyle = isEquipped ? 'border:2px solid #ffb300;' : 'border:1.5px solid #cbd5e1;';
   const starBadge = isEquipped
@@ -256,14 +263,24 @@ function renderSpeciesGallery() {
   const list = Array.isArray(spData.list) ? spData.list : [];
 
   gal.style.gridTemplateColumns = 'repeat(4, 1fr)';
-  if (list.length === 0) {
-    gal.innerHTML = `<div style="grid-column:1/-1;font-size:11px;color:#78909c;text-align:center;padding:8px;">「${spName}」のスキンはまだありません</div>`;
-    return;
+
+  const defVis = typeof getDefaultMonsterVisual === 'function' ? getDefaultMonsterVisual(spName) : '';
+  const isDefActive = Number(spData.activeIdx ?? -1) < 0;
+  let html = '';
+  if (String(defVis).startsWith('data:image')) {
+    html += buildSquareAssetCard('skin', spName, -1, defVis, isDefActive);
   }
-  gal.innerHTML = list.map((imgData, idx) => buildSquareAssetCard('skin', spName, idx, imgData, spData.activeIdx === idx)).join('');
+
+  html += list.map((imgData, idx) => {
+    if (String(defVis) === String(imgData)) return '';
+    return buildSquareAssetCard('skin', spName, idx, imgData, spData.activeIdx === idx);
+  }).join('');
+
+  gal.innerHTML = html || `<div style="grid-column:1/-1;font-size:11px;color:#78909c;text-align:center;padding:8px;">「${spName}」のスキンはまだありません</div>`;
 }
 
 function dismantleSkin(spName, idx, skipConfirm = false) {
+  if (idx < 0) return;
   const spData = speciesSkins[spName];
   if (!spData || !Array.isArray(spData.list) || !spData.list[idx]) return;
   if (isOfficialDefaultAsset('skin', spName, spData.list[idx])) return;
@@ -380,7 +397,7 @@ async function promoteSkinToOfficialDefault(spName, idx) {
 }
 
 function equipSpeciesSkinFromGallery(spName, idx) {
-  if (!speciesSkins[spName]) return;
+  if (!speciesSkins[spName]) speciesSkins[spName] = { list: [], activeIdx: -1 };
   speciesSkins[spName].activeIdx = idx;
   if (!state.inBattle && typeof resetBattleAllies === 'function') resetBattleAllies();
   if (typeof renderParty === 'function') renderParty();
@@ -390,7 +407,7 @@ function equipSpeciesSkinFromGallery(spName, idx) {
   renderSpeciesGallery();
   updateUI();
   triggerAutoSave(true);
-  showToast(`${spName}のスキンを適用しました！`);
+  showToast(idx < 0 ? `${spName}をデフォルトの見た目にしました！` : `${spName}のスキンを適用しました！`);
 }
 function getStampSelectedSourceVisual() {
   const sp = stampBuilderState.species;
