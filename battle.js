@@ -331,7 +331,7 @@ function performTankTurn() {
     e.hp = Math.max(0, e.hp - dmg);
     triggerUnitMotion(`enemy-slot-${i}`, 'hit-motion');
     spawnHitEffect(`enemy-slot-${i}`, 'tank', true);
-    spawnDamagePopup(`enemy-slot-${i}`, `砲撃 ${dmg}!`, 'ship-dmg');
+    spawnDamagePopup(`enemy-slot-${i}`, `${dmg}`, 'crit');
   });
 }
 
@@ -404,12 +404,12 @@ function handleWaveCleared() {
   });
 
   if (isBoss) {
-    if (floorNum >= 10) {
+    if (floorNum >= 20) {
       if (stageNum < 10) {
         state.stage = stageNum + 1;
         state.floor = 1;
       } else {
-        state.floor = 10;
+        state.floor = 20;
       }
     } else {
       state.floor = floorNum + 1;
@@ -425,6 +425,7 @@ function handleWaveCleared() {
       }
     }
 
+    state.enemies = [];
     if (waveStopMode || !autoActive) {
       state.inBattle = false;
       if (typeof resetBattleAllies === 'function') resetBattleAllies();
@@ -436,9 +437,11 @@ function handleWaveCleared() {
     }
   } else {
     state.wave += 1;
+    state.enemies = [];
     if (typeof ensureWaveEnemies === 'function') ensureWaveEnemies();
   }
 
+  if (typeof renderStageBackground === 'function') renderStageBackground();
   if (typeof renderParty === 'function') renderParty();
   if (typeof renderCaptured === 'function') renderCaptured();
   if (typeof renderTraining === 'function') renderTraining();
@@ -529,6 +532,7 @@ function tickBattleLoop() {
   if (battleAllies.some(Boolean) && battleAllies.every(a => !a || a.hp <= 0)) {
     state.inBattle = false;
     state.wave = 1;
+    state.enemies = [];
     if (typeof resetBattleAllies === 'function') resetBattleAllies();
     if (typeof ensureWaveEnemies === 'function') ensureWaveEnemies();
     if (typeof updateUI === 'function') updateUI();
@@ -566,6 +570,7 @@ function startBattle(ev) {
   staminaUpdatedAt = Date.now();
   state.inBattle = true;
   state.wave = 1;
+  state.enemies = [];
   if (typeof resetBattleAllies === 'function') resetBattleAllies();
   if (typeof ensureWaveEnemies === 'function') ensureWaveEnemies();
   if (typeof updateUI === 'function') updateUI();
@@ -577,6 +582,7 @@ function retreatBattle(ev) {
   if (!state.inBattle) return;
   state.inBattle = false;
   state.wave = 1;
+  state.enemies = [];
   if (typeof resetBattleAllies === 'function') resetBattleAllies();
   if (typeof ensureWaveEnemies === 'function') ensureWaveEnemies();
   if (typeof updateUI === 'function') updateUI();
