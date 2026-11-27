@@ -144,9 +144,8 @@ export async function onRequestPost({ request, env }) {
     }), {
       headers: { "Content-Type": "application/json" }
     });
-  } catch (e) {
+    } catch (e) {
     return new Response(JSON.stringify({
-      error: "AI通信エラー（少し待ってからもう一度お試しください）"
+      error: String(e && e.message ? e.message : e)
     }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
-}
