@@ -1,11 +1,15 @@
-// パーティ編成・訓練場・仲間一覧(横4列)・配合・野に還す (party.js)
+// パーティ編成・訓練場・仲間一覧(正方形&+値表示)・配合(親1+親2→子)・野に還す (party.js)
 let selectedMonsterIdx = null;
-let synthBaseIdx = null;
-let synthMaterialIdx = null;
+let breedParent1Idx = null;
+let breedParent2Idx = null;
+
+function getMonsterPlus(mon) {
+  if (!mon) return 0;
+  return Math.max(Number(mon.plus) || 0, Number(mon.star) || 0);
+}
 
 function getMonsterMaxLevel(mon) {
-  const star = Number(mon?.star || 0);
-  return 20 + star * 10;
+  return 20 + getMonsterPlus(mon) * 10;
 }
 
 function getTrainingCap() {
@@ -17,11 +21,11 @@ function getTrainingCap() {
 function getMonsterBattleStats(mon) {
   if (!mon) return { maxHp: 50, atk: 10, ctMax: 2.0 };
   const lv = Math.max(1, Number(mon.lv) || 1);
-  const star = Number(mon.star || 0);
+  const plus = getMonsterPlus(mon);
   const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(mon.name) : null;
   const rar = mon.rarity || sp?.rarity || 'N';
   const rarMul = rar === 'UR' ? 2.1 : (rar === 'SR' ? 1.65 : (rar === 'R' ? 1.3 : 1.0));
-  const starMul = 1 + star * 0.22;
+  const plusMul = 1 + plus * 0.22;
 
   const tavernBonus = typeof getTavernRecipeBonus === 'function' ? getTavernRecipeBonus() : { atkPct: 0, hpPct: 0 };
   const hpMul = 1 + (tavernBonus.hpPct || 0) / 100;
@@ -29,9 +33,9 @@ function getMonsterBattleStats(mon) {
 
   const baseHp = sp?.baseHp || 65;
   const baseAtk = sp?.baseAtk || 14;
-  const maxHp = Math.floor((baseHp + (lv - 1) * 18) * rarMul * starMul * hpMul);
-  const atk = Math.floor((baseAtk + (lv - 1) * 4.5) * rarMul * starMul * atkMul);
-  const ctMax = Math.max(0.85, (sp?.ctMax || 2.1) - star * 0.05);
+  const maxHp = Math.floor((baseHp + (lv - 1) * 18) * rarMul * plusMul * hpMul);
+  const atk = Math.floor((baseAtk + (lv - 1) * 4.5) * rarMul * plusMul * atkMul);
+  const ctMax = Math.max(0.85, (sp?.ctMax || 2.1) - plus * 0.04);
   return { maxHp, atk, ctMax };
 }
 
@@ -44,12 +48,14 @@ function resetBattleAllies() {
       if (m) {
         const st = getMonsterBattleStats(m);
         const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(m.name) : null;
-        const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : (m.disp || sp?.disp || 'EMBLEM:none:魔');
+        const disp = typeof getMonsterVisual === 'function'
+          ? getMonsterVisual(m)
+          : (typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔');
         battleAllies[i] = {
           id: m.id,
+          monRef: m,
           name: m.name,
           disp: disp,
-          display: disp,
           elem: m.elem || sp?.elem || 'none',
           skillId: m.skillId || sp?.skillId || null,
           hp: st.maxHp,
@@ -61,7 +67,7 @@ function resetBattleAllies() {
       }
     }
   }
-  if (typeof renderBattleUnits === 'function') renderBattleUnits();
+  if (typeof updateUI === 'function') updateUI();
 }
 
 function grantExpToMonster(mon, amount) {
@@ -102,7 +108,7 @@ function tryAutoRecruit(enemyObj) {
     const lv = Math.max(1, (stageNum - 1) * 4 + Math.floor((Number(state?.floor || 1) - 1) / 3) + 1);
     const newMon = typeof createMonsterInstance === 'function'
       ? createMonsterInstance(sp, lv)
-      : { id: Date.now() + Math.random(), name: sp.name, lv, exp: 0, star: 0, elem: sp.elem, rarity: sp.rarity, locked: false };
+      : { id: Date.now() + Math.random(), name: sp.name, lv, exp: 0, plus: 0, star: 0, elem: sp.elem, rarity: sp.rarity, locked: false };
     captured.push(newMon);
     showToast(`「${newMon.name}」が仲間になった！`);
   }
@@ -127,13 +133,15 @@ function renderParty() {
     const val = (party || [])[i];
     const m = (val !== null && val !== undefined) ? ((captured || [])[val] || (captured || []).find(x => x && x.id === val)) : null;
     if (m) {
-      const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔';
+      const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : 'EMBLEM:none:魔';
       const st = getMonsterBattleStats(m);
+      const plus = getMonsterPlus(m);
+      const plusBadge = plus > 0 ? `<span style="color:#ff7043;font-weight:900;"> +${plus}</span>` : '';
       html += `
-        <div onclick="removeFromParty(${i})" style="border:1.5px solid #4fc3f7;background:#f0f9ff;border-radius:12px;padding:8px 4px;text-align:center;cursor:pointer;">
+        <div onclick="removeFromParty(${i})" style="border:1.5px solid #4fc3f7;background:#f0f9ff;border-radius:12px;padding:7px 4px;text-align:center;cursor:pointer;">
           <div style="display:flex;justify-content:center;">${renderSprite(disp, 42, '8px')}</div>
-          <div style="font-size:10.5px;font-weight:bold;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
-          <div style="font-size:9.5px;color:#0284c7;font-weight:bold;">Lv.${m.lv || 1} ★${m.star || 0}</div>
+          <div style="font-size:10.5px;font-weight:bold;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}${plusBadge}</div>
+          <div style="font-size:9.5px;color:#0284c7;font-weight:bold;">Lv.${m.lv || 1}</div>
           <div style="font-size:9px;color:#64748b;">HP${st.maxHp} 攻${st.atk}</div>
         </div>
       `;
@@ -172,11 +180,13 @@ function renderTraining() {
     const val = (trainingSlots || [])[i];
     const m = (val !== null && val !== undefined) ? ((captured || [])[val] || (captured || []).find(x => x && x.id === val)) : null;
     if (m) {
-      const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔';
+      const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : 'EMBLEM:none:魔';
+      const plus = getMonsterPlus(m);
+      const plusBadge = plus > 0 ? `<span style="color:#ff7043;font-weight:900;">+${plus}</span>` : '';
       html += `
         <div onclick="removeFromTraining(${i})" style="border:1.5px solid #81c784;background:#f1f8e9;border-radius:10px;padding:6px 4px;text-align:center;cursor:pointer;">
           <div style="display:flex;justify-content:center;">${renderSprite(disp, 34, '6px')}</div>
-          <div style="font-size:10px;font-weight:bold;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
+          <div style="font-size:10px;font-weight:bold;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}${plusBadge}</div>
           <div style="font-size:9px;color:#2e7d32;font-weight:bold;">Lv.${m.lv || 1}/${getMonsterMaxLevel(m)}</div>
         </div>
       `;
@@ -211,8 +221,7 @@ function renderCaptured() {
   const countEl = document.getElementById('captured-count');
   if (countEl) countEl.textContent = `${(captured || []).length}/${cap}`;
 
-  const parentCard = box.closest('.card');
-  if (parentCard && !document.getElementById('bulk-release-bar')) {
+  if (!document.getElementById('bulk-release-bar')) {
     const bar = document.createElement('div');
     bar.id = 'bulk-release-bar';
     bar.style.cssText = 'display:flex;justify-content:flex-end;margin:6px 0 8px;';
@@ -227,25 +236,28 @@ function renderCaptured() {
 
   box.innerHTML = captured.map((m, idx) => {
     if (!m) return '';
-    const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔';
+    const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : 'EMBLEM:none:魔';
+    const plus = getMonsterPlus(m);
     const inParty = (party || []).some(v => v === idx || v === m.id);
     const inTrain = (trainingSlots || []).some(v => v === idx || v === m.id);
     const inStaff = (staff || []).some(v => v === idx || v === m.id);
-    const badge = inParty ? '<span style="background:#0284c7;color:#fff;padding:1px 4px;border-radius:4px;font-size:8.5px;">編成</span>'
-      : (inTrain ? '<span style="background:#2e7d32;color:#fff;padding:1px 4px;border-radius:4px;font-size:8.5px;">訓練</span>'
-      : (inStaff ? '<span style="background:#e65100;color:#fff;padding:1px 4px;border-radius:4px;font-size:8.5px;">酒場</span>' : ''));
+    const badge = inParty ? '<span style="background:#0284c7;color:#fff;padding:0 3px;border-radius:4px;font-size:8px;font-weight:bold;">編成</span>'
+      : (inTrain ? '<span style="background:#2e7d32;color:#fff;padding:0 3px;border-radius:4px;font-size:8px;font-weight:bold;">訓練</span>'
+      : (inStaff ? '<span style="background:#e65100;color:#fff;padding:0 3px;border-radius:4px;font-size:8px;font-weight:bold;">酒場</span>' : ''));
     const lockMark = m.locked ? '🔒' : '';
-    const rarBorder = m.rarity === 'UR' ? '#c084fc' : (m.rarity === 'SR' ? '#f59e0b' : (m.rarity === 'R' ? '#38bdf8' : '#e2e8f0'));
+    const rarBorder = m.rarity === 'UR' ? '#c084fc' : (m.rarity === 'SR' ? '#f59e0b' : (m.rarity === 'R' ? '#38bdf8' : '#cbd5e1'));
 
     return `
-      <div onclick="openMonsterModal(${idx})" style="border:1.5px solid ${rarBorder};border-radius:10px;padding:6px 2px;text-align:center;background:#ffffff;cursor:pointer;position:relative;min-width:0;">
-        <div style="display:flex;justify-content:space-between;align-items:center;min-height:13px;padding:0 2px;">
+      <div onclick="openMonsterModal(${idx})" style="aspect-ratio:1/1;border:1.5px solid ${rarBorder};border-radius:10px;padding:3px 2px;display:flex;flex-direction:column;justify-content:space-between;align-items:center;background:#ffffff;cursor:pointer;overflow:hidden;min-width:0;">
+        <div style="width:100%;display:flex;justify-content:space-between;align-items:center;min-height:12px;padding:0 2px;">
           <span>${badge}</span>
-          <span style="font-size:10px;">${lockMark}</span>
+          <span style="font-size:9px;">${lockMark}</span>
         </div>
-        <div style="display:flex;justify-content:center;">${renderSprite(disp, 38, '8px')}</div>
-        <div style="font-size:10px;font-weight:bold;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
-        <div style="font-size:9px;color:#0284c7;font-weight:bold;">Lv.${m.lv || 1} ★${m.star || 0}</div>
+        <div style="display:flex;justify-content:center;align-items:center;flex:1;">${renderSprite(disp, 32, '6px')}</div>
+        <div style="width:100%;text-align:center;line-height:1.15;">
+          <div style="font-size:9px;font-weight:bold;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
+          <div style="font-size:8.5px;color:#0284c7;font-weight:bold;">Lv.${m.lv || 1}${plus > 0 ? `<span style="color:#ff7043;"> +${plus}</span>` : ''}</div>
+        </div>
       </div>
     `;
   }).join('');
@@ -266,20 +278,17 @@ function openMonsterModal(idx) {
     document.body.appendChild(modal);
     body = document.getElementById('monster-modal-body');
   }
-  if (!body) {
-    modal.innerHTML = `<div id="monster-modal-body" onclick="event.stopPropagation()" style="background:#fff;border-radius:16px;padding:16px;width:90%;max-width:340px;"></div>`;
-    body = document.getElementById('monster-modal-body');
-  }
 
-  const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔';
+  const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : 'EMBLEM:none:魔';
   const st = getMonsterBattleStats(m);
   const maxLv = getMonsterMaxLevel(m);
+  const plus = getMonsterPlus(m);
   const skill = typeof getMonsterSkill === 'function' ? getMonsterSkill(m.skillId) : null;
 
   body.innerHTML = `
     <div style="text-align:center;">
       <div style="display:flex;justify-content:center;margin-bottom:4px;">${renderSprite(disp, 64, '12px')}</div>
-      <div style="font-size:16px;font-weight:900;color:#1e293b;">${m.name} <span style="font-size:12px;color:#ff7043;">★${m.star || 0}</span></div>
+      <div style="font-size:16px;font-weight:900;color:#1e293b;">${m.name} ${plus > 0 ? `<span style="font-size:13px;color:#ff7043;">+${plus}</span>` : ''}</div>
       <div style="font-size:12px;color:#0284c7;font-weight:bold;">Lv.${m.lv || 1} / ${maxLv} ｜ HP ${st.maxHp} ｜ 攻撃 ${st.atk}</div>
       ${skill ? `<div style="margin-top:4px;font-size:11px;color:#6d28d9;background:#f3e8ff;padding:3px 8px;border-radius:8px;display:inline-block;">スキル: <b>${skill.name}</b>（${skill.desc}）</div>` : ''}
     </div>
@@ -340,111 +349,134 @@ function toggleMonsterLock(idx) {
   renderCaptured();
   if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
 }
+function renderBreedTab() {
+  const p1Box = document.getElementById('breed-p1-slot');
+  const p2Box = document.getElementById('breed-p2-slot');
+  const childBox = document.getElementById('breed-child-slot');
+  const listBox = document.getElementById('breed-candidate-list');
+  const btn = document.getElementById('do-breed-btn');
 
-function openSynthesisModal() {
-  synthBaseIdx = null;
-  synthMaterialIdx = null;
-  let modal = document.getElementById('synth-modal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'synth-modal';
-    modal.onclick = closeSynthesisModal;
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.62);display:none;align-items:center;justify-content:center;z-index:9997;';
-    modal.innerHTML = `<div id="synth-modal-body" onclick="event.stopPropagation()" style="background:#fff;border-radius:16px;padding:16px;width:92%;max-width:350px;max-height:85vh;overflow-y:auto;"></div>`;
-    document.body.appendChild(modal);
-  }
-  renderSynthesisModalBody();
-  modal.style.display = 'flex';
-}
+  const p1 = (breedParent1Idx !== null && captured[breedParent1Idx]) ? captured[breedParent1Idx] : null;
+  const p2 = (breedParent2Idx !== null && captured[breedParent2Idx]) ? captured[breedParent2Idx] : null;
+  if (!p1) breedParent1Idx = null;
+  if (!p2) breedParent2Idx = null;
 
-function closeSynthesisModal() {
-  const modal = document.getElementById('synth-modal');
-  if (modal) modal.style.display = 'none';
-}
-
-function selectSynthMonster(idx) {
-  if (synthBaseIdx === idx) {
-    synthBaseIdx = null;
-    synthMaterialIdx = null;
-  } else if (synthMaterialIdx === idx) {
-    synthMaterialIdx = null;
-  } else if (synthBaseIdx === null) {
-    synthBaseIdx = idx;
-  } else {
-    const baseM = captured[synthBaseIdx];
-    const matM = captured[idx];
-    if (!baseM || !matM || baseM.name !== matM.name) {
-      return alert('配合には同じ種類のモンスターを2体選択してください！');
+  if (p1Box) {
+    if (p1) {
+      const d1 = typeof getMonsterVisual === 'function' ? getMonsterVisual(p1) : 'EMBLEM:none:魔';
+      p1Box.innerHTML = `<div onclick="breedParent1Idx=null;renderBreedTab();" style="cursor:pointer;">${renderSprite(d1, 36, '6px')}<div style="font-size:10px;font-weight:bold;">${p1.name}+${getMonsterPlus(p1)}</div><div style="font-size:9px;color:#0284c7;">Lv.${p1.lv}</div></div>`;
+    } else {
+      p1Box.innerHTML = `<div style="font-size:10px;color:#ff7043;font-weight:bold;">親1</div><div style="font-size:18px;color:#94a3b8;">＋</div><div style="font-size:9.5px;color:#64748b;">未選択</div>`;
     }
-    if (matM.locked) return alert('ロック中のモンスターは素材にできません');
-    synthMaterialIdx = idx;
   }
-  renderSynthesisModalBody();
-}
+  if (p2Box) {
+    if (p2) {
+      const d2 = typeof getMonsterVisual === 'function' ? getMonsterVisual(p2) : 'EMBLEM:none:魔';
+      p2Box.innerHTML = `<div onclick="breedParent2Idx=null;renderBreedTab();" style="cursor:pointer;">${renderSprite(d2, 36, '6px')}<div style="font-size:10px;font-weight:bold;">${p2.name}+${getMonsterPlus(p2)}</div><div style="font-size:9px;color:#0284c7;">Lv.${p2.lv}</div></div>`;
+    } else {
+      p2Box.innerHTML = `<div style="font-size:10px;color:#ff7043;font-weight:bold;">親2</div><div style="font-size:18px;color:#94a3b8;">＋</div><div style="font-size:9.5px;color:#64748b;">未選択</div>`;
+    }
+  }
+  if (childBox) {
+    if (p1 && p2) {
+      const nextPlus = getMonsterPlus(p1) + getMonsterPlus(p2) + 1;
+      const d1 = typeof getMonsterVisual === 'function' ? getMonsterVisual(p1) : 'EMBLEM:none:魔';
+      childBox.innerHTML = `${renderSprite(d1, 36, '6px')}<div style="font-size:10px;font-weight:bold;color:#6d28d9;">${p1.name} +${nextPlus}</div><div style="font-size:9px;color:#16a34a;font-weight:bold;">Lv.1 誕生</div>`;
+    } else {
+      childBox.innerHTML = `<div style="font-size:10px;color:#6d28d9;font-weight:bold;">子</div><div style="font-size:18px;color:#94a3b8;">?</div><div style="font-size:9.5px;color:#64748b;">2体選択</div>`;
+    }
+  }
+  if (btn) {
+    btn.disabled = !(p1 && p2);
+    btn.style.opacity = (p1 && p2) ? '1' : '0.5';
+  }
+  if (!listBox) return;
 
-function renderSynthesisModalBody() {
-  const body = document.getElementById('synth-modal-body');
-  if (!body) return;
-  const baseM = synthBaseIdx !== null ? captured[synthBaseIdx] : null;
-  const matM = synthMaterialIdx !== null ? captured[synthMaterialIdx] : null;
+  listBox.style.display = 'grid';
+  listBox.style.gridTemplateColumns = 'repeat(4, 1fr)';
+  listBox.style.gap = '6px';
 
-  let listHtml = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-height:220px;overflow-y:auto;margin:8px 0;">`;
-  (captured || []).forEach((m, idx) => {
-    if (!m) return;
-    if (baseM && m.name !== baseM.name) return;
-    const isBase = synthBaseIdx === idx;
-    const isMat = synthMaterialIdx === idx;
-    const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔';
-    listHtml += `
-      <div onclick="selectSynthMonster(${idx})" style="border:2px solid ${isBase ? '#0284c7' : (isMat ? '#ff7043' : '#e2e8f0')};background:${isBase ? '#e0f2fe' : (isMat ? '#fff3e0' : '#fff')};border-radius:10px;padding:5px 2px;text-align:center;cursor:pointer;">
-        <div style="font-size:9px;font-weight:bold;color:${isBase ? '#0284c7' : '#ff7043'};">${isBase ? 'ベース' : (isMat ? '素材' : '')}</div>
-        <div style="display:flex;justify-content:center;">${renderSprite(disp, 32, '6px')}</div>
-        <div style="font-size:9.5px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
-        <div style="font-size:8.5px;color:#475569;">Lv.${m.lv || 1} ★${m.star || 0}</div>
+  const candidates = (captured || []).map((m, idx) => ({ m, idx })).filter(({ m }) => m && (Number(m.lv) || 1) >= 10);
+  if (candidates.length === 0) {
+    listBox.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#94a3b8;font-size:11px;padding:12px;">Lv.10以上の仲間がいません</div>';
+    return;
+  }
+
+  listBox.innerHTML = candidates.map(({ m, idx }) => {
+    const sel1 = breedParent1Idx === idx;
+    const sel2 = breedParent2Idx === idx;
+    const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : 'EMBLEM:none:魔';
+    const plus = getMonsterPlus(m);
+    return `
+      <div onclick="selectBreedCandidate(${idx})" style="aspect-ratio:1/1;border:2px solid ${sel1 ? '#0284c7' : (sel2 ? '#ff7043' : '#e2e8f0')};background:${sel1 ? '#e0f2fe' : (sel2 ? '#fff3e0' : '#fff')};border-radius:10px;padding:3px 2px;display:flex;flex-direction:column;justify-content:space-between;align-items:center;cursor:pointer;">
+        <div style="font-size:8.5px;font-weight:bold;color:${sel1 ? '#0284c7' : '#ff7043'};min-height:11px;">${sel1 ? '親1' : (sel2 ? '親2' : '')}</div>
+        ${renderSprite(disp, 32, '6px')}
+        <div style="font-size:9px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;text-align:center;">${m.name}${plus > 0 ? `+${plus}` : ''}</div>
+        <div style="font-size:8.5px;color:#0284c7;">Lv.${m.lv}</div>
       </div>
     `;
-  });
-  listHtml += `</div>`;
-
-  body.innerHTML = `
-    <div style="font-size:15px;font-weight:900;color:#6d28d9;margin-bottom:4px;">🔮 モンスター配合（限界突破）</div>
-    <div style="font-size:11px;color:#475569;">同種モンスターを配合するとベース個体の <b>★ランク</b> と <b>最大レベル上限</b> が上昇します！</div>
-    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin:10px 0;padding:8px;background:#f8fafc;border-radius:10px;font-size:12px;font-weight:bold;">
-      <div>ベース: ${baseM ? `${baseM.name} (★${baseM.star || 0})` : '未選択'}</div>
-      <div>＋</div>
-      <div>素材: ${matM ? `${matM.name} (★${matM.star || 0})` : '未選択'}</div>
-    </div>
-    ${listHtml}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
-      <button onclick="executeSynthesis()" style="padding:9px;border-radius:9px;border:none;background:${(baseM && matM) ? '#7c3aed' : '#cbd5e1'};color:#fff;font-size:12px;font-weight:bold;cursor:pointer;">配合する</button>
-      <button onclick="closeSynthesisModal()" style="padding:9px;border-radius:9px;border:none;background:#64748b;color:#fff;font-size:12px;font-weight:bold;cursor:pointer;">閉じる</button>
-    </div>
-  `;
+  }).join('');
 }
 
-function executeSynthesis() {
-  if (synthBaseIdx === null || synthMaterialIdx === null) return;
-  const baseM = captured[synthBaseIdx];
-  const matM = captured[synthMaterialIdx];
-  if (!baseM || !matM || baseM.name !== matM.name) return;
-  if (matM.locked) return alert('ロック中のモンスターは素材にできません');
+function selectBreedCandidate(idx) {
+  if (breedParent1Idx === idx) { breedParent1Idx = null; renderBreedTab(); return; }
+  if (breedParent2Idx === idx) { breedParent2Idx = null; renderBreedTab(); return; }
+  const m = captured[idx];
+  if (!m || (Number(m.lv) || 1) < 10) return alert('配合にはLv.10以上のモンスターが必要です');
+  if (m.locked) return alert('ロック中のモンスターは配合できません');
 
-  const inParty = (party || []).some(v => v === synthMaterialIdx || v === matM.id);
-  const inTrain = (trainingSlots || []).some(v => v === synthMaterialIdx || v === matM.id);
-  const inStaff = (staff || []).some(v => v === synthMaterialIdx || v === matM.id);
-  if (inParty || inTrain || inStaff) {
-    return alert('編成・訓練場・酒場に配置中のモンスターは素材にできません');
+  const inParty = (party || []).some(v => v === idx || v === m.id);
+  const inTrain = (trainingSlots || []).some(v => v === idx || v === m.id);
+  const inStaff = (staff || []).some(v => v === idx || v === m.id);
+  if (inParty || inTrain || inStaff) return alert('編成・訓練場・酒場に配置中のモンスターは配合できません');
+
+  if (breedParent1Idx === null) {
+    breedParent1Idx = idx;
+  } else {
+    const p1 = captured[breedParent1Idx];
+    if (p1 && p1.name !== m.name) return alert('同じ種類のモンスター同士を選択してください！');
+    breedParent2Idx = idx;
   }
+  renderBreedTab();
+}
 
-  baseM.star = (Number(baseM.star) || 0) + 1 + (Number(matM.star) || 0);
-  captured.splice(synthMaterialIdx, 1);
-  fixIndicesAfterSplice(synthMaterialIdx);
+function doBreedMonsters() {
+  if (breedParent1Idx === null || breedParent2Idx === null) return;
+  const p1 = captured[breedParent1Idx];
+  const p2 = captured[breedParent2Idx];
+  if (!p1 || !p2 || p1.name !== p2.name) return;
 
-  closeSynthesisModal();
-  if (!state?.inBattle) resetBattleAllies();
-  renderParty();
+  const nextPlus = getMonsterPlus(p1) + getMonsterPlus(p2) + 1;
+  const child = {
+    id: Date.now() + Math.random(),
+    name: p1.name,
+    lv: 1,
+    exp: 0,
+    plus: nextPlus,
+    star: nextPlus,
+    elem: p1.elem,
+    rarity: p1.rarity,
+    skillId: p1.skillId,
+    locked: false
+  };
+
+  const highIdx = Math.max(breedParent1Idx, breedParent2Idx);
+  const lowIdx = Math.min(breedParent1Idx, breedParent2Idx);
+  captured.splice(highIdx, 1);
+  fixIndicesAfterSplice(highIdx);
+  captured.splice(lowIdx, 1);
+  fixIndicesAfterSplice(lowIdx);
+
+  captured.push(child);
+  breedParent1Idx = null;
+  breedParent2Idx = null;
+
+  renderBreedTab();
   renderCaptured();
   if (typeof updateUI === 'function') updateUI();
   if (typeof triggerAutoSave === 'function') triggerAutoSave(true);
-  showToast(`配合成功！「${baseM.name}」が ★${baseM.star} に限界突破しました！`);
+  showToast(`配合成功！「${child.name} +${nextPlus}」が誕生しました！`);
 }
+
+window.renderBreedTab = renderBreedTab;
+window.doBreedMonsters = doBreedMonsters;
