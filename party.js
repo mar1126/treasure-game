@@ -8,6 +8,13 @@ function getMonsterMaxLevel(mon) {
   return 20 + star * 10;
 }
 
+function getTrainingCap() {
+  if (typeof trainSlotCap !== 'undefined') return Number(trainSlotCap) || 3;
+  if (typeof unlockedTrainSlots !== 'undefined') return Number(unlockedTrainSlots) || 3;
+  if (Array.isArray(trainingSlots) && trainingSlots.length > 0) return trainingSlots.length;
+  return 3;
+}
+
 function getMonsterBattleStats(mon) {
   if (!mon) return { maxHp: 50, atk: 10, ctMax: 2.0 };
   const lv = Math.max(1, Number(mon.lv) || 1);
@@ -38,9 +45,11 @@ function resetBattleAllies() {
       if (m) {
         const st = getMonsterBattleStats(m);
         const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(m.name) : null;
+        const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : (m.display || sp?.display || 'EMBLEM:none:魔');
         battleAllies[i] = {
           id: m.id,
           name: m.name,
+          display: disp,
           elem: m.elem || sp?.elem || 'none',
           skillId: m.skillId || sp?.skillId || null,
           hp: st.maxHp,
@@ -151,18 +160,15 @@ function removeFromParty(slotIdx) {
 function renderTraining() {
   const box = document.getElementById('training-slots');
   if (!box) return;
-  const maxSlots = Number(unlockedTrainSlots) || 2;
+  const maxSlots = getTrainingCap();
+  const countEl = document.getElementById('training-count');
+  if (countEl) {
+    const activeCnt = (trainingSlots || []).slice(0, maxSlots).filter(v => v !== null && v !== undefined).length;
+    countEl.textContent = `${activeCnt}/${maxSlots}`;
+  }
+
   let html = '';
-  for (let i = 0; i < 4; i++) {
-    if (i >= maxSlots) {
-      const cost = (i + 1) * 50;
-      html += `
-        <div onclick="unlockTrainingSlot(${i}, ${cost})" style="border:1.5px dashed #90caf9;background:#e3f2fd;border-radius:10px;padding:10px 4px;text-align:center;cursor:pointer;color:#1565c0;font-size:10px;font-weight:bold;">
-          🔒 枠解放<br>${cost} GEM
-        </div>
-      `;
-      continue;
-    }
+  for (let i = 0; i < maxSlots; i++) {
     const val = (trainingSlots || [])[i];
     const m = (val !== null && val !== undefined) ? ((captured || [])[val] || (captured || []).find(x => x && x.id === val)) : null;
     if (m) {
@@ -185,16 +191,6 @@ function renderTraining() {
   box.innerHTML = html;
 }
 
-function unlockTrainingSlot(slotIdx, cost) {
-  if (gem < cost) return alert(`GEMが足りません（${cost} GEM 必要）`);
-  if (!confirm(`${cost} GEM を消費して訓練枠を解放しますか？`)) return;
-  gem -= cost;
-  unlockedTrainSlots = Math.max(Number(unlockedTrainSlots) || 2, slotIdx + 1);
-  renderTraining();
-  if (typeof updateUI === 'function') updateUI();
-  if (typeof triggerAutoSave === 'function') triggerAutoSave(true);
-}
-
 function removeFromTraining(slotIdx) {
   if (!Array.isArray(trainingSlots)) return;
   trainingSlots[slotIdx] = null;
@@ -206,17 +202,21 @@ function renderCaptured() {
   const box = document.getElementById('captured-list');
   if (!box) return;
 
+  box.style.display = 'grid';
+  box.style.gridTemplateColumns = 'repeat(4, 1fr)';
+  box.style.gap = '6px';
+
   const cap = typeof maxCaptured !== 'undefined' ? Number(maxCaptured) : 50;
   const countEl = document.getElementById('captured-count');
-  if (countEl) countEl.textContent = `${(captured || []).length} / ${cap}`;
+  if (countEl) countEl.textContent = `${(captured || []).length}/${cap}`;
 
   const parentCard = box.closest('.card');
   if (parentCard && !document.getElementById('bulk-release-bar')) {
-    const titleEl = parentCard.querySelector('.card-title');
+    const titleEl = parentCard.querySelector('.card-title') || parentCard.firstElementChild;
     if (titleEl) {
       const bar = document.createElement('div');
       bar.id = 'bulk-release-bar';
-      bar.style.cssText = 'display:flex;justify-content:flex-end;margin:-4px 0 8px;';
+      bar.style.cssText = 'display:flex;justify-content:flex-end;margin:4px 0 8px;';
       bar.innerHTML = `<button onclick="releaseBulkMonsters()" style="padding:5px 10px;border-radius:8px;border:1px solid #f59e0b;background:#fffbeb;color:#b45309;font-size:10.5px;font-weight:bold;cursor:pointer;">🍃 未編成をまとめて逃がす（素材獲得）</button>`;
       titleEl.insertAdjacentElement('afterend', bar);
     }
@@ -240,7 +240,7 @@ function renderCaptured() {
     const rarBorder = m.rarity === 'UR' ? '#c084fc' : (m.rarity === 'SR' ? '#f59e0b' : (m.rarity === 'R' ? '#38bdf8' : '#e2e8f0'));
 
     return `
-      <div onclick="openMonsterModal(${idx})" style="border:1.5px solid ${rarBorder};border-radius:10px;padding:6px 3px;text-align:center;background:#ffffff;cursor:pointer;position:relative;">
+      <div onclick="openMonsterModal(${idx})" style="border:1.5px solid ${rarBorder};border-radius:10px;padding:6px 2px;text-align:center;background:#ffffff;cursor:pointer;position:relative;min-width:0;">
         <div style="display:flex;justify-content:space-between;align-items:center;min-height:13px;padding:0 2px;">
           <span>${badge}</span>
           <span style="font-size:10px;">${lockMark}</span>
@@ -304,16 +304,16 @@ function assignMonsterToParty(idx) {
 }
 
 function assignMonsterToTraining(idx) {
-  if (!Array.isArray(trainingSlots)) trainingSlots = [null, null, null, null];
+  const maxSlots = getTrainingCap();
+  if (!Array.isArray(trainingSlots)) trainingSlots = new Array(maxSlots).fill(null);
   const m = captured[idx];
   if (!m) return;
   if (trainingSlots.some(v => v === idx || v === m.id)) return alert('すでに訓練場に配置されています');
-  const maxSlots = Number(unlockedTrainSlots) || 2;
   let emptySlot = -1;
   for (let i = 0; i < maxSlots; i++) {
     if (trainingSlots[i] === null || trainingSlots[i] === undefined) { emptySlot = i; break; }
   }
-  if (emptySlot === -1) return alert('解放済みの訓練枠がいっぱいです');
+  if (emptySlot === -1) return alert('訓練枠がいっぱいです');
   trainingSlots[emptySlot] = idx;
   closeMonsterModal();
   renderTraining();
