@@ -1,4 +1,4 @@
-// ショップ・アトリエ管理（スキン・背景・スタンプ分解+50GEM＋元絵解析対応）(shop.js)
+// ショップ・アトリエ管理（正方形サムネイル＋拡大プレビュー＋分解+50GEM＋管理者対応）(shop.js)
 const ADMIN_USER_IDS = ['H-ORM8PM4M'];
 function isAdminUser() {
   return ADMIN_USER_IDS.includes(String(userId || ''));
@@ -187,6 +187,99 @@ function shiftAssetLocksAfterRemove(kind, idPart, removedIdx) {
   } catch (e) {}
 }
 
+function openAssetPreviewModal(kind, idPart, idx, mode = 'view') {
+  const modal = document.getElementById('asset-preview-modal');
+  const imgBox = document.getElementById('asset-preview-big-img');
+  const actBox = document.getElementById('asset-preview-actions');
+  if (!modal || !imgBox || !actBox) return;
+
+  let imgUrl = '';
+  let isEquipped = false;
+  if (kind === 'skin') {
+    const spData = speciesSkins[idPart];
+    imgUrl = spData && spData.list ? spData.list[idx] : '';
+    isEquipped = spData && spData.activeIdx === idx;
+  } else if (kind === 'bg') {
+    const item = aiBackgrounds[idx];
+    imgUrl = typeof item === 'string' ? item : (item ? item.img : '');
+  } else if (kind === 'stamp') {
+    const item = aiStamps[idx];
+    imgUrl = typeof item === 'string' ? item : (item ? item.img : '');
+  }
+  if (!imgUrl) return;
+
+  const locked = isAssetLocked(kind, idPart, idx);
+  const isBg = kind === 'bg';
+  imgBox.innerHTML = `<img src="${imgUrl}" style="width:100%;height:100%;object-fit:${isBg ? 'cover' : 'contain'};border-radius:${isBg ? '16px' : '0'};">`;
+
+  if (mode === 'dismantle') {
+    if (locked) {
+      actBox.innerHTML = `
+        <div style="background:#ffffff;border-radius:16px;padding:16px;text-align:center;">
+          <div style="font-size:14px;font-weight:bold;color:#334155;margin-bottom:8px;">🔒 保護ロック中です</div>
+          <div style="font-size:12px;color:#64748b;margin-bottom:12px;">ロックを解除すると分解できるようになります。</div>
+          <button onclick="closeAssetPreviewModal()" class="btn-gray" style="background:#eceff1;color:#334155;">閉じる</button>
+        </div>
+      `;
+    } else {
+      const label = kind === 'skin' ? '着せ替え' : (kind === 'bg' ? '背景' : 'スタンプ');
+      actBox.innerHTML = `
+        <div style="background:#ffffff;border-radius:16px;padding:16px;text-align:center;box-shadow:0 8px 20px rgba(0,0,0,0.25);">
+          <div style="font-size:14px;font-weight:bold;color:#1e293b;line-height:1.5;margin-bottom:4px;">一度分解すると同じ${label}を作り出すことはできません。分解しますか？</div>
+          <div style="font-size:11px;color:#64748b;margin-bottom:12px;">分解すると50ジェムを受け取れます。</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <button onclick="closeAssetPreviewModal()" style="padding:10px;border-radius:10px;border:1.5px solid #cbd5e1;background:#ffffff;font-size:13px;font-weight:bold;color:#334155;cursor:pointer;">やめる</button>
+            <button onclick="executeDismantleAsset('${kind}','${idPart}',${idx})" style="padding:10px;border-radius:10px;border:none;background:#ff7043;font-size:13px;font-weight:bold;color:#ffffff;cursor:pointer;">分解する (+50ジェム)</button>
+          </div>
+        </div>
+      `;
+    }
+  } else {
+    let btns = '';
+    if (kind === 'skin' && !isEquipped) {
+      btns += `<button onclick="equipSpeciesSkinFromGallery('${idPart}',${idx});closeAssetPreviewModal();" style="background:#ffffff;border:none;border-radius:12px;padding:10px;font-size:13px;font-weight:bold;color:#ff7043;cursor:pointer;">★ このスキンを適用する</button>`;
+    }
+    btns += `<button onclick="toggleAssetLock('${kind}','${idPart}',${idx});openAssetPreviewModal('${kind}','${idPart}',${idx},'view');" style="background:#ffffff;border:none;border-radius:12px;padding:10px;font-size:13px;font-weight:bold;color:#334155;cursor:pointer;">${locked ? '🔒 ロック解除する' : '🔓 保護ロックする'}</button>`;
+    if (kind === 'skin' && isAdminUser()) {
+      btns += `<button onclick="promoteSkinToOfficialDefault('${idPart}',${idx});closeAssetPreviewModal();" style="background:#0288d1;border:none;border-radius:12px;padding:10px;font-size:13px;font-weight:bold;color:#ffffff;cursor:pointer;">【管理者】公式デフォルトに設定</button>`;
+    }
+    actBox.innerHTML = btns;
+  }
+
+  modal.style.display = 'flex';
+}
+function closeAssetPreviewModal() {
+  const modal = document.getElementById('asset-preview-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function executeDismantleAsset(kind, idPart, idx) {
+  closeAssetPreviewModal();
+  if (kind === 'skin') dismantleSkin(idPart, idx, true);
+  else if (kind === 'bg') dismantleBg(idx, true);
+  else if (kind === 'stamp') dismantleStamp(idx, true);
+}
+
+function buildSquareAssetCard(kind, idPart, idx, imgUrl, isEquipped) {
+  const locked = isAssetLocked(kind, idPart, idx);
+  const borderStyle = isEquipped ? 'border:2px solid #ffb300;' : 'border:1.5px solid #cbd5e1;';
+  const starBadge = isEquipped
+    ? `<span style="position:absolute;top:3px;left:4px;font-size:11px;color:#ffb300;text-shadow:0 1px 2px rgba(0,0,0,0.4);">★</span>`
+    : (locked ? `<span style="position:absolute;top:3px;left:4px;font-size:10px;">🔒</span>` : '');
+  const trashBtn = locked
+    ? ''
+    : `<button onclick="event.stopPropagation();openAssetPreviewModal('${kind}','${idPart}',${idx},'dismantle')" style="position:absolute;bottom:3px;right:3px;width:20px;height:20px;border-radius:5px;border:1px solid #e2e8f0;background:rgba(255,255,255,0.92);color:#64748b;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;">🗑</button>`;
+  const fit = kind === 'bg' ? 'cover' : 'contain';
+
+  return `
+    <div onclick="openAssetPreviewModal('${kind}','${idPart}',${idx},'view')" style="aspect-ratio:1/1;${borderStyle}border-radius:10px;background:#ffffff;position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;padding:3px;">
+      ${starBadge}
+      <img src="${imgUrl}" style="width:100%;height:100%;object-fit:${fit};border-radius:6px;">
+      ${trashBtn}
+    </div>
+  `;
+}
+
 function renderSpeciesGallery() {
   refreshAiSpeciesSelects();
   const gal = document.getElementById('species-skin-gallery');
@@ -196,39 +289,19 @@ function renderSpeciesGallery() {
   const spData = (speciesSkins && speciesSkins[spName]) ? speciesSkins[spName] : { list: [], activeIdx: -1 };
   const list = Array.isArray(spData.list) ? spData.list : [];
 
+  gal.style.gridTemplateColumns = 'repeat(4, 1fr)';
   if (list.length === 0) {
     gal.innerHTML = `<div style="grid-column:1/-1;font-size:11px;color:#78909c;text-align:center;padding:8px;">「${spName}」のスキンはまだありません</div>`;
     return;
   }
-
-  const adminMode = isAdminUser();
-  gal.innerHTML = list.map((imgData, idx) => {
-    const isAct = spData.activeIdx === idx;
-    const locked = isAssetLocked('skin', spName, idx);
-    const adminBtn = adminMode
-      ? `<button onclick="event.stopPropagation();promoteSkinToOfficialDefault('${spName}', ${idx})" style="margin-top:3px;width:100%;background:#0288d1;color:#fff;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">公式デフォルト化</button>`
-      : '';
-    const disBtn = locked
-      ? `<button onclick="event.stopPropagation();alert('ロック中のため分解できません。右上の🔒ボタンで解除してください。')" style="margin-top:3px;width:100%;background:#cfd8dc;color:#546e7a;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">🔒 保護中</button>`
-      : `<button onclick="event.stopPropagation();dismantleSkin('${spName}', ${idx})" style="margin-top:3px;width:100%;background:#ef5350;color:#fff;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">分解 (+50GEM)</button>`;
-
-    return `
-      <div class="slot-box" onclick="equipSpeciesSkinFromGallery('${spName}', ${idx})" style="${isAct ? 'border:2px solid #ff7043;background:#fff8f6;' : ''}">
-        <button onclick="event.stopPropagation();toggleAssetLock('skin','${spName}',${idx})" style="position:absolute;top:3px;right:3px;background:rgba(255,255,255,0.9);border:1px solid #cbd5e1;border-radius:6px;padding:1px 4px;font-size:11px;cursor:pointer;">${locked ? '🔒' : '🔓'}</button>
-        <img src="${imgData}" style="width:68px;height:68px;object-fit:contain;border-radius:8px;">
-        <div style="font-size:10px;font-weight:bold;color:${isAct ? '#ff7043' : '#546e7a'};margin-top:3px;">${isAct ? '★ 適用中' : 'タップで適用'}</div>
-        ${adminBtn}
-        ${disBtn}
-      </div>
-    `;
-  }).join('');
+  gal.innerHTML = list.map((imgData, idx) => buildSquareAssetCard('skin', spName, idx, imgData, spData.activeIdx === idx)).join('');
 }
 
-function dismantleSkin(spName, idx) {
+function dismantleSkin(spName, idx, skipConfirm = false) {
   if (isAssetLocked('skin', spName, idx)) return alert('ロック中のため分解できません');
   const spData = speciesSkins[spName];
   if (!spData || !Array.isArray(spData.list) || !spData.list[idx]) return;
-  if (!confirm(`この「${spName}」のスキンを分解して 50 GEM に変換しますか？`)) return;
+  if (!skipConfirm && !confirm(`この「${spName}」のスキンを分解して 50 GEM に変換しますか？`)) return;
 
   spData.list.splice(idx, 1);
   if (spData.activeIdx === idx) spData.activeIdx = -1;
@@ -256,32 +329,21 @@ function renderBgGallery() {
   const gal = document.getElementById('bg-gallery');
   if (!gal) return;
   const list = Array.isArray(aiBackgrounds) ? aiBackgrounds : [];
+  gal.style.gridTemplateColumns = 'repeat(4, 1fr)';
   if (list.length === 0) {
     gal.innerHTML = `<div style="grid-column:1/-1;font-size:11px;color:#78909c;text-align:center;padding:8px;">生成したアイコン背景はまだありません</div>`;
     return;
   }
-
   gal.innerHTML = list.map((bgItem, idx) => {
     const imgUrl = typeof bgItem === 'string' ? bgItem : (bgItem.img || '');
-    const locked = isAssetLocked('bg', 'all', idx);
-    const disBtn = locked
-      ? `<button onclick="event.stopPropagation();alert('ロック中のため分解できません。右上の🔒ボタンで解除してください。')" style="margin-top:4px;width:100%;background:#cfd8dc;color:#546e7a;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">🔒 保護中</button>`
-      : `<button onclick="event.stopPropagation();dismantleBg(${idx})" style="margin-top:4px;width:100%;background:#ef5350;color:#fff;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">分解 (+50GEM)</button>`;
-
-    return `
-      <div class="slot-box">
-        <button onclick="event.stopPropagation();toggleAssetLock('bg','all',${idx})" style="position:absolute;top:3px;right:3px;background:rgba(255,255,255,0.9);border:1px solid #cbd5e1;border-radius:6px;padding:1px 4px;font-size:11px;cursor:pointer;">${locked ? '🔒' : '🔓'}</button>
-        <img src="${imgUrl}" style="width:68px;height:68px;object-fit:cover;border-radius:8px;">
-        ${disBtn}
-      </div>
-    `;
+    return buildSquareAssetCard('bg', 'all', idx, imgUrl, false);
   }).join('');
 }
 
-function dismantleBg(idx) {
+function dismantleBg(idx, skipConfirm = false) {
   if (isAssetLocked('bg', 'all', idx)) return alert('ロック中のため分解できません');
   if (!Array.isArray(aiBackgrounds) || !aiBackgrounds[idx]) return;
-  if (!confirm('このアイコン背景を分解して 50 GEM に変換しますか？')) return;
+  if (!skipConfirm && !confirm('このアイコン背景を分解して 50 GEM に変換しますか？')) return;
 
   aiBackgrounds.splice(idx, 1);
   if (typeof iconConfig === 'object' && iconConfig !== null) {
@@ -302,32 +364,18 @@ function renderStamps() {
   const gal = document.getElementById('stamp-gallery');
   if (!gal) return;
   const list = Array.isArray(aiStamps) ? aiStamps : [];
-  if (list.length === 0) {
-    gal.innerHTML = '';
-    return;
-  }
-
+  gal.style.gridTemplateColumns = 'repeat(4, 1fr)';
+  if (list.length === 0) { gal.innerHTML = ''; return; }
   gal.innerHTML = list.map((st, idx) => {
     const imgUrl = typeof st === 'string' ? st : (st.img || '');
-    const locked = isAssetLocked('stamp', 'all', idx);
-    const disBtn = locked
-      ? `<button onclick="event.stopPropagation();alert('ロック中のため分解できません。右上の🔒ボタンで解除してください。')" style="margin-top:4px;width:100%;background:#cfd8dc;color:#546e7a;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">🔒 保護中</button>`
-      : `<button onclick="event.stopPropagation();dismantleStamp(${idx})" style="margin-top:4px;width:100%;background:#ef5350;color:#fff;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">分解 (+50GEM)</button>`;
-
-    return `
-      <div class="slot-box">
-        <button onclick="event.stopPropagation();toggleAssetLock('stamp','all',${idx})" style="position:absolute;top:3px;right:3px;background:rgba(255,255,255,0.9);border:1px solid #cbd5e1;border-radius:6px;padding:1px 4px;font-size:11px;cursor:pointer;">${locked ? '🔒' : '🔓'}</button>
-        <img src="${imgUrl}" style="width:68px;height:68px;object-fit:contain;border-radius:8px;">
-        ${disBtn}
-      </div>
-    `;
+    return buildSquareAssetCard('stamp', 'all', idx, imgUrl, false);
   }).join('');
 }
 
-function dismantleStamp(idx) {
+function dismantleStamp(idx, skipConfirm = false) {
   if (isAssetLocked('stamp', 'all', idx)) return alert('ロック中のため分解できません');
   if (!Array.isArray(aiStamps) || !aiStamps[idx]) return;
-  if (!confirm('このスタンプを分解して 50 GEM に変換しますか？')) return;
+  if (!skipConfirm && !confirm('このスタンプを分解して 50 GEM に変換しますか？')) return;
 
   aiStamps.splice(idx, 1);
   shiftAssetLocksAfterRemove('stamp', 'all', idx);
