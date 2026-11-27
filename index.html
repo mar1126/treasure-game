@@ -10,7 +10,7 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Zen Maru Gothic", "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif; }
     body { background: #f2f9fc; color: #2c3e50; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    .battle-area { background: linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%); color: white; padding: 6px 10px 8px; height: 236px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; overflow: hidden; }
+    .battle-area { background: linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%); color: white; padding: 5px 10px 6px; height: 206px; display: flex; flex-direction: column; justify-content: space-between; position: relative; user-select: none; overflow: hidden; }
     .stage-art-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
     .stage-custom-img { width: 100%; height: 100%; object-fit: cover; }
     .stage-vignette { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.32) 0%, rgba(0,0,0,0.06) 45%, rgba(0,0,0,0.42) 100%); pointer-events: none; }
@@ -20,11 +20,11 @@
     .hud-mini-btn.active { background: #ffca28; color: #263238; border-color: #fff; }
     .hud-toggle-btn { background: rgba(0,0,0,0.45); color: #fff; border: 1px solid rgba(255,255,255,0.8); padding: 2px 7px; border-radius: 5px; font-weight: 600; font-size: 10px; cursor: pointer; white-space: nowrap; display: none; }
     .hud-toggle-btn.active { background: #ffca28; color: #263238; border-color: #fff; box-shadow: 0 0 8px #ffea00; }
-    .enemy-section { display: flex; align-items: flex-end; justify-content: center; gap: 12px; position: relative; margin-top: 2px; z-index: 3; min-height: 78px; }
+    .enemy-section { display: flex; align-items: flex-end; justify-content: center; gap: 12px; position: relative; margin-top: 0; z-index: 3; min-height: 70px; }
     .enemy-slot { text-align: center; width: 102px; position: relative; transition: opacity 0.2s; }
     .enemy-slot.dead { opacity: 0.25; filter: grayscale(100%); }
     .e-name { font-size: 9.5px; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,0.95); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .e-sprite { height: 54px; display: flex; align-items: center; justify-content: center; margin-top: 1px; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.5)); }
+    .e-sprite { height: 50px; display: flex; align-items: center; justify-content: center; margin-top: 1px; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.5)); }
     .ally-section { display: flex; flex-direction: column; align-items: center; width: 100%; position: relative; z-index: 3; }
     .units-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; max-width: 340px; }
     .unit { text-align: center; background: transparent; border: none; padding: 0 2px; position: relative; transition: opacity 0.2s; }
@@ -35,7 +35,7 @@
     @keyframes allyAttack { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(-16px) scale(1.1); } 100% { transform: translateY(0) scale(1); } }
     @keyframes enemyAttack { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(16px) scale(1.12); } 100% { transform: translateY(0) scale(1); } }
     @keyframes unitHit { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
-    .unit-sprite { height: 54px; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.55)); }
+    .unit-sprite { height: 50px; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.55)); }
     .hp-text { font-size: 9.5px; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,0.95); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
     .bar-bg { background: rgba(0,0,0,0.5); height: 4px; border-radius: 3px; overflow: hidden; margin-top: 2px; max-width: 82px; margin-left: auto; margin-right: auto; }
     .hp-fill { background: #ff7043; height: 100%; width: 100%; transition: width 0.15s; }
@@ -43,17 +43,17 @@
     .ct-fill { background: #ffea00; height: 100%; width: 0%; box-shadow: 0 0 4px #ffea00; }
     .start-battle-btn { position: absolute; top: 47%; left: 50%; transform: translate(-50%, -50%); background: #ffffff; color: #546e7a; border: 1px solid #cbd5e1; padding: 7px 22px; border-radius: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.03em; cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,0.14); z-index: 30; white-space: nowrap; transition: transform 0.1s; }
     .start-battle-btn:active { transform: translate(-50%, -50%) scale(0.96); }
-    .retreat-battle-btn { position: absolute; top: 32px; right: 12px; background: rgba(38,50,56,0.85); color: #fff; border: 1px solid #cfd8dc; padding: 2px 9px; border-radius: 5px; font-size: 10px; font-weight: 600; cursor: pointer; z-index: 30; display: none; white-space: nowrap; }
+    .retreat-battle-btn { position: absolute; top: 30px; right: 12px; background: rgba(38,50,56,0.85); color: #fff; border: 1px solid #cfd8dc; padding: 2px 9px; border-radius: 5px; font-size: 10px; font-weight: 600; cursor: pointer; z-index: 30; display: none; white-space: nowrap; }
     .fx-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 20; }
     .dmg-popup { position: absolute; font-weight: 900; font-size: 16px; color: #ffeb3b; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000; pointer-events: none; animation: floatDmg 0.8s ease-out forwards; white-space: nowrap; }
     .dmg-popup.crit { font-size: 19px; color: #ff5252; }
     .dmg-popup.ship-dmg { font-size: 17px; color: #40c4ff; }
     .dmg-popup.ally-dmg { font-size: 14px; color: #ff8a80; }
     @keyframes floatDmg { 0% { opacity: 1; transform: translate(-50%, 0) scale(0.85); } 25% { opacity: 1; transform: translate(-50%, -10px) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -30px) scale(1.0); } }
-    .capture-msg { position: absolute; top: 32px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #ffd54f; padding: 4px 12px; border-radius: 8px; font-size: 11px; font-weight: bold; display: none; white-space: nowrap; z-index: 25; }
+    .capture-msg { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #ffd54f; padding: 4px 12px; border-radius: 8px; font-size: 11px; font-weight: bold; display: none; white-space: nowrap; z-index: 25; }
     .status-bar { background: #ffffff; border-bottom: 1px solid #d0e8f2; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: bold; gap: 4px; }
     .profile-mini { display: flex; align-items: center; gap: 5px; min-width: 0; }
-    .mini-avatar { width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; display: flex; align-items: center; justify-content: center; border: 2px solid #ff7043; overflow: hidden; }
+    .mini-avatar { width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; background: #ffffff; background-size: cover; display: flex; align-items: center; justify-content: center; border: 2px solid #ff7043; overflow: hidden; }
     .save-badge { font-size: 9px; color: #00897b; background: #e0f2f1; padding: 2px 5px; border-radius: 8px; white-space: nowrap; }
     .currency { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
     .stamina-box { background: #e8f5e9; border: 1px solid #a5d6a7; padding: 3px 6px; border-radius: 12px; color: #2e7d32; white-space: nowrap; }
@@ -125,7 +125,7 @@
     .char-count { font-size: 11px; color: #607d8b; text-align: right; margin-top: -4px; margin-bottom: 8px; }
     .extend-box { display: flex; align-items: center; gap: 6px; font-size: 12px; background: #fff8e1; padding: 8px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ffe082; color: #d84315; font-weight: bold; }
     .preview-wrap { display: flex; justify-content: center; margin: 10px 0; }
-    #icon-preview-box { width: 120px; height: 120px; border-radius: 16px; border: 4px solid #ff7043; background: linear-gradient(135deg, #4fc3f7, #0288d1); background-size: cover; background-position: center; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    #icon-preview-box { width: 120px; height: 120px; border-radius: 16px; border: 4px solid #ff7043; background: #ffffff; background-size: cover; background-position: center; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
     .slider-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin: 6px 0; }
     .slider-row input { width: 65%; }
     .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 58px; background: #ffffff; border-top: 1px solid #d0e8f2; display: flex; justify-content: space-around; align-items: center; z-index: 100; }
@@ -341,7 +341,7 @@
                 <div style="font-size:20px;color:#94a3b8;font-weight:bold;">→</div>
                 <div id="stamp-result-preview" style="width:110px;height:110px;border:1.5px dashed #cbd5e1;border-radius:14px;background:#f8fafc;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>
               </div>
-              <button onclick="openStampMonsterModal()" style="display:block;margin:0 auto;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:10px;padding:5px 16px;font-size:12px;font-weight:bold;color:#334155;cursor:pointer;">着せ替えを変更</button>
+              <button onclick="openStampMonsterModal()" style="display:block;margin:0 auto;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:10px;padding:5px 16px;font-size:12px;font-weight:bold;color:#334155;cursor:pointer;">スキンを選ぶ</button>
             </div>
 
             <div style="font-size:12px;font-weight:bold;color:#475569;margin-bottom:4px;">セリフ（任意）</div>
@@ -360,7 +360,7 @@
       </div>
     </div>
     <div class="tab-pane" id="tab-chat">
-      <div class="card" style="padding:0;overflow:hidden;display:flex;flex-direction:column;height:calc(100vh - 365px);min-height:295px;">
+      <div class="card" style="padding:0;overflow:hidden;display:flex;flex-direction:column;height:calc(100vh - 335px);min-height:310px;">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #e2e8f0;background:#ffffff;">
           <span style="font-size:13px;font-weight:bold;color:#0277bd;">全体チャット（投稿タップでスタンプ反応）</span>
           <button onclick="loadChat(false)" style="background:#e1f5fe;border:none;padding:3px 9px;border-radius:6px;font-size:11px;color:#0277bd;font-weight:bold;cursor:pointer;">更新</button>
@@ -502,19 +502,19 @@
     <button class="nav-item" onclick="switchTab('chat', this)">チャット</button>
     <button class="nav-item" onclick="switchTab('rank', this)">マイページ</button>
   </nav>
-  <script src="/monsters.js?v=42"></script>
-  <script src="/traits.js?v=42"></script>
-  <script src="/skills.js?v=42"></script>
-  <script src="/vehicle.js?v=42"></script>
-  <script src="/party.js?v=42"></script>
-  <script src="/breed.js?v=42"></script>
-  <script src="/cafe.js?v=42"></script>
-  <script src="/shop.js?v=42"></script>
-  <script src="/stage.js?v=42"></script>
-  <script src="/game.js?v=42"></script>
-  <script src="/storage.js?v=42"></script>
-  <script src="/battle.js?v=42"></script>
-  <script src="/social.js?v=42"></script>
+  <script src="/monsters.js?v=43"></script>
+  <script src="/traits.js?v=43"></script>
+  <script src="/skills.js?v=43"></script>
+  <script src="/vehicle.js?v=43"></script>
+  <script src="/party.js?v=43"></script>
+  <script src="/breed.js?v=43"></script>
+  <script src="/cafe.js?v=43"></script>
+  <script src="/shop.js?v=43"></script>
+  <script src="/stage.js?v=43"></script>
+  <script src="/game.js?v=43"></script>
+  <script src="/storage.js?v=43"></script>
+  <script src="/battle.js?v=43"></script>
+  <script src="/social.js?v=43"></script>
   <script>
     function renderTankCardsDirect(curTier) {
       const tanks = [
