@@ -159,3 +159,8 @@ function renderCafe() {
     renderTavernRecipesSection();
   }
 }
+window.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('#tab-cafe .card').forEach(c => {
+    if (c.id !== 'tavern-recipe-card' && c.textContent.includes('ガーデン装飾')) c.remove();
+  });
+});
