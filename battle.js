@@ -275,9 +275,8 @@ function performEnemyTurn(enemyIdx) {
   spawnHitEffect(`ally-slot-${target.i}`, enemy.elem || 'none', false);
   spawnDamagePopup(`ally-slot-${target.i}`, `-${dmg}`, 'ally-dmg');
 }
-
 function handleWaveCleared() {
-  const stg = STAGES[state.stageIdx] || STAGES[0];
+  const stg = STAGES[state.stageIdx] || STAGES;
   const isBoss = state.wave >= state.maxWaves;
   const mult = Math.pow(1.38, state.stageIdx) * (1 + (state.floor - 1) * 0.14) * (isBoss ? 2.5 : 1);
 
@@ -418,4 +417,72 @@ function startBattleLoop() {
   if (battleLoopTimer) clearInterval(battleLoopTimer);
   lastTickAt = Date.now();
   battleLoopTimer = setInterval(tickBattleLoop, 60);
+}
+function startBattle(ev) {
+  if (ev && ev.cancelable) ev.preventDefault();
+  if (state.inBattle) return;
+
+  const hasMember = party.some(idx => idx !== null && captured[idx]);
+  if (!hasMember) {
+    alert('パーティにモンスターを1体以上編成してください！');
+    return;
+  }
+
+  if (stamina < 1) {
+    alert('スタミナが足りません（1回復するまでお待ちください）');
+    return;
+  }
+
+  stamina -= 1;
+  staminaUpdatedAt = Date.now();
+  state.inBattle = true;
+  state.wave = 1;
+  resetBattleAllies();
+  spawnEnemies();
+  updateUI();
+  startBattleLoop();
+}
+
+function retreatBattle(ev) {
+  if (ev && ev.cancelable) ev.preventDefault();
+  if (!state.inBattle) return;
+  state.inBattle = false;
+  state.wave = 1;
+  resetBattleAllies();
+  spawnEnemies();
+  updateUI();
+  showToast('バトルから退却しました');
+}
+
+function toggleWaveStopMode(ev) {
+  if (ev && ev.cancelable) ev.preventDefault();
+  waveStopMode = !waveStopMode;
+  updateUI();
+  triggerAutoSave(false);
+  showToast(waveStopMode ? '1階層ごとに停止するモードにしました' : '階層連戦モードにしました');
+}
+
+function toggleAutoMode(ev) {
+  if (ev && ev.cancelable) ev.preventDefault();
+  if (!autoUnlocked) return;
+  autoActive = !autoActive;
+  if (autoActive) waveStopMode = false;
+  updateUI();
+  triggerAutoSave(false);
+  showToast(autoActive ? '自動周回 ON' : '自動周回 OFF');
+}
+
+function toggleSpeedMode(ev) {
+  if (ev && ev.cancelable) ev.preventDefault();
+  if (!speed2xUnlocked) return;
+  speed2xActive = !speed2xActive;
+  updateUI();
+  triggerAutoSave(false);
+  showToast(speed2xActive ? '戦闘速度 2倍速' : '戦闘速度 通常(1x)');
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('DOMContentLoaded', () => {
+    startBattleLoop();
+  });
 }
