@@ -1,4 +1,4 @@
-// ステージ定義・ステージ背景表示・階層移動モーダル (stage.js)
+// ステージ定義・ステージ背景表示・20階層移動モーダル (stage.js)
 const STAGE_MASTER = [
   { stage: 1, name: '街周辺',     bg: 'linear-gradient(180deg, #81c784 0%, #388e3c 65%, #1b5e20 100%)' },
   { stage: 2, name: '深緑の森',   bg: 'linear-gradient(180deg, #4db6ac 0%, #00796b 65%, #004d40 100%)' },
@@ -43,6 +43,8 @@ function renderStageBackground() {
   }
 }
 
+window.updateBattleStageBackground = renderStageBackground;
+
 function openFloorSelectModal(ev) {
   if (ev && ev.stopPropagation) ev.stopPropagation();
   const modal = document.getElementById('floor-modal');
@@ -56,7 +58,7 @@ function openFloorSelectModal(ev) {
   for (let s = 1; s <= reachedStage; s++) {
     const info = getStageInfo(s);
     const savedMaxF = (state?.maxFloorByStage && state.maxFloorByStage[s]) ? Number(state.maxFloorByStage[s]) : 1;
-    const maxF = (s < reachedStage) ? 10 : Math.max(savedMaxF, s === curStage ? Number(state?.floor || 1) : 1);
+    const maxF = (s < reachedStage) ? 20 : Math.max(savedMaxF, s === curStage ? Number(state?.floor || 1) : 1);
     html += `<div style="font-size:12px;font-weight:bold;color:#0277bd;margin:8px 0 4px;">S${s} ${info.name}</div>`;
     html += `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:6px;">`;
     for (let f = 1; f <= maxF; f++) {
@@ -69,6 +71,8 @@ function openFloorSelectModal(ev) {
   modal.style.display = 'flex';
 }
 
+window.openFloorSelectModal = openFloorSelectModal;
+
 function closeFloorSelectModal() {
   const modal = document.getElementById('floor-modal');
   if (modal) modal.style.display = 'none';
@@ -80,6 +84,7 @@ function jumpToStageFloor(s, f) {
     state.stage = s;
     state.floor = f;
     state.wave = 1;
+    state.enemies = [];
   }
   closeFloorSelectModal();
   renderStageBackground();
@@ -90,8 +95,12 @@ function jumpToStageFloor(s, f) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  window.updateBattleStageBackground = renderStageBackground;
+  window.openFloorSelectModal = openFloorSelectModal;
   renderStageBackground();
   setTimeout(() => {
+    window.updateBattleStageBackground = renderStageBackground;
+    window.openFloorSelectModal = openFloorSelectModal;
     renderStageBackground();
     if (typeof updateIconPreview === 'function') updateIconPreview(false);
   }, 600);
