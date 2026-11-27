@@ -144,8 +144,8 @@ export async function onRequestPost({ request, env }) {
     }), {
       headers: { "Content-Type": "application/json" }
     });
-    } catch (e) {
+      } catch (e) {
     return new Response(JSON.stringify({
-      error: String(e && e.message ? e.message : e)
+      error: "詳細エラー: " + String(e && e.message ? e.message : e)
     }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
