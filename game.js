@@ -447,3 +447,43 @@ updateUI = function() {
 };
 
 loadOfficialAssets();
+function openFloorSelectModal(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  const modal = document.getElementById('floor-modal');
+  const listEl = document.getElementById('floor-select-list');
+  if (!modal || !listEl) return;
+
+  const maxSt = Math.max(1, Number(state.maxStage) || 1);
+  let html = '';
+  for (let s = 1; s <= maxSt; s++) {
+    const maxFl = Math.max(1, (state.maxFloorByStage && state.maxFloorByStage[s]) ? Number(state.maxFloorByStage[s]) : 1);
+    const stName = (typeof getStageInfoById === 'function') ? getStageInfoById(s).name : `ステージ${s}`;
+    html += `<div style="font-size:12px;font-weight:bold;color:#0277bd;margin:6px 0 4px;">S${s} ${stName}</div><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;">`;
+    for (let f = 1; f <= maxFl; f++) {
+      const isCur = (state.stage === s && state.floor === f);
+      html += `<button onclick="selectStageFloor(${s}, ${f})" style="padding:6px 2px;border-radius:6px;border:1px solid ${isCur ? '#ff7043' : '#cfd8dc'};background:${isCur ? '#fff3e0' : '#ffffff'};font-size:11px;font-weight:bold;color:#263238;cursor:pointer;">${f}F</button>`;
+    }
+    html += `</div>`;
+  }
+  listEl.innerHTML = html;
+  modal.style.display = 'flex';
+}
+
+function closeFloorSelectModal() {
+  const modal = document.getElementById('floor-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function selectStageFloor(s, f) {
+  state.inBattle = false;
+  autoActive = false;
+  state.stage = s;
+  state.floor = f;
+  state.wave = 1;
+  state.enemies = [];
+  ensureWaveEnemies();
+  resetBattleAllies();
+  updateUI();
+  closeFloorSelectModal();
+  showToast(`S${s} ${f}-1 へ移動しました`);
+}
