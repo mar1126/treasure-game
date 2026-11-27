@@ -1,4 +1,4 @@
-// ショップ・アトリエ管理（元絵解析スタンプ＋管理者公式デフォルト設定対応）(shop.js)
+// ショップ・アトリエ管理（顔特徴維持スタンプ＋白背景透明化＋管理者公式デフォルト対応）(shop.js)
 const ADMIN_USER_IDS = ['H-ORM8PM4M'];
 function isAdminUser() {
   return ADMIN_USER_IDS.includes(String(userId || ''));
@@ -293,6 +293,29 @@ function closeStampMonsterModal() {
   const modal = document.getElementById('stamp-picker-modal');
   if (modal) modal.style.display = 'none';
 }
+function flattenImageOnWhite(dataUrl) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const size = 512;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, size, size);
+        ctx.drawImage(img, 0, 0, size, size);
+        resolve(canvas.toDataURL('image/jpeg', 0.92));
+      } catch (e) {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 function removeWhiteBackground(dataUrl) {
   return new Promise(resolve => {
     const img = new Image();
@@ -401,7 +424,9 @@ async function generateAI(type) {
     stampText = document.getElementById('stamp-text')?.value.trim() || '';
     rawInput = document.getElementById('ai-stamp-prompt')?.value.trim() || '';
     const vis = getStampSelectedSourceVisual();
-    if (String(vis).startsWith('data:image')) sourceImg = vis;
+    if (String(vis).startsWith('data:image')) {
+      sourceImg = await flattenImageOnWhite(vis);
+    }
   }
 
   let officialMonsterCmd = false;
