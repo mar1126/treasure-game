@@ -384,10 +384,12 @@ function handleWaveCleared() {
   });
 
   const trainExp = Math.max(1, Math.floor(expGain * 0.1));
-  (trainingSlots || []).forEach(id => {
-    if (id !== null && id !== undefined && !partyIds.has(id)) {
-      const m = (captured || []).find(x => x && x.id === id);
-      if (m && typeof grantMonsterExp === 'function') grantMonsterExp(m, trainExp);
+  (trainingSlots || []).forEach(val => {
+    if (val !== null && val !== undefined) {
+      const m = (captured || [])[val] || (captured || []).find(x => x && x.id === val);
+      if (m && !partyIds.has(m.id) && typeof grantMonsterExp === 'function') {
+        grantMonsterExp(m, trainExp);
+      }
     }
   });
 
