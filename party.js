@@ -3,6 +3,12 @@ let selectedMonsterIdx = null;
 let breedParent1Idx = null;
 let breedParent2Idx = null;
 
+function resolveMonsterSprite(mon) {
+  if (!mon) return 'EMBLEM:none:魔';
+  if (typeof getSpeciesDisplay === 'function') return getSpeciesDisplay(mon.name);
+  return mon.disp || 'EMBLEM:none:魔';
+}
+
 function getMonsterPlus(mon) {
   if (!mon) return 0;
   return Math.max(Number(mon.plus) || 0, Number(mon.star) || 0);
@@ -48,9 +54,7 @@ function resetBattleAllies() {
       if (m) {
         const st = getMonsterBattleStats(m);
         const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(m.name) : null;
-        const disp = typeof getMonsterVisual === 'function'
-          ? getMonsterVisual(m)
-          : (typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔');
+        const disp = resolveMonsterSprite(m);
         battleAllies[i] = {
           id: m.id,
           monRef: m,
@@ -133,7 +137,7 @@ function renderParty() {
     const val = (party || [])[i];
     const m = (val !== null && val !== undefined) ? ((captured || [])[val] || (captured || []).find(x => x && x.id === val)) : null;
     if (m) {
-      const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : 'EMBLEM:none:魔';
+      const disp = resolveMonsterSprite(m);
       const st = getMonsterBattleStats(m);
       const plus = getMonsterPlus(m);
       const plusBadge = plus > 0 ? `<span style="color:#ff7043;font-weight:900;"> +${plus}</span>` : '';
@@ -180,7 +184,7 @@ function renderTraining() {
     const val = (trainingSlots || [])[i];
     const m = (val !== null && val !== undefined) ? ((captured || [])[val] || (captured || []).find(x => x && x.id === val)) : null;
     if (m) {
-      const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : 'EMBLEM:none:魔';
+      const disp = resolveMonsterSprite(m);
       const plus = getMonsterPlus(m);
       const plusBadge = plus > 0 ? `<span style="color:#ff7043;font-weight:900;">+${plus}</span>` : '';
       html += `
@@ -236,7 +240,7 @@ function renderCaptured() {
 
   box.innerHTML = captured.map((m, idx) => {
     if (!m) return '';
-    const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : (m.disp || 'EMBLEM:none:魔');
+    const disp = resolveMonsterSprite(m);
     const plus = getMonsterPlus(m);
     const inParty = (party || []).some(v => v === idx || v === m.id);
     const inTrain = (trainingSlots || []).some(v => v === idx || v === m.id);
@@ -279,7 +283,7 @@ function openMonsterModal(idx) {
     body = document.getElementById('monster-modal-body');
   }
 
-  const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : (m.disp || 'EMBLEM:none:魔');
+  const disp = resolveMonsterSprite(m);
   const st = getMonsterBattleStats(m);
   const maxLv = getMonsterMaxLevel(m);
   const plus = getMonsterPlus(m);
@@ -395,7 +399,7 @@ function renderBreedTab() {
 
   if (p1Box) {
     if (p1) {
-      const d1 = typeof getMonsterVisual === 'function' ? getMonsterVisual(p1) : 'EMBLEM:none:魔';
+      const d1 = resolveMonsterSprite(p1);
       p1Box.innerHTML = `<div onclick="breedParent1Idx=null;renderBreedTab();" style="cursor:pointer;">${renderSprite(d1, 36, '6px')}<div style="font-size:10px;font-weight:bold;">${p1.name}+${getMonsterPlus(p1)}</div><div style="font-size:9px;color:#0284c7;">Lv.${p1.lv}</div></div>`;
     } else {
       p1Box.innerHTML = `<div style="font-size:10px;color:#ff7043;font-weight:bold;">親1</div><div style="font-size:18px;color:#94a3b8;">＋</div><div style="font-size:9.5px;color:#64748b;">未選択</div>`;
@@ -403,7 +407,7 @@ function renderBreedTab() {
   }
   if (p2Box) {
     if (p2) {
-      const d2 = typeof getMonsterVisual === 'function' ? getMonsterVisual(p2) : 'EMBLEM:none:魔';
+      const d2 = resolveMonsterSprite(p2);
       p2Box.innerHTML = `<div onclick="breedParent2Idx=null;renderBreedTab();" style="cursor:pointer;">${renderSprite(d2, 36, '6px')}<div style="font-size:10px;font-weight:bold;">${p2.name}+${getMonsterPlus(p2)}</div><div style="font-size:9px;color:#0284c7;">Lv.${p2.lv}</div></div>`;
     } else {
       p2Box.innerHTML = `<div style="font-size:10px;color:#ff7043;font-weight:bold;">親2</div><div style="font-size:18px;color:#94a3b8;">＋</div><div style="font-size:9.5px;color:#64748b;">未選択</div>`;
@@ -412,7 +416,7 @@ function renderBreedTab() {
   if (childBox) {
     if (p1 && p2) {
       const nextPlus = getMonsterPlus(p1) + getMonsterPlus(p2) + 1;
-      const d1 = typeof getMonsterVisual === 'function' ? getMonsterVisual(p1) : 'EMBLEM:none:魔';
+      const d1 = resolveMonsterSprite(p1);
       childBox.innerHTML = `${renderSprite(d1, 36, '6px')}<div style="font-size:10px;font-weight:bold;color:#6d28d9;">${p1.name} +${nextPlus}</div><div style="font-size:9px;color:#16a34a;font-weight:bold;">Lv.1 誕生</div>`;
     } else {
       childBox.innerHTML = `<div style="font-size:10px;color:#6d28d9;font-weight:bold;">子</div><div style="font-size:18px;color:#94a3b8;">?</div><div style="font-size:9.5px;color:#64748b;">2体選択</div>`;
@@ -437,7 +441,7 @@ function renderBreedTab() {
   listBox.innerHTML = candidates.map(({ m, idx }) => {
     const sel1 = breedParent1Idx === idx;
     const sel2 = breedParent2Idx === idx;
-    const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : 'EMBLEM:none:魔';
+    const disp = resolveMonsterSprite(m);
     const plus = getMonsterPlus(m);
     return `
       <div onclick="selectBreedCandidate(${idx})" style="aspect-ratio:1/1;border:2px solid ${sel1 ? '#0284c7' : (sel2 ? '#ff7043' : '#e2e8f0')};background:${sel1 ? '#e0f2fe' : (sel2 ? '#fff3e0' : '#fff')};border-radius:10px;padding:3px 2px;display:flex;flex-direction:column;justify-content:space-between;align-items:center;cursor:pointer;">
