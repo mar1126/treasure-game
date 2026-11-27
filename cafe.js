@@ -19,7 +19,6 @@ function getCafeIncome() {
 window.getCafeIncome = getCafeIncome;
 window.calcCafeIncome = getCafeIncome;
 
-// 1秒ごとの酒場売上自動加算ループ
 if (!window._tavernIncomeTimer) {
   window._tavernIncomeTimer = setInterval(() => {
     const inc = getCafeIncome();
@@ -32,11 +31,13 @@ if (!window._tavernIncomeTimer) {
 }
 
 function upgradeCafe() {
-  const cost = Number(cafeUpgradeCost) || 80;
+  const cost = Number(typeof cafeUpgradeCost !== 'undefined' ? cafeUpgradeCost : (typeof cafeCost !== 'undefined' ? cafeCost : 80)) || 80;
   if (gold < cost) return alert(`ゴールドが足りません（${cost.toLocaleString()} G 必要）`);
   gold -= cost;
   cafeLv = (Number(cafeLv) || 1) + 1;
-  cafeUpgradeCost = Math.floor(cost * 1.65);
+  const nextCost = Math.floor(cost * 1.65);
+  if (typeof cafeUpgradeCost !== 'undefined') cafeUpgradeCost = nextCost;
+  if (typeof cafeCost !== 'undefined') cafeCost = nextCost;
   renderCafe();
   if (typeof updateUI === 'function') updateUI();
   if (typeof triggerAutoSave === 'function') triggerAutoSave(true);
@@ -103,10 +104,17 @@ function renderCafe() {
   const pane = document.getElementById('tab-cafe');
   if (!pane) return;
 
+  // 旧ガーデン装飾ショップのカードを確実に削除
+  pane.querySelectorAll('.card').forEach(c => {
+    if (c.id !== 'tavern-recipe-card' && c.textContent.includes('ガーデン装飾')) {
+      c.remove();
+    }
+  });
+
   const firstCard = pane.querySelector('.card');
   const income = getCafeIncome();
   const lv = Number(cafeLv) || 1;
-  const cost = Number(cafeUpgradeCost) || 80;
+  const cost = Number(typeof cafeUpgradeCost !== 'undefined' ? cafeUpgradeCost : (typeof cafeCost !== 'undefined' ? cafeCost : 80)) || 80;
 
   let staffHtml = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;">`;
   for (let i = 0; i < 3; i++) {
@@ -132,7 +140,7 @@ function renderCafe() {
   }
   staffHtml += `</div>`;
 
-  if (firstCard) {
+  if (firstCard && firstCard.id !== 'tavern-recipe-card') {
     firstCard.innerHTML = `
       <div class="card-title">🍺 冒険者の酒場（放置収益）</div>
       <div style="display:flex;justify-content:space-between;align-items:center;background:#fff3e0;border:1px solid #ffe0b2;border-radius:10px;padding:8px 10px;">
