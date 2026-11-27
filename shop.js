@@ -1,4 +1,4 @@
-// ショップ・アトリエ管理（正方形サムネイル＋拡大プレビュー＋分解+50GEM＋管理者対応）(shop.js)
+// ショップ・アトリエ管理（公式デフォルト完全保護＋拡大分解＋ロック対応）(shop.js)
 const ADMIN_USER_IDS = ['H-ORM8PM4M'];
 function isAdminUser() {
   return ADMIN_USER_IDS.includes(String(userId || ''));
@@ -187,6 +187,14 @@ function shiftAssetLocksAfterRemove(kind, idPart, removedIdx) {
   } catch (e) {}
 }
 
+function isOfficialDefaultAsset(kind, idPart, imgUrl) {
+  if (!imgUrl || typeof officialAssets !== 'object' || !officialAssets) return false;
+  if (kind === 'skin') {
+    return Boolean(officialAssets[`mon:${idPart}`] && officialAssets[`mon:${idPart}`] === imgUrl);
+  }
+  return Object.values(officialAssets).includes(imgUrl);
+}
+
 function openAssetPreviewModal(kind, idPart, idx, mode = 'view') {
   const modal = document.getElementById('asset-preview-modal');
   const imgBox = document.getElementById('asset-preview-big-img');
@@ -208,40 +216,44 @@ function openAssetPreviewModal(kind, idPart, idx, mode = 'view') {
   }
   if (!imgUrl) return;
 
+  const isDefault = isOfficialDefaultAsset(kind, idPart, imgUrl);
   const locked = isAssetLocked(kind, idPart, idx);
   const isBg = kind === 'bg';
-  imgBox.innerHTML = `<img src="${imgUrl}" style="width:100%;height:100%;object-fit:${isBg ? 'cover' : 'contain'};border-radius:${isBg ? '16px' : '0'};">`;
 
-  if (mode === 'dismantle') {
-    if (locked) {
-      actBox.innerHTML = `
-        <div style="background:#ffffff;border-radius:16px;padding:16px;text-align:center;">
-          <div style="font-size:14px;font-weight:bold;color:#334155;margin-bottom:8px;">🔒 保護ロック中です</div>
-          <div style="font-size:12px;color:#64748b;margin-bottom:12px;">ロックを解除すると分解できるようになります。</div>
-          <button onclick="closeAssetPreviewModal()" class="btn-gray" style="background:#eceff1;color:#334155;">閉じる</button>
+  const topTrashBtn = (!locked && !isDefault && mode === 'view')
+    ? `<button onclick="openAssetPreviewModal('${kind}','${idPart}',${idx},'dismantle')" style="position:absolute;top:0;left:0;background:rgba(255,255,255,0.92);color:#e53935;border:1.5px solid #ffcdd2;border-radius:10px;padding:5px 10px;font-size:11px;font-weight:bold;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.2);z-index:5;">🗑 分解</button>`
+    : '';
+
+  imgBox.style.position = 'relative';
+  imgBox.innerHTML = `
+    ${topTrashBtn}
+    <img src="${imgUrl}" style="width:100%;height:100%;object-fit:${isBg ? 'cover' : 'contain'};border-radius:${isBg ? '16px' : '0'};">
+  `;
+
+  if (mode === 'dismantle' && !isDefault && !locked) {
+    const label = kind === 'skin' ? '着せ替え' : (kind === 'bg' ? '背景' : 'スタンプ');
+    actBox.innerHTML = `
+      <div style="background:#ffffff;border-radius:16px;padding:16px;text-align:center;box-shadow:0 8px 20px rgba(0,0,0,0.25);">
+        <div style="font-size:14px;font-weight:bold;color:#1e293b;line-height:1.5;margin-bottom:4px;">一度分解すると同じ${label}を作り出すことはできません。分解しますか？</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:12px;">分解すると50ジェムを受け取れます。</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <button onclick="openAssetPreviewModal('${kind}','${idPart}',${idx},'view')" style="padding:10px;border-radius:10px;border:1.5px solid #cbd5e1;background:#ffffff;font-size:13px;font-weight:bold;color:#334155;cursor:pointer;">やめる</button>
+          <button onclick="executeDismantleAsset('${kind}','${idPart}',${idx})" style="padding:10px;border-radius:10px;border:none;background:#ff7043;font-size:13px;font-weight:bold;color:#ffffff;cursor:pointer;">分解する (+50ジェム)</button>
         </div>
-      `;
-    } else {
-      const label = kind === 'skin' ? '着せ替え' : (kind === 'bg' ? '背景' : 'スタンプ');
-      actBox.innerHTML = `
-        <div style="background:#ffffff;border-radius:16px;padding:16px;text-align:center;box-shadow:0 8px 20px rgba(0,0,0,0.25);">
-          <div style="font-size:14px;font-weight:bold;color:#1e293b;line-height:1.5;margin-bottom:4px;">一度分解すると同じ${label}を作り出すことはできません。分解しますか？</div>
-          <div style="font-size:11px;color:#64748b;margin-bottom:12px;">分解すると50ジェムを受け取れます。</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <button onclick="closeAssetPreviewModal()" style="padding:10px;border-radius:10px;border:1.5px solid #cbd5e1;background:#ffffff;font-size:13px;font-weight:bold;color:#334155;cursor:pointer;">やめる</button>
-            <button onclick="executeDismantleAsset('${kind}','${idPart}',${idx})" style="padding:10px;border-radius:10px;border:none;background:#ff7043;font-size:13px;font-weight:bold;color:#ffffff;cursor:pointer;">分解する (+50ジェム)</button>
-          </div>
-        </div>
-      `;
-    }
+      </div>
+    `;
   } else {
     let btns = '';
-    if (kind === 'skin' && !isEquipped) {
-      btns += `<button onclick="equipSpeciesSkinFromGallery('${idPart}',${idx});closeAssetPreviewModal();" style="background:#ffffff;border:none;border-radius:12px;padding:10px;font-size:13px;font-weight:bold;color:#ff7043;cursor:pointer;">★ このスキンを適用する</button>`;
-    }
-    btns += `<button onclick="toggleAssetLock('${kind}','${idPart}',${idx});openAssetPreviewModal('${kind}','${idPart}',${idx},'view');" style="background:#ffffff;border:none;border-radius:12px;padding:10px;font-size:13px;font-weight:bold;color:#334155;cursor:pointer;">${locked ? '🔒 ロック解除する' : '🔓 保護ロックする'}</button>`;
-    if (kind === 'skin' && isAdminUser()) {
-      btns += `<button onclick="promoteSkinToOfficialDefault('${idPart}',${idx});closeAssetPreviewModal();" style="background:#0288d1;border:none;border-radius:12px;padding:10px;font-size:13px;font-weight:bold;color:#ffffff;cursor:pointer;">【管理者】公式デフォルトに設定</button>`;
+    if (isDefault) {
+      btns += `<div style="background:rgba(255,255,255,0.92);border-radius:12px;padding:10px;text-align:center;font-size:12px;font-weight:bold;color:#0277bd;">✨ 公式デフォルト画像（分解・削除不可）</div>`;
+    } else {
+      if (kind === 'skin' && !isEquipped) {
+        btns += `<button onclick="equipSpeciesSkinFromGallery('${idPart}',${idx});closeAssetPreviewModal();" style="background:#ffffff;border:none;border-radius:12px;padding:10px;font-size:13px;font-weight:bold;color:#ff7043;cursor:pointer;">★ このスキンを適用する</button>`;
+      }
+      btns += `<button onclick="toggleAssetLock('${kind}','${idPart}',${idx});openAssetPreviewModal('${kind}','${idPart}',${idx},'view');" style="background:#ffffff;border:none;border-radius:12px;padding:10px;font-size:13px;font-weight:bold;color:#334155;cursor:pointer;">${locked ? '🔒 ロック解除する' : '🔓 保護ロックする'}</button>`;
+      if (kind === 'skin' && isAdminUser()) {
+        btns += `<button onclick="promoteSkinToOfficialDefault('${idPart}',${idx});closeAssetPreviewModal();" style="background:#0288d1;border:none;border-radius:12px;padding:10px;font-size:13px;font-weight:bold;color:#ffffff;cursor:pointer;">【管理者】公式デフォルトに設定</button>`;
+      }
     }
     actBox.innerHTML = btns;
   }
@@ -261,21 +273,20 @@ function executeDismantleAsset(kind, idPart, idx) {
 }
 
 function buildSquareAssetCard(kind, idPart, idx, imgUrl, isEquipped) {
+  const isDefault = isOfficialDefaultAsset(kind, idPart, imgUrl);
   const locked = isAssetLocked(kind, idPart, idx);
   const borderStyle = isEquipped ? 'border:2px solid #ffb300;' : 'border:1.5px solid #cbd5e1;';
   const starBadge = isEquipped
     ? `<span style="position:absolute;top:3px;left:4px;font-size:11px;color:#ffb300;text-shadow:0 1px 2px rgba(0,0,0,0.4);">★</span>`
-    : (locked ? `<span style="position:absolute;top:3px;left:4px;font-size:10px;">🔒</span>` : '');
-  const trashBtn = locked
-    ? ''
-    : `<button onclick="event.stopPropagation();openAssetPreviewModal('${kind}','${idPart}',${idx},'dismantle')" style="position:absolute;bottom:3px;right:3px;width:20px;height:20px;border-radius:5px;border:1px solid #e2e8f0;background:rgba(255,255,255,0.92);color:#64748b;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;">🗑</button>`;
+    : (isDefault
+        ? `<span style="position:absolute;top:3px;left:4px;font-size:9px;background:#0288d1;color:#fff;padding:0 4px;border-radius:4px;font-weight:bold;">公式</span>`
+        : (locked ? `<span style="position:absolute;top:3px;left:4px;font-size:10px;">🔒</span>` : ''));
   const fit = kind === 'bg' ? 'cover' : 'contain';
 
   return `
     <div onclick="openAssetPreviewModal('${kind}','${idPart}',${idx},'view')" style="aspect-ratio:1/1;${borderStyle}border-radius:10px;background:#ffffff;position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;padding:3px;">
       ${starBadge}
       <img src="${imgUrl}" style="width:100%;height:100%;object-fit:${fit};border-radius:6px;">
-      ${trashBtn}
     </div>
   `;
 }
@@ -298,9 +309,10 @@ function renderSpeciesGallery() {
 }
 
 function dismantleSkin(spName, idx, skipConfirm = false) {
-  if (isAssetLocked('skin', spName, idx)) return alert('ロック中のため分解できません');
   const spData = speciesSkins[spName];
   if (!spData || !Array.isArray(spData.list) || !spData.list[idx]) return;
+  if (isOfficialDefaultAsset('skin', spName, spData.list[idx])) return alert('公式デフォルト画像は分解できません');
+  if (isAssetLocked('skin', spName, idx)) return alert('ロック中のため分解できません');
   if (!skipConfirm && !confirm(`この「${spName}」のスキンを分解して 50 GEM に変換しますか？`)) return;
 
   spData.list.splice(idx, 1);
@@ -341,8 +353,10 @@ function renderBgGallery() {
 }
 
 function dismantleBg(idx, skipConfirm = false) {
-  if (isAssetLocked('bg', 'all', idx)) return alert('ロック中のため分解できません');
   if (!Array.isArray(aiBackgrounds) || !aiBackgrounds[idx]) return;
+  const imgUrl = typeof aiBackgrounds[idx] === 'string' ? aiBackgrounds[idx] : (aiBackgrounds[idx].img || '');
+  if (isOfficialDefaultAsset('bg', 'all', imgUrl)) return alert('公式デフォルト背景は分解できません');
+  if (isAssetLocked('bg', 'all', idx)) return alert('ロック中のため分解できません');
   if (!skipConfirm && !confirm('このアイコン背景を分解して 50 GEM に変換しますか？')) return;
 
   aiBackgrounds.splice(idx, 1);
@@ -373,8 +387,8 @@ function renderStamps() {
 }
 
 function dismantleStamp(idx, skipConfirm = false) {
-  if (isAssetLocked('stamp', 'all', idx)) return alert('ロック中のため分解できません');
   if (!Array.isArray(aiStamps) || !aiStamps[idx]) return;
+  if (isAssetLocked('stamp', 'all', idx)) return alert('ロック中のため分解できません');
   if (!skipConfirm && !confirm('このスタンプを分解して 50 GEM に変換しますか？')) return;
 
   aiStamps.splice(idx, 1);
@@ -392,11 +406,17 @@ async function promoteSkinToOfficialDefault(spName, idx) {
   if (!spData || !Array.isArray(spData.list) || !spData.list[idx]) return;
   if (!confirm(`【管理者機能】\n「${spName}」のこのスキンを全プレイヤー共通の「公式デフォルト画像」に設定しますか？`)) return;
   try {
-    await saveOfficialAsset(`mon:${spName}`, spData.list[idx]);
+    const targetImg = spData.list[idx];
+    await saveOfficialAsset(`mon:${spName}`, targetImg);
+    spData.list.splice(idx, 1);
+    spData.activeIdx = -1;
+    shiftAssetLocksAfterRemove('skin', spName, idx);
     if (!state.inBattle && typeof resetBattleAllies === 'function') resetBattleAllies();
     if (typeof renderParty === 'function') renderParty();
     if (typeof renderCaptured === 'function') renderCaptured();
+    renderSpeciesGallery();
     updateUI();
+    triggerAutoSave(true);
     showToast(`【管理者】「${spName}」の公式デフォルトを更新しました！`);
   } catch (e) {
     alert('公式デフォルト更新エラー: ' + e.message);
