@@ -313,8 +313,9 @@ function handleWaveCleared() {
     }
   });
 
+  const boxLimit = typeof maxBoxSize !== 'undefined' ? Number(maxBoxSize) : (typeof monsterBoxCap !== 'undefined' ? Number(monsterBoxCap) : 50);
   (state.enemies || []).forEach(e => {
-    if (e && (captured || []).length < maxMonsterBox && Math.random() < (e.catchRate || 0.22)) {
+    if (e && (captured || []).length < boxLimit && Math.random() < (e.catchRate || 0.22)) {
       const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(e.name) : null;
       if (sp && typeof createMonsterInstance === 'function') {
         const newMon = createMonsterInstance(sp, Math.max(1, (stageNum - 1) * 3 + floorNum));
