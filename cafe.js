@@ -1,5 +1,5 @@
 // 冒険者の酒場・看板店員・料理売上リアルタイム連動 (cafe.js)
-function calcCafeIncome() {
+function getCafeIncome() {
   const baseLv = Math.max(1, Number(cafeLv) || 1);
   let staffBonus = 0;
   (staff || []).forEach(val => {
@@ -16,15 +16,27 @@ function calcCafeIncome() {
   return Math.floor(baseLv * 8 + staffBonus + recipeBonus);
 }
 
-window.calcCafeIncome = calcCafeIncome;
-window.getCafeIncomePerSec = calcCafeIncome;
+window.getCafeIncome = getCafeIncome;
+window.calcCafeIncome = getCafeIncome;
+
+// 1秒ごとの酒場売上自動加算ループ
+if (!window._tavernIncomeTimer) {
+  window._tavernIncomeTimer = setInterval(() => {
+    const inc = getCafeIncome();
+    if (inc > 0 && typeof gold !== 'undefined') {
+      gold += inc;
+      const goldEl = document.getElementById('gold');
+      if (goldEl) goldEl.textContent = Math.floor(gold).toLocaleString();
+    }
+  }, 1000);
+}
 
 function upgradeCafe() {
-  const cost = Number(cafeCost) || 200;
+  const cost = Number(cafeUpgradeCost) || 80;
   if (gold < cost) return alert(`ゴールドが足りません（${cost.toLocaleString()} G 必要）`);
   gold -= cost;
   cafeLv = (Number(cafeLv) || 1) + 1;
-  cafeCost = Math.floor(cost * 1.65);
+  cafeUpgradeCost = Math.floor(cost * 1.65);
   renderCafe();
   if (typeof updateUI === 'function') updateUI();
   if (typeof triggerAutoSave === 'function') triggerAutoSave(true);
@@ -92,9 +104,9 @@ function renderCafe() {
   if (!pane) return;
 
   const firstCard = pane.querySelector('.card');
-  const income = calcCafeIncome();
+  const income = getCafeIncome();
   const lv = Number(cafeLv) || 1;
-  const cost = Number(cafeCost) || 200;
+  const cost = Number(cafeUpgradeCost) || 80;
 
   let staffHtml = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;">`;
   for (let i = 0; i < 3; i++) {
