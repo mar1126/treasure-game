@@ -16,6 +16,8 @@ function switchTab(tabName, btn) {
     if (typeof renderCafe === 'function') renderCafe();
   } else if (tabName === 'shop') {
     if (typeof renderShop === 'function') renderShop();
+  } else if (tabName === 'bag') {
+    if (typeof renderBag === 'function') renderBag();
   } else if (tabName === 'ai') {
     if (typeof refreshAiSpeciesSelects === 'function') refreshAiSpeciesSelects();
     if (typeof renderSpeciesGallery === 'function') renderSpeciesGallery();
