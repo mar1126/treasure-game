@@ -1,4 +1,4 @@
-// パーティ編成・訓練場・仲間一覧(正方形&+値表示)・配合(親1+親2→子)・野に還す (party.js)
+// パーティ編成・訓練場・仲間一覧(正方形&+値&スキン対応)・配合・野に還す (party.js)
 let selectedMonsterIdx = null;
 let breedParent1Idx = null;
 let breedParent2Idx = null;
@@ -236,7 +236,7 @@ function renderCaptured() {
 
   box.innerHTML = captured.map((m, idx) => {
     if (!m) return '';
-    const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : 'EMBLEM:none:魔';
+    const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : (m.disp || 'EMBLEM:none:魔');
     const plus = getMonsterPlus(m);
     const inParty = (party || []).some(v => v === idx || v === m.id);
     const inTrain = (trainingSlots || []).some(v => v === idx || v === m.id);
@@ -253,7 +253,7 @@ function renderCaptured() {
           <span>${badge}</span>
           <span style="font-size:9px;">${lockMark}</span>
         </div>
-        <div style="display:flex;justify-content:center;align-items:center;flex:1;">${renderSprite(disp, 32, '6px')}</div>
+        <div style="display:flex;justify-content:center;align-items:center;flex:1;">${renderSprite(disp, 34, '6px')}</div>
         <div style="width:100%;text-align:center;line-height:1.15;">
           <div style="font-size:9px;font-weight:bold;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
           <div style="font-size:8.5px;color:#0284c7;font-weight:bold;">Lv.${m.lv || 1}${plus > 0 ? `<span style="color:#ff7043;"> +${plus}</span>` : ''}</div>
@@ -279,26 +279,58 @@ function openMonsterModal(idx) {
     body = document.getElementById('monster-modal-body');
   }
 
-  const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : 'EMBLEM:none:魔';
+  const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : (m.disp || 'EMBLEM:none:魔');
   const st = getMonsterBattleStats(m);
   const maxLv = getMonsterMaxLevel(m);
   const plus = getMonsterPlus(m);
-  const skill = typeof getMonsterSkill === 'function' ? getMonsterSkill(m.skillId) : null;
+  const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(m.name) : null;
+  const skill = typeof getMonsterSkill === 'function' ? getMonsterSkill(m.skillId || sp?.skillId) : null;
+  const elemMap = { fire: '🔥 火属性', water: '💧 水属性', wind: '🍃 風属性', sky: '⚡ 空属性', earth: '🪨 地属性', light: '✨ 光属性', dark: '🌙 闇属性', none: '⚪ 無属性' };
+  const elemLabel = elemMap[m.elem || sp?.elem || 'none'] || '無属性';
+  const rarLabel = m.rarity || sp?.rarity || 'N';
+  const needExp = Math.floor(25 * Math.pow(1.22, (Number(m.lv) || 1) - 1));
+  const curExp = Number(m.exp) || 0;
+  const expPct = (Number(m.lv) || 1) >= maxLv ? 100 : Math.min(100, Math.round((curExp / needExp) * 100));
+
+  const inParty = (party || []).some(v => v === idx || v === m.id);
+  const inTrain = (trainingSlots || []).some(v => v === idx || v === m.id);
 
   body.innerHTML = `
-    <div style="text-align:center;">
-      <div style="display:flex;justify-content:center;margin-bottom:4px;">${renderSprite(disp, 64, '12px')}</div>
-      <div style="font-size:16px;font-weight:900;color:#1e293b;">${m.name} ${plus > 0 ? `<span style="font-size:13px;color:#ff7043;">+${plus}</span>` : ''}</div>
-      <div style="font-size:12px;color:#0284c7;font-weight:bold;">Lv.${m.lv || 1} / ${maxLv} ｜ HP ${st.maxHp} ｜ 攻撃 ${st.atk}</div>
-      ${skill ? `<div style="margin-top:4px;font-size:11px;color:#6d28d9;background:#f3e8ff;padding:3px 8px;border-radius:8px;display:inline-block;">スキル: <b>${skill.name}</b>（${skill.desc}）</div>` : ''}
+    <div style="display:flex;align-items:center;gap:12px;border-bottom:1px solid #e2e8f0;padding-bottom:10px;">
+      <div style="width:72px;height:72px;border-radius:14px;border:2px solid #cbd5e1;background:#f8fafc;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        ${renderSprite(disp, 58, '12px')}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px;">
+          <span style="background:#ff7043;color:#fff;font-size:10px;font-weight:bold;padding:1px 6px;border-radius:5px;">${rarLabel}</span>
+          <span style="font-size:11px;color:#475569;font-weight:bold;">${elemLabel}</span>
+        </div>
+        <div style="font-size:16px;font-weight:900;color:#1e293b;">${m.name} ${plus > 0 ? `<span style="color:#ff7043;">+${plus}</span>` : ''}</div>
+        <div style="font-size:12px;color:#0284c7;font-weight:bold;">Lv.${m.lv || 1} / ${maxLv}</div>
+        <div style="background:#e2e8f0;height:6px;border-radius:4px;overflow:hidden;margin-top:4px;">
+          <div style="background:#38bdf8;height:100%;width:${expPct}%;"></div>
+        </div>
+        <div style="font-size:9.5px;color:#64748b;margin-top:1px;">EXP: ${(Number(m.lv) || 1) >= maxLv ? 'MAX' : `${curExp} / ${needExp}`}</div>
+      </div>
     </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px;background:#f8fafc;padding:8px;border-radius:10px;text-align:center;">
+      <div><div style="font-size:10px;color:#64748b;">最大HP</div><div style="font-size:13px;font-weight:900;color:#16a34a;">${st.maxHp}</div></div>
+      <div><div style="font-size:10px;color:#64748b;">攻撃力</div><div style="font-size:13px;font-weight:900;color:#ea580c;">${st.atk}</div></div>
+      <div><div style="font-size:10px;color:#64748b;">行動間隔</div><div style="font-size:13px;font-weight:900;color:#0284c7;">${st.ctMax.toFixed(2)}s</div></div>
+    </div>
+
+    ${skill ? `<div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:#f3e8ff;border:1px solid #d8b4fe;font-size:11px;color:#581c87;">
+      <b>⚡ 固有スキル：${skill.name}</b><br><span style="color:#6b21a8;">${skill.desc}</span>
+    </div>` : ''}
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px;">
-      <button onclick="assignMonsterToParty(${idx})" style="padding:8px;border-radius:8px;border:none;background:#0284c7;color:#fff;font-size:11.5px;font-weight:bold;cursor:pointer;">⚔️ パーティ編成</button>
-      <button onclick="assignMonsterToTraining(${idx})" style="padding:8px;border-radius:8px;border:none;background:#2e7d32;color:#fff;font-size:11.5px;font-weight:bold;cursor:pointer;">🏋️ 訓練場へ配置</button>
-      <button onclick="toggleMonsterLock(${idx})" style="padding:8px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;font-size:11.5px;font-weight:bold;cursor:pointer;">${m.locked ? '🔓 ロック解除' : '🔒 保護ロック'}</button>
-      <button onclick="releaseSingleMonster(${idx})" style="padding:8px;border-radius:8px;border:1px solid #f59e0b;background:#fffbeb;color:#b45309;font-size:11.5px;font-weight:bold;cursor:pointer;">🍃 野に還す(素材)</button>
+      <button onclick="assignMonsterToParty(${idx})" style="padding:9px;border-radius:9px;border:none;background:${inParty ? '#94a3b8' : '#0284c7'};color:#fff;font-size:11.5px;font-weight:bold;cursor:pointer;">${inParty ? '⚔️ 編成中' : '⚔️ パーティ編成'}</button>
+      <button onclick="assignMonsterToTraining(${idx})" style="padding:9px;border-radius:9px;border:none;background:${inTrain ? '#94a3b8' : '#2e7d32'};color:#fff;font-size:11.5px;font-weight:bold;cursor:pointer;">${inTrain ? '🏋️ 訓練中' : '🏋️ 訓練場へ配置'}</button>
+      <button onclick="toggleMonsterLock(${idx})" style="padding:9px;border-radius:9px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;font-size:11.5px;font-weight:bold;cursor:pointer;">${m.locked ? '🔓 ロック解除' : '🔒 保護ロック'}</button>
+      <button onclick="releaseSingleMonster(${idx})" style="padding:9px;border-radius:9px;border:1px solid #f59e0b;background:#fffbeb;color:#b45309;font-size:11.5px;font-weight:bold;cursor:pointer;">🍃 野に還す(素材)</button>
     </div>
-    <button onclick="closeMonsterModal()" style="margin-top:10px;width:100%;padding:8px;border-radius:8px;border:none;background:#64748b;color:#fff;font-size:12px;font-weight:bold;cursor:pointer;">閉じる</button>
+    <button onclick="closeMonsterModal()" style="margin-top:10px;width:100%;padding:9px;border-radius:9px;border:none;background:#475569;color:#fff;font-size:12px;font-weight:bold;cursor:pointer;">閉じる</button>
   `;
   modal.style.display = 'flex';
 }
