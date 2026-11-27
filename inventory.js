@@ -525,3 +525,26 @@ function renderTavernRecipesSection() {
     setup();
   }
 })();
+// 旧HTMLインライン呼び出し互換＆バトル味方スキン同期パッチ
+window.buyDecor = function() { if (typeof showToast === 'function') showToast('装飾ショップは廃止されました'); };
+window.openSynthModal = function() { if (typeof openSynthesisModal === 'function') openSynthesisModal(); };
+window.closeSynthModal = function() { if (typeof closeSynthesisModal === 'function') closeSynthesisModal(); };
+window.selectMonster = function(idx) { if (typeof openMonsterModal === 'function') openMonsterModal(idx); };
+window.showMonsterDetail = function(idx) { if (typeof openMonsterModal === 'function') openMonsterModal(idx); };
+
+setInterval(() => {
+  if (Array.isArray(battleAllies) && typeof getSpeciesDisplay === 'function' && typeof renderSprite === 'function') {
+    for (let i = 0; i < 3; i++) {
+      const a = battleAllies[i];
+      const slot = document.getElementById(`ally-slot-${i}`);
+      if (a && slot) {
+        const spEl = slot.querySelector('.unit-sprite');
+        if (spEl && spEl.textContent.trim() === '魔') {
+          const disp = getSpeciesDisplay(a.name);
+          a.disp = disp;
+          spEl.innerHTML = renderSprite(disp, 46, '10px');
+        }
+      }
+    }
+  }
+}, 500);
