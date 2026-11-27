@@ -1,4 +1,9 @@
-// ショップ・アトリエ管理（お手本スタンプUI＋白背景透明化＋公式アセット対応）(shop.js)
+// ショップ・アトリエ管理（元絵解析スタンプ＋管理者公式デフォルト設定対応）(shop.js)
+const ADMIN_USER_IDS = ['H-ORM8PM4M'];
+function isAdminUser() {
+  return ADMIN_USER_IDS.includes(String(userId || ''));
+}
+
 let shopSubTab = 'gem';
 let stampBuilderState = {
   species: '',
@@ -142,15 +147,37 @@ function renderSpeciesGallery() {
     return;
   }
 
+  const adminMode = isAdminUser();
   gal.innerHTML = list.map((imgData, idx) => {
     const isAct = spData.activeIdx === idx;
+    const adminBtn = adminMode
+      ? `<button onclick="event.stopPropagation();promoteSkinToOfficialDefault('${spName}', ${idx})" style="margin-top:4px;width:100%;background:#0288d1;color:#fff;border:none;border-radius:5px;padding:3px 2px;font-size:9px;font-weight:bold;cursor:pointer;">公式デフォルト化</button>`
+      : '';
     return `
       <div class="slot-box" onclick="equipSpeciesSkinFromGallery('${spName}', ${idx})" style="${isAct ? 'border:2px solid #ff7043;background:#fff8f6;' : ''}">
-        <img src="${imgData}" style="width:64px;height:64px;object-fit:contain;border-radius:8px;">
+        <img src="${imgData}" style="width:68px;height:68px;object-fit:contain;border-radius:8px;">
         <div style="font-size:10px;font-weight:bold;color:${isAct ? '#ff7043' : '#546e7a'};margin-top:3px;">${isAct ? '★ 適用中' : 'タップで適用'}</div>
+        ${adminBtn}
       </div>
     `;
   }).join('');
+}
+
+async function promoteSkinToOfficialDefault(spName, idx) {
+  if (!isAdminUser()) return;
+  const spData = speciesSkins[spName];
+  if (!spData || !Array.isArray(spData.list) || !spData.list[idx]) return;
+  if (!confirm(`【管理者機能】\n「${spName}」のこのスキンを全プレイヤー共通の「公式デフォルト画像」に設定しますか？`)) return;
+  try {
+    await saveOfficialAsset(`mon:${spName}`, spData.list[idx]);
+    if (!state.inBattle && typeof resetBattleAllies === 'function') resetBattleAllies();
+    if (typeof renderParty === 'function') renderParty();
+    if (typeof renderCaptured === 'function') renderCaptured();
+    updateUI();
+    showToast(`【管理者】「${spName}」の公式デフォルトを更新しました！`);
+  } catch (e) {
+    alert('公式デフォルト更新エラー: ' + e.message);
+  }
 }
 
 function equipSpeciesSkinFromGallery(spName, idx) {
@@ -359,7 +386,7 @@ async function generateAI(type) {
   let rawInput = '';
   let species = 'スライム';
   let stampText = '';
-  let refDesc = '';
+  let sourceImg = '';
 
   if (type === 'monster') {
     species = document.getElementById('ai-species-sel')?.value || 'スライム';
@@ -373,20 +400,19 @@ async function generateAI(type) {
     species = stampBuilderState.species;
     stampText = document.getElementById('stamp-text')?.value.trim() || '';
     rawInput = document.getElementById('ai-stamp-prompt')?.value.trim() || '';
-    if (stampBuilderState.skinIdx >= 0) {
-      refDesc = `humanized anime girl version of ${species} in cute outfit`;
-    }
+    const vis = getStampSelectedSourceVisual();
+    if (String(vis).startsWith('data:image')) sourceImg = vis;
   }
 
   let officialMonsterCmd = false;
   let officialStageNum = 0;
   let cleanPrompt = rawInput;
 
-  if (type === 'monster' && /^(!公式|！公式|@default)\s*/i.test(rawInput)) {
+  if (type === 'monster' && isAdminUser() && /^(!公式|！公式|@default)\s*/i.test(rawInput)) {
     officialMonsterCmd = true;
     cleanPrompt = rawInput.replace(/^(!公式|！公式|@default)\s*/i, '').trim();
     cost = 0;
-  } else if (type === 'bg') {
+  } else if (type === 'bg' && isAdminUser()) {
     const m = rawInput.match(/^(?:!背景|！背景|@stage)(\d{1,2})\s*(.*)$/i);
     if (m) {
       officialStageNum = Math.min(10, Math.max(1, Number(m.slice(1, 2).pop())));
@@ -402,7 +428,7 @@ async function generateAI(type) {
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, species, prompt: cleanPrompt, stamp_text: stampText, ref_desc: refDesc })
+      body: JSON.stringify({ type, species, prompt: cleanPrompt, stamp_text: stampText, source_img: sourceImg })
     });
     const data = await res.json();
     if (!res.ok || !data.image) throw new Error(data.error || '生成に失敗しました');
@@ -417,7 +443,7 @@ async function generateAI(type) {
       if (typeof renderCaptured === 'function') renderCaptured();
       updateUI();
       if (statusEl) statusEl.textContent = '公式登録完了！';
-      showToast(`【開発】「${species}」の公式デフォルト画像を更新しました！`);
+      showToast(`【管理者】「${species}」の公式デフォルト画像を更新しました！`);
       return;
     }
 
@@ -425,7 +451,7 @@ async function generateAI(type) {
       await saveOfficialAsset(`stage:${officialStageNum}`, data.image);
       updateUI();
       if (statusEl) statusEl.textContent = '公式背景登録完了！';
-      showToast(`【開発】ステージ${officialStageNum}の公式背景を更新しました！`);
+      showToast(`【管理者】ステージ${officialStageNum}の公式背景を更新しました！`);
       return;
     }
 
