@@ -157,7 +157,7 @@ function spawnHitEffect(targetId, elem = 'none', isSkill = false) {
   };
   const colors = palettes[elem] || palettes.none;
 
-  fxRings.push({ x, y, radius: 6, grow: 3.2 * scale, color: colors[0], lineWidth: 5 * scale, life: 1.0 });
+  fxRings.push({ x, y, radius: 6, grow: 3.2 * scale, color: colors, lineWidth: 5 * scale, life: 1.0 });
   if (isSkill || elem === 'tank' || elem === 'light') {
     fxRings.push({ x, y, radius: 3, grow: 2.0 * scale, color: '#ffffff', lineWidth: 3.5 * scale, life: 0.9 });
   }
@@ -378,7 +378,7 @@ function handleWaveCleared() {
       const m = (captured || [])[val] || (captured || []).find(x => x && x.id === val);
       if (m) {
         partyIds.add(m.id);
-        if (typeof grantMonsterExp === 'function') grantMonsterExp(m, expGain);
+        if (typeof grantExpToMonster === 'function') grantExpToMonster(m, expGain);
       }
     }
   });
@@ -387,21 +387,15 @@ function handleWaveCleared() {
   (trainingSlots || []).forEach(val => {
     if (val !== null && val !== undefined) {
       const m = (captured || [])[val] || (captured || []).find(x => x && x.id === val);
-      if (m && !partyIds.has(m.id) && typeof grantMonsterExp === 'function') {
-        grantMonsterExp(m, trainExp);
+      if (m && !partyIds.has(m.id) && typeof grantExpToMonster === 'function') {
+        grantExpToMonster(m, trainExp);
       }
     }
   });
 
-  const boxLimit = typeof maxBoxSize !== 'undefined' ? Number(maxBoxSize) : (typeof monsterBoxCap !== 'undefined' ? Number(monsterBoxCap) : 50);
   (state.enemies || []).forEach(e => {
-    if (e && (captured || []).length < boxLimit && Math.random() < (e.catchRate || 0.22)) {
-      const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(e.name) : null;
-      if (sp && typeof createMonsterInstance === 'function') {
-        const newMon = createMonsterInstance(sp, Math.max(1, (stageNum - 1) * 3 + floorNum));
-        captured.push(newMon);
-        showToast(`「${newMon.name}」が仲間になった！`);
-      }
+    if (e && typeof tryAutoRecruit === 'function') {
+      tryAutoRecruit(e);
     }
   });
 
