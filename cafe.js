@@ -1,146 +1,171 @@
-// リゾートカフェ経営・店員配属システム (cafe.js)
-function cleanStaffSlots() {
-  if (!Array.isArray(staff)) staff = [null, null, null];
-  staff = staff.slice(0, 3).map(id => (id && Array.isArray(captured) && captured.some(x => x.id === id)) ? id : null);
-  while (staff.length < 3) staff.push(null);
-  return staff;
-}
+// 冒険者の酒場・看板店員・内装拡張・料理売上連動 (cafe.js)
+const TAVERN_FURNITURE = [
+  { id: 'barrel',     name: '特選エール樽',     cost: 1200,  bonus: 15, desc: '芳醇なエールの香りで冒険者が集まりやすくなる' },
+  { id: 'hearth',     name: 'レンガの暖炉',     cost: 4500,  bonus: 45, desc: '冷えた体を温める火の灯りで滞在時間と注文がUP' },
+  { id: 'questboard', name: 'ギルド依頼掲示板', cost: 15000, bonus: 130, desc: '討伐帰りのパーティが連日打ち上げを開くようになる' },
+  { id: 'chandelier', name: '魔導シャンデリア', cost: 50000, bonus: 420, desc: '王都の貴族や高ランク冒険者も訪れる名門酒場に！' }
+];
 
-function getCafeIncome() {
-  const validStaff = cleanStaffSlots();
-  let staffPower = 0;
-  let activeCount = 0;
-  validStaff.forEach(monId => {
-    const m = captured.find(x => x.id === monId);
-    if (m && typeof getMonStats === 'function') {
-      const st = getMonStats(m);
-      staffPower += (st.lv * 4) + Math.floor(st.atk * 0.4) + (st.plus * 10);
-      activeCount++;
+function getCafeIncomePerSec() {
+  const baseLv = Math.max(1, Number(cafeLv) || 1);
+  let staffBonus = 0;
+  (staff || []).forEach(val => {
+    if (val !== null && val !== undefined) {
+      const m = (captured || [])[val] || (captured || []).find(x => x && x.id === val);
+      if (m) {
+        const rarMul = m.rarity === 'UR' ? 3.5 : (m.rarity === 'SR' ? 2.2 : (m.rarity === 'R' ? 1.5 : 1.0));
+        staffBonus += Math.floor((6 + (Number(m.lv) || 1) * 2.5) * rarMul);
+      }
     }
   });
-  if (activeCount === 0) return 0;
 
-  const base = (cafeLv * 12) + staffPower;
-  const gardenMult = 1 + ((gardenItems || []).length * 0.15);
-  return Math.max(1, Math.floor(base * gardenMult));
-}
+  let decorBonus = 0;
+  (gardenItems || []).forEach(id => {
+    const f = TAVERN_FURNITURE.find(x => x.id === id);
+    if (f) decorBonus += f.bonus;
+  });
 
-function assignStaffFromModal() {
-  const m = captured.slice(selectedMonIdx, selectedMonIdx + 1).pop();
-  if (!m) return;
-  if (party.includes(m.id)) return alert('バトル編成中のモンスターはカフェ店員にできません。先にパーティから外してください。');
-  if ((trainingSlots || []).includes(m.id)) return alert('訓練場に入っているモンスターは店員にできません。先に訓練場から外してください。');
-
-  const validStaff = cleanStaffSlots();
-  if (validStaff.includes(m.id)) return alert('すでにカフェ店員に配属されています。');
-
-  const empty = validStaff.findIndex(x => x === null);
-  if (empty === -1) return alert('カフェ店員（3枠）がいっぱいです。カフェ画面で枠をタップして外してください。');
-  validStaff.splice(empty, 1, m.id);
-  closeMonModal();
-  renderCafe();
-  if (typeof renderCaptured === 'function') renderCaptured();
-  updateUI();
-  triggerAutoSave(true);
-  showToast(`${m.name}をカフェ店員に配属しました`);
-}
-
-function removeStaff(slotIdx) {
-  const validStaff = cleanStaffSlots();
-  validStaff.splice(slotIdx, 1, null);
-  renderCafe();
-  if (typeof renderCaptured === 'function') renderCaptured();
-  updateUI();
-  triggerAutoSave(true);
-  showToast('店員を枠から外しました');
+  const recipeBonus = typeof getTavernRecipeBonus === 'function' ? getTavernRecipeBonus().extraGps : 0;
+  return Math.floor((baseLv * 8 + staffBonus + decorBonus + recipeBonus));
 }
 
 function upgradeCafe() {
-  if (gold < cafeCost) return alert('ゴールドが足りません');
-  gold -= cafeCost;
-  cafeLv++;
-  cafeCost = Math.floor(cafeCost * 1.48);
-  renderCafe();
-  updateUI();
-  triggerAutoSave(true);
-  showToast(`カフェが Lv.${cafeLv} にアップグレード！`);
-}
-
-function buyDecor(name, cost) {
-  if (gold < cost) return alert('ゴールドが足りません');
+  const cost = Number(cafeCost) || 200;
+  if (gold < cost) return alert(`ゴールドが足りません（${cost.toLocaleString()} G 必要）`);
   gold -= cost;
-  gardenItems.push(name);
+  cafeLv = (Number(cafeLv) || 1) + 1;
+  cafeCost = Math.floor(cost * 1.65);
   renderCafe();
-  updateUI();
-  triggerAutoSave(true);
-  showToast(`${name}を設置しました（売上+15%）`);
+  if (typeof updateUI === 'function') updateUI();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(true);
+  showToast(`酒場ランクが Lv.${cafeLv} に上がりました！`);
 }
 
-function renderCafeStageView(validStaff) {
-  const stage = document.getElementById('cafe-live-stage');
-  if (!stage) return;
+function buyTavernFurniture(id) {
+  const item = TAVERN_FURNITURE.find(x => x.id === id);
+  if (!item) return;
+  if (!Array.isArray(gardenItems)) gardenItems = [];
+  if (gardenItems.includes(id)) return;
+  if (gold < item.cost) return alert(`ゴールドが足りません（${item.cost.toLocaleString()} G 必要）`);
+  gold -= item.cost;
+  gardenItems.push(id);
+  renderCafe();
+  if (typeof updateUI === 'function') updateUI();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(true);
+  showToast(`内装「${item.name}」を設置しました！`);
+}
 
-  const activeList = validStaff
-    .map((id, idx) => ({ m: captured.find(x => x.id === id), idx }))
-    .filter(x => x.m);
+function openStaffSelectModal(slotIdx) {
+  const modal = document.getElementById('staff-modal');
+  const listEl = document.getElementById('staff-select-list');
+  if (!modal || !listEl) return;
 
-  let html = `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;font-size:10px;font-weight:bold;color:#0277bd;background:rgba(255,255,255,0.75);border-bottom:1px solid rgba(0,0,0,0.06);">
-      <span>テラスフロア（Lv.${cafeLv}）</span>
-      <span>店員 ${activeList.length}/3人 稼働中</span>
-    </div>
-  `;
+  let html = `<button onclick="assignStaffSlot(${slotIdx}, null)" style="width:100%;padding:8px;margin-bottom:8px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;color:#475569;font-size:12px;font-weight:bold;cursor:pointer;">店員を外す（空きにする）</button>`;
+  html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-height:260px;overflow-y:auto;">`;
 
-  // 設置したインテリア家具を表示
-  const decors = (gardenItems || []).slice(0, 10);
-  if (decors.length > 0) {
-    html += `<div style="position:absolute;top:28px;left:8px;right:8px;display:flex;gap:5px;flex-wrap:wrap;pointer-events:none;">`;
-    decors.forEach(d => {
-      const label = d === 'ヤシの木' ? '木' : (d === '花壇' ? '花' : '泉');
-      html += `<span style="background:rgba(255,255,255,0.88);border:1px solid #a5d6a7;color:#2e7d32;font-size:10px;font-weight:bold;padding:1px 6px;border-radius:6px;">${label}</span>`;
-    });
-    html += `</div>`;
-  }
+  (captured || []).forEach((m, idx) => {
+    if (!m) return;
+    const inParty = (party || []).some(v => v === idx || v === m.id);
+    const inTrain = (trainingSlots || []).some(v => v === idx || v === m.id);
+    const alreadyStaff = (staff || []).some((v, sIdx) => sIdx !== slotIdx && (v === idx || v === m.id));
+    if (inParty || inTrain || alreadyStaff) return;
 
-  // 配属中の店員モンスターをフロアに並べる
-  if (activeList.length === 0) {
-    html += `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;color:#546e7a;padding-top:16px;">店員を配属するとフロアに表示されます</div>`;
-  } else {
-    const positions =;
-    activeList.forEach(({ m, idx }) => {
-      const leftPct = positions.slice(idx, idx + 1).pop() || 50;
-      const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : '魔';
-      html += `
-        <div style="position:absolute;left:${leftPct}%;top:68%;transform:translate(-50%,-50%);text-align:center;">
-          ${renderSprite(disp, 36, '50%')}
-          <div style="font-size:9px;font-weight:bold;color:#263238;background:rgba(255,255,255,0.88);padding:1px 6px;border-radius:6px;margin-top:2px;box-shadow:0 1px 3px rgba(0,0,0,0.12);">${m.name}</div>
-        </div>
-      `;
-    });
-  }
+    const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔';
+    html += `
+      <div onclick="assignStaffSlot(${slotIdx}, ${idx})" style="border:1.5px solid #e2e8f0;border-radius:10px;padding:6px 4px;text-align:center;cursor:pointer;background:#ffffff;">
+        <div style="display:flex;justify-content:center;">${renderSprite(disp, 36, '8px')}</div>
+        <div style="font-size:10px;font-weight:bold;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
+        <div style="font-size:9.5px;color:#0284c7;">Lv.${m.lv || 1}</div>
+      </div>
+    `;
+  });
+  html += `</div>`;
+  listEl.innerHTML = html;
+  modal.style.display = 'flex';
+}
 
-  stage.innerHTML = html;
+function closeStaffSelectModal() {
+  const modal = document.getElementById('staff-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function assignStaffSlot(slotIdx, capturedIdx) {
+  if (!Array.isArray(staff)) staff = [null, null, null];
+  staff[slotIdx] = capturedIdx;
+  closeStaffSelectModal();
+  renderCafe();
+  if (typeof renderCaptured === 'function') renderCaptured();
+  if (typeof updateUI === 'function') updateUI();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(true);
 }
 
 function renderCafe() {
-  const validStaff = cleanStaffSlots();
-  renderCafeStageView(validStaff);
+  const pane = document.getElementById('tab-cafe');
+  if (!pane) return;
 
-  const staffEl = document.getElementById('staff-slots');
-  if (staffEl) {
-    staffEl.innerHTML = validStaff.map((monId, idx) => {
-      const m = captured.find(x => x.id === monId);
-      if (!m) {
-        return `<div class="slot-box" onclick="alert('「編成・訓練」タブの仲間一覧からモンスターをタップし、「カフェ店員に配属する」を選んでください')"><div class="lvl">店員${idx + 1}</div><div class="icon">＋</div><div class="name">空き枠</div><div class="sub">タップで案内</div></div>`;
-      }
-      const disp = typeof getMonsterVisual === 'function' ? getMonsterVisual(m) : '魔';
-      const st = typeof getMonStats === 'function' ? getMonStats(m) : { lv: 1, atk: 10 };
-      return `<div class="slot-box staff" onclick="removeStaff(${idx})"><div class="lvl"><span>Lv.${st.lv}</span><span>外す</span></div><div class="icon">${renderSprite(disp, 34)}</div><div class="name">${m.name}</div><div class="sub">接客中</div></div>`;
-    }).join('');
+  const firstCard = pane.querySelector('.card');
+  const income = getCafeIncomePerSec();
+  const lv = Number(cafeLv) || 1;
+  const cost = Number(cafeCost) || 200;
+
+  let staffHtml = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;">`;
+  for (let i = 0; i < 3; i++) {
+    const val = (staff || [])[i];
+    const m = (val !== null && val !== undefined) ? ((captured || [])[val] || (captured || []).find(x => x && x.id === val)) : null;
+    if (m) {
+      const disp = typeof getSpeciesDisplay === 'function' ? getSpeciesDisplay(m.name) : 'EMBLEM:none:魔';
+      staffHtml += `
+        <div onclick="openStaffSelectModal(${i})" style="border:1.5px solid #ffb74d;background:#fff8e1;border-radius:12px;padding:8px 4px;text-align:center;cursor:pointer;">
+          <div style="font-size:9.5px;color:#e65100;font-weight:bold;">看板店員 ${i + 1}</div>
+          <div style="display:flex;justify-content:center;margin:3px 0;">${renderSprite(disp, 40, '8px')}</div>
+          <div style="font-size:10.5px;font-weight:bold;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
+          <div style="font-size:9.5px;color:#0284c7;">Lv.${m.lv || 1}</div>
+        </div>
+      `;
+    } else {
+      staffHtml += `
+        <div onclick="openStaffSelectModal(${i})" style="border:1.5px dashed #cbd5e1;background:#f8fafc;border-radius:12px;padding:14px 4px;text-align:center;cursor:pointer;color:#94a3b8;font-size:11px;font-weight:bold;">
+          ＋<br>店員配置
+        </div>
+      `;
+    }
+  }
+  staffHtml += `</div>`;
+
+  let decorHtml = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:10px;">`;
+  TAVERN_FURNITURE.forEach(item => {
+    const owned = Array.isArray(gardenItems) && gardenItems.includes(item.id);
+    decorHtml += `
+      <div style="border:1px solid ${owned ? '#a5d6a7' : '#e2e8f0'};background:${owned ? '#f1f8e9' : '#ffffff'};border-radius:10px;padding:8px;">
+        <div style="font-size:11.5px;font-weight:bold;color:#1e293b;">${item.name}</div>
+        <div style="font-size:10px;color:#64748b;margin:2px 0;">売上 +${item.bonus} G/秒</div>
+        ${owned
+          ? `<div style="font-size:10.5px;font-weight:bold;color:#2e7d32;">✔ 設置済み</div>`
+          : `<button onclick="buyTavernFurniture('${item.id}')" style="margin-top:3px;width:100%;padding:5px;border-radius:7px;border:none;background:#ff7043;color:#ffffff;font-size:10.5px;font-weight:bold;cursor:pointer;">${item.cost.toLocaleString()} G</button>`
+        }
+      </div>
+    `;
+  });
+  decorHtml += `</div>`;
+
+  if (firstCard) {
+    firstCard.innerHTML = `
+      <div class="card-title">🍺 冒険者の酒場（放置収益）</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;background:#fff3e0;border:1px solid #ffe0b2;border-radius:10px;padding:8px 10px;">
+        <div>
+          <div style="font-size:12px;font-weight:bold;color:#e65100;">酒場ランク Lv.${lv}</div>
+          <div style="font-size:13px;font-weight:900;color:#d84315;">現在売上: +${income.toLocaleString()} G / 秒</div>
+        </div>
+        <button onclick="upgradeCafe()" style="padding:8px 12px;border-radius:10px;border:none;background:#ff7043;color:#ffffff;font-size:11px;font-weight:bold;cursor:pointer;">拡張 (${cost.toLocaleString()}G)</button>
+      </div>
+      <div style="font-size:11.5px;font-weight:bold;color:#5d4037;margin-top:10px;">🐾 看板モンスター店員（最大3体）</div>
+      ${staffHtml}
+      <div style="font-size:11.5px;font-weight:bold;color:#5d4037;margin-top:12px;">🪵 酒場の内装・設備</div>
+      ${decorHtml}
+    `;
   }
 
-  if (document.getElementById('cafe-rate')) document.getElementById('cafe-rate').textContent = getCafeIncome().toLocaleString();
-  if (document.getElementById('cafe-lv')) document.getElementById('cafe-lv').textContent = cafeLv;
-  if (document.getElementById('cafe-cost')) document.getElementById('cafe-cost').textContent = cafeCost.toLocaleString();
-  if (document.getElementById('garden-bonus')) document.getElementById('garden-bonus').textContent = (gardenItems || []).length * 15;
+  if (typeof renderTavernRecipesSection === 'function') {
+    renderTavernRecipesSection();
+  }
 }
