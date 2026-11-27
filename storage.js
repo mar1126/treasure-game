@@ -8,7 +8,7 @@ function getLocalSaveKey() {
 
 function buildSavePayload() {
   return {
-    v: 50,
+    v: 67,
     savedAt: Date.now(),
     userName: playerName || 'ハンター',
     gold: Number(gold) || 0,
@@ -25,9 +25,9 @@ function buildSavePayload() {
     maxCaptured: Number(maxCaptured) || 50,
     party: Array.isArray(party) ? party : [null, null, null],
     trainingSlots: Array.isArray(trainingSlots) ? trainingSlots : [null, null, null, null],
-    unlockedTrainSlots: Number(unlockedTrainSlots) || 2,
+    trainSlotCap: Number(typeof trainSlotCap !== 'undefined' ? trainSlotCap : 3),
     cafeLv: Number(cafeLv) || 1,
-    cafeCost: Number(cafeCost) || 200,
+    cafeUpgradeCost: Number(typeof cafeUpgradeCost !== 'undefined' ? cafeUpgradeCost : 80),
     staff: Array.isArray(staff) ? staff : [null, null, null],
     gardenItems: Array.isArray(gardenItems) ? gardenItems : [],
     materials: (typeof materials === 'object' && materials) ? materials : {},
@@ -42,6 +42,7 @@ function buildSavePayload() {
     speed2xActive: Boolean(speed2xActive),
     waveStopMode: Boolean(waveStopMode),
     aiSpecies: Array.isArray(aiSpecies) ? aiSpecies : [],
+    speciesSkins: (typeof speciesSkins === 'object' && speciesSkins) ? speciesSkins : {},
     aiBackgrounds: Array.isArray(aiBackgrounds) ? aiBackgrounds : [],
     aiStamps: Array.isArray(aiStamps) ? aiStamps : [],
     iconConfig: iconConfig || { species: 'デフォルト', bgIdx: -1, scale: 1.0, x: 0, y: 0, rotate: 0 }
@@ -125,10 +126,10 @@ function applySaveData(d) {
   if (typeof d.maxCaptured === 'number') maxCaptured = d.maxCaptured;
   if (Array.isArray(d.party)) party = d.party;
   if (Array.isArray(d.trainingSlots)) trainingSlots = d.trainingSlots;
-  if (typeof d.unlockedTrainSlots === 'number') unlockedTrainSlots = d.unlockedTrainSlots;
+  if (typeof d.trainSlotCap === 'number' && typeof trainSlotCap !== 'undefined') trainSlotCap = d.trainSlotCap;
 
   if (typeof d.cafeLv === 'number') cafeLv = d.cafeLv;
-  if (typeof d.cafeCost === 'number') cafeCost = d.cafeCost;
+  if (typeof d.cafeUpgradeCost === 'number' && typeof cafeUpgradeCost !== 'undefined') cafeUpgradeCost = d.cafeUpgradeCost;
   if (Array.isArray(d.staff)) staff = d.staff;
   if (Array.isArray(d.gardenItems)) gardenItems = d.gardenItems;
 
@@ -147,6 +148,7 @@ function applySaveData(d) {
   if (typeof d.waveStopMode === 'boolean') waveStopMode = d.waveStopMode;
 
   if (Array.isArray(d.aiSpecies)) aiSpecies = d.aiSpecies;
+  if (d.speciesSkins && typeof d.speciesSkins === 'object') speciesSkins = d.speciesSkins;
   if (Array.isArray(d.aiBackgrounds)) aiBackgrounds = d.aiBackgrounds;
   if (Array.isArray(d.aiStamps)) aiStamps = d.aiStamps;
   if (d.iconConfig && typeof d.iconConfig === 'object') iconConfig = d.iconConfig;
