@@ -51,7 +51,8 @@ async function analyzeSourceCharacterImage(ai, base64DataUrl) {
   try {
     const match = String(base64DataUrl || "").match(/^data:image\/[a-zA-Z0-9+.-]+;base64,(.+)$/);
     if (!match) return "";
-    const binStr = atob(match);
+    const rawB64 = match.slice(1, 2).pop() || "";
+    const binStr = atob(rawB64);
     const bytes = new Uint8Array(binStr.length);
     for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
 
@@ -60,8 +61,7 @@ async function analyzeSourceCharacterImage(ai, base64DataUrl) {
       prompt: "Describe this anime character's exact visual appearance in 35 words: hair color, hairstyle, eye color, headwear/ears/wings/horns, and outfit color/style. Be specific so an artist can draw the exact same character.",
       max_tokens: 80
     });
-    const desc = (visionRes && visionRes.description) ? String(visionRes.description).trim() : "";
-    return desc;
+    return (visionRes && visionRes.description) ? String(visionRes.description).trim() : "";
   } catch (e) {
     return "";
   }
@@ -144,8 +144,9 @@ export async function onRequestPost({ request, env }) {
     }), {
       headers: { "Content-Type": "application/json" }
     });
-      } catch (e) {
+  } catch (e) {
     return new Response(JSON.stringify({
       error: "詳細エラー: " + String(e && e.message ? e.message : e)
     }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
+}
