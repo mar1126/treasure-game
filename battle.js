@@ -157,7 +157,7 @@ function spawnHitEffect(targetId, elem = 'none', isSkill = false) {
   };
   const colors = palettes[elem] || palettes.none;
 
-  fxRings.push({ x, y, radius: 6, grow: 3.2 * scale, color: colors, lineWidth: 5 * scale, life: 1.0 });
+  fxRings.push({ x, y, radius: 6, grow: 3.2 * scale, color: colors[0], lineWidth: 5 * scale, life: 1.0 });
   if (isSkill || elem === 'tank' || elem === 'light') {
     fxRings.push({ x, y, radius: 3, grow: 2.0 * scale, color: '#ffffff', lineWidth: 3.5 * scale, life: 0.9 });
   }
@@ -359,17 +359,24 @@ function handleWaveCleared() {
   const floorNum = Number(state.floor) || 1;
   const mult = Math.pow(1.38, stageNum - 1) * (1 + (floorNum - 1) * 0.14) * (isBoss ? 2.5 : 1);
 
-  const goldGain = Math.floor(24 * mult);
-  const expGain = Math.floor(18 * mult);
+  const tavernBonus = typeof getTavernRecipeBonus === 'function'
+    ? getTavernRecipeBonus()
+    : { goldPct: 0, expPct: 0 };
+
+  const goldGain = Math.floor(24 * mult * (1 + (tavernBonus.goldPct || 0) / 100));
+  const expGain = Math.floor(18 * mult * (1 + (tavernBonus.expPct || 0) / 100));
   gold += goldGain;
+
+  const lootList = typeof grantBattleLoot === 'function' ? grantBattleLoot(stageNum, floorNum, isBoss) : [];
+  const lootSuffix = lootList.length > 0 ? ` ｜ ${lootList.join('・')}` : '';
 
   const gemChance = isBoss ? 0.55 : 0.18;
   if (Math.random() < gemChance) {
     const gemBonus = isBoss ? 15 : 5;
     gem += gemBonus;
-    showBattleBanner(`撃破！ +${goldGain}G / +${gemBonus} GEM！`);
+    showBattleBanner(`撃破！ +${goldGain}G / +${gemBonus} GEM${lootSuffix}`);
   } else {
-    showBattleBanner(`撃破！ +${goldGain}G / EXP +${expGain}`);
+    showBattleBanner(`撃破！ +${goldGain}G / EXP +${expGain}${lootSuffix}`);
   }
 
   const partyIds = new Set();
@@ -441,6 +448,8 @@ function handleWaveCleared() {
   if (typeof renderParty === 'function') renderParty();
   if (typeof renderCaptured === 'function') renderCaptured();
   if (typeof renderTraining === 'function') renderTraining();
+  if (typeof renderBag === 'function') renderBag();
+  if (typeof renderTavernRecipesSection === 'function') renderTavernRecipesSection();
   if (typeof updateUI === 'function') updateUI();
   if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
 }
