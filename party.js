@@ -1,13 +1,15 @@
-// パーティ編成・訓練場・仲間一覧(正方形&+値&スキン対応)・配合・野に還す (party.js)
+// パーティ編成・訓練場・仲間一覧・配合・野に還す (party.js)
 let selectedMonsterIdx = null;
 let breedParent1Idx = null;
 let breedParent2Idx = null;
 
-function resolveMonsterSprite(mon) {
+function getMonsterVisual(mon) {
   if (!mon) return 'EMBLEM:none:魔';
-  if (typeof getSpeciesDisplay === 'function') return getSpeciesDisplay(mon.name);
-  return mon.disp || 'EMBLEM:none:魔';
+  const name = typeof mon === 'string' ? mon : mon.name;
+  if (typeof getSpeciesDisplay === 'function') return getSpeciesDisplay(name);
+  return 'EMBLEM:none:魔';
 }
+window.getMonsterVisual = getMonsterVisual;
 
 function getMonsterPlus(mon) {
   if (!mon) return 0;
@@ -19,7 +21,7 @@ function getMonsterMaxLevel(mon) {
 }
 
 function getTrainingCap() {
-  if (typeof trainSlotCap !== 'undefined') return Number(trainSlotCap) || 3;
+  if (typeof maxTrainingSlots !== 'undefined') return Number(maxTrainingSlots) || 3;
   if (Array.isArray(trainingSlots) && trainingSlots.length > 0) return trainingSlots.length;
   return 3;
 }
@@ -28,9 +30,8 @@ function getMonsterBattleStats(mon) {
   if (!mon) return { maxHp: 50, atk: 10, ctMax: 2.0 };
   const lv = Math.max(1, Number(mon.lv) || 1);
   const plus = getMonsterPlus(mon);
-  const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(mon.name) : null;
-  const rar = mon.rarity || sp?.rarity || 'N';
-  const rarMul = rar === 'UR' ? 2.1 : (rar === 'SR' ? 1.65 : (rar === 'R' ? 1.3 : 1.0));
+  const sp = typeof getSpeciesData === 'function' ? getSpeciesData(mon.name) : null;
+  const stageMul = 1 + ((Number(sp?.stage) || 1) - 1) * 0.25;
   const plusMul = 1 + plus * 0.22;
 
   const tavernBonus = typeof getTavernRecipeBonus === 'function' ? getTavernRecipeBonus() : { atkPct: 0, hpPct: 0 };
@@ -39,9 +40,9 @@ function getMonsterBattleStats(mon) {
 
   const baseHp = sp?.baseHp || 65;
   const baseAtk = sp?.baseAtk || 14;
-  const maxHp = Math.floor((baseHp + (lv - 1) * 18) * rarMul * plusMul * hpMul);
-  const atk = Math.floor((baseAtk + (lv - 1) * 4.5) * rarMul * plusMul * atkMul);
-  const ctMax = Math.max(0.85, (sp?.ctMax || 2.1) - plus * 0.04);
+  const maxHp = Math.floor((baseHp + (lv - 1) * 18) * stageMul * plusMul * hpMul);
+  const atk = Math.floor((baseAtk + (lv - 1) * 4.5) * stageMul * plusMul * atkMul);
+  const ctMax = Math.max(0.85, (sp?.ct || 2.0) - plus * 0.04);
   return { maxHp, atk, ctMax };
 }
 
@@ -53,15 +54,15 @@ function resetBattleAllies() {
       const m = (captured || [])[val] || (captured || []).find(x => x && x.id === val);
       if (m) {
         const st = getMonsterBattleStats(m);
-        const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(m.name) : null;
-        const disp = resolveMonsterSprite(m);
+        const sp = typeof getSpeciesData === 'function' ? getSpeciesData(m.name) : null;
+        const disp = getMonsterVisual(m);
         battleAllies[i] = {
           id: m.id,
           monRef: m,
           name: m.name,
           disp: disp,
           elem: m.elem || sp?.elem || 'none',
-          skillId: m.skillId || sp?.skillId || null,
+          skillId: m.skillId || sp?.innateSkill || null,
           hp: st.maxHp,
           maxHp: st.maxHp,
           atk: st.atk,
@@ -101,22 +102,29 @@ function tryAutoRecruit(enemyObj) {
   const cap = typeof maxCaptured !== 'undefined' ? Number(maxCaptured) : 50;
   if (!Array.isArray(captured) || captured.length >= cap) return;
 
-  const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(enemyObj.name) : null;
+  const sp = typeof getSpeciesData === 'function' ? getSpeciesData(enemyObj.rawName || enemyObj.name) : null;
   if (!sp) return;
-  const rarList = ['N', 'R', 'SR', 'UR'];
-  const rarIdx = Math.max(0, rarList.indexOf(sp.rarity || 'N'));
   const stageNum = Number(state?.stage || 1);
-  const catchRate = Math.max(0.06, 0.35 - (stageNum - 1) * 0.02 - rarIdx * 0.05);
+  const catchRate = Math.max(0.08, 0.35 - (stageNum - 1) * 0.02);
 
   if (Math.random() < catchRate) {
     const lv = Math.max(1, (stageNum - 1) * 4 + Math.floor((Number(state?.floor || 1) - 1) / 3) + 1);
-    const newMon = typeof createMonsterInstance === 'function'
-      ? createMonsterInstance(sp, lv)
-      : { id: Date.now() + Math.random(), name: sp.name, lv, exp: 0, plus: 0, star: 0, elem: sp.elem, rarity: sp.rarity, locked: false };
+    const newMon = {
+      id: Date.now() + Math.random(),
+      name: sp.name,
+      lv,
+      exp: 0,
+      plus: 0,
+      star: 0,
+      elem: sp.elem || 'none',
+      skillId: sp.innateSkill || null,
+      locked: false
+    };
     captured.push(newMon);
     showToast(`「${newMon.name}」が仲間になった！`);
   }
 }
+
 function fixIndicesAfterSplice(removedIdx) {
   if (Array.isArray(party)) {
     party = party.map(v => (typeof v === 'number' && v >= 0 && v < 1000) ? (v === removedIdx ? null : (v > removedIdx ? v - 1 : v)) : v);
@@ -137,7 +145,7 @@ function renderParty() {
     const val = (party || [])[i];
     const m = (val !== null && val !== undefined) ? ((captured || [])[val] || (captured || []).find(x => x && x.id === val)) : null;
     if (m) {
-      const disp = resolveMonsterSprite(m);
+      const disp = getMonsterVisual(m);
       const st = getMonsterBattleStats(m);
       const plus = getMonsterPlus(m);
       const plusBadge = plus > 0 ? `<span style="color:#ff7043;font-weight:900;"> +${plus}</span>` : '';
@@ -184,7 +192,7 @@ function renderTraining() {
     const val = (trainingSlots || [])[i];
     const m = (val !== null && val !== undefined) ? ((captured || [])[val] || (captured || []).find(x => x && x.id === val)) : null;
     if (m) {
-      const disp = resolveMonsterSprite(m);
+      const disp = getMonsterVisual(m);
       const plus = getMonsterPlus(m);
       const plusBadge = plus > 0 ? `<span style="color:#ff7043;font-weight:900;">+${plus}</span>` : '';
       html += `
@@ -212,7 +220,6 @@ function removeFromTraining(slotIdx) {
   renderCaptured();
   if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
 }
-
 function renderCaptured() {
   const box = document.getElementById('captured-list');
   if (!box) return;
@@ -240,7 +247,7 @@ function renderCaptured() {
 
   box.innerHTML = captured.map((m, idx) => {
     if (!m) return '';
-    const disp = resolveMonsterSprite(m);
+    const disp = getMonsterVisual(m);
     const plus = getMonsterPlus(m);
     const inParty = (party || []).some(v => v === idx || v === m.id);
     const inTrain = (trainingSlots || []).some(v => v === idx || v === m.id);
@@ -266,6 +273,7 @@ function renderCaptured() {
     `;
   }).join('');
 }
+
 function openMonsterModal(idx) {
   const m = (captured || [])[idx];
   if (!m) return;
@@ -283,15 +291,15 @@ function openMonsterModal(idx) {
     body = document.getElementById('monster-modal-body');
   }
 
-  const disp = resolveMonsterSprite(m);
+  const disp = getMonsterVisual(m);
   const st = getMonsterBattleStats(m);
   const maxLv = getMonsterMaxLevel(m);
   const plus = getMonsterPlus(m);
-  const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(m.name) : null;
-  const skill = typeof getMonsterSkill === 'function' ? getMonsterSkill(m.skillId || sp?.skillId) : null;
+  const sp = typeof getSpeciesData === 'function' ? getSpeciesData(m.name) : null;
+  const skillId = m.skillId || sp?.innateSkill || null;
+  const skill = (typeof SKILL_MASTER === 'object' && skillId) ? SKILL_MASTER[skillId] : null;
   const elemMap = { fire: '🔥 火属性', water: '💧 水属性', wind: '🍃 風属性', sky: '⚡ 空属性', earth: '🪨 地属性', light: '✨ 光属性', dark: '🌙 闇属性', none: '⚪ 無属性' };
   const elemLabel = elemMap[m.elem || sp?.elem || 'none'] || '無属性';
-  const rarLabel = m.rarity || sp?.rarity || 'N';
   const needExp = Math.floor(25 * Math.pow(1.22, (Number(m.lv) || 1) - 1));
   const curExp = Number(m.exp) || 0;
   const expPct = (Number(m.lv) || 1) >= maxLv ? 100 : Math.min(100, Math.round((curExp / needExp) * 100));
@@ -306,7 +314,6 @@ function openMonsterModal(idx) {
       </div>
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px;">
-          <span style="background:#ff7043;color:#fff;font-size:10px;font-weight:bold;padding:1px 6px;border-radius:5px;">${rarLabel}</span>
           <span style="font-size:11px;color:#475569;font-weight:bold;">${elemLabel}</span>
         </div>
         <div style="font-size:16px;font-weight:900;color:#1e293b;">${m.name} ${plus > 0 ? `<span style="color:#ff7043;">+${plus}</span>` : ''}</div>
@@ -338,181 +345,8 @@ function openMonsterModal(idx) {
   `;
   modal.style.display = 'flex';
 }
-
-function closeMonsterModal() {
-  const modal = document.getElementById('monster-modal');
-  if (modal) modal.style.display = 'none';
-}
-
-function assignMonsterToParty(idx) {
-  if (!Array.isArray(party)) party = [null, null, null];
-  const m = captured[idx];
-  if (!m) return;
-  if (party.some(v => v === idx || v === m.id)) return alert('すでにパーティに編成されています');
-  const emptySlot = party.findIndex(v => v === null || v === undefined);
-  if (emptySlot === -1) return alert('パーティ枠（3体）がいっぱいです');
-  party[emptySlot] = idx;
-  if (!state?.inBattle) resetBattleAllies();
-  closeMonsterModal();
-  renderParty();
-  renderCaptured();
-  if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
-}
-
-function assignMonsterToTraining(idx) {
-  const maxSlots = getTrainingCap();
-  if (!Array.isArray(trainingSlots)) trainingSlots = new Array(maxSlots).fill(null);
-  const m = captured[idx];
-  if (!m) return;
-  if (trainingSlots.some(v => v === idx || v === m.id)) return alert('すでに訓練場に配置されています');
-  let emptySlot = -1;
-  for (let i = 0; i < maxSlots; i++) {
-    if (trainingSlots[i] === null || trainingSlots[i] === undefined) { emptySlot = i; break; }
-  }
-  if (emptySlot === -1) return alert('訓練枠がいっぱいです');
-  trainingSlots[emptySlot] = idx;
-  closeMonsterModal();
-  renderTraining();
-  renderCaptured();
-  if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
-}
-
-function toggleMonsterLock(idx) {
-  const m = (captured || [])[idx];
-  if (!m) return;
-  m.locked = !m.locked;
-  openMonsterModal(idx);
-  renderCaptured();
-  if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
-}
-function renderBreedTab() {
-  const p1Box = document.getElementById('breed-p1-slot');
-  const p2Box = document.getElementById('breed-p2-slot');
-  const childBox = document.getElementById('breed-child-slot');
-  const listBox = document.getElementById('breed-candidate-list');
-  const btn = document.getElementById('do-breed-btn');
-
-  const p1 = (breedParent1Idx !== null && captured[breedParent1Idx]) ? captured[breedParent1Idx] : null;
-  const p2 = (breedParent2Idx !== null && captured[breedParent2Idx]) ? captured[breedParent2Idx] : null;
-  if (!p1) breedParent1Idx = null;
-  if (!p2) breedParent2Idx = null;
-
-  if (p1Box) {
-    if (p1) {
-      const d1 = resolveMonsterSprite(p1);
-      p1Box.innerHTML = `<div onclick="breedParent1Idx=null;renderBreedTab();" style="cursor:pointer;">${renderSprite(d1, 36, '6px')}<div style="font-size:10px;font-weight:bold;">${p1.name}+${getMonsterPlus(p1)}</div><div style="font-size:9px;color:#0284c7;">Lv.${p1.lv}</div></div>`;
-    } else {
-      p1Box.innerHTML = `<div style="font-size:10px;color:#ff7043;font-weight:bold;">親1</div><div style="font-size:18px;color:#94a3b8;">＋</div><div style="font-size:9.5px;color:#64748b;">未選択</div>`;
-    }
-  }
-  if (p2Box) {
-    if (p2) {
-      const d2 = resolveMonsterSprite(p2);
-      p2Box.innerHTML = `<div onclick="breedParent2Idx=null;renderBreedTab();" style="cursor:pointer;">${renderSprite(d2, 36, '6px')}<div style="font-size:10px;font-weight:bold;">${p2.name}+${getMonsterPlus(p2)}</div><div style="font-size:9px;color:#0284c7;">Lv.${p2.lv}</div></div>`;
-    } else {
-      p2Box.innerHTML = `<div style="font-size:10px;color:#ff7043;font-weight:bold;">親2</div><div style="font-size:18px;color:#94a3b8;">＋</div><div style="font-size:9.5px;color:#64748b;">未選択</div>`;
-    }
-  }
-  if (childBox) {
-    if (p1 && p2) {
-      const nextPlus = getMonsterPlus(p1) + getMonsterPlus(p2) + 1;
-      const d1 = resolveMonsterSprite(p1);
-      childBox.innerHTML = `${renderSprite(d1, 36, '6px')}<div style="font-size:10px;font-weight:bold;color:#6d28d9;">${p1.name} +${nextPlus}</div><div style="font-size:9px;color:#16a34a;font-weight:bold;">Lv.1 誕生</div>`;
-    } else {
-      childBox.innerHTML = `<div style="font-size:10px;color:#6d28d9;font-weight:bold;">子</div><div style="font-size:18px;color:#94a3b8;">?</div><div style="font-size:9.5px;color:#64748b;">2体選択</div>`;
-    }
-  }
-  if (btn) {
-    btn.disabled = !(p1 && p2);
-    btn.style.opacity = (p1 && p2) ? '1' : '0.5';
-  }
-  if (!listBox) return;
-
-  listBox.style.display = 'grid';
-  listBox.style.gridTemplateColumns = 'repeat(4, 1fr)';
-  listBox.style.gap = '6px';
-
-  const candidates = (captured || []).map((m, idx) => ({ m, idx })).filter(({ m }) => m && (Number(m.lv) || 1) >= 10);
-  if (candidates.length === 0) {
-    listBox.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#94a3b8;font-size:11px;padding:12px;">Lv.10以上の仲間がいません</div>';
-    return;
-  }
-
-  listBox.innerHTML = candidates.map(({ m, idx }) => {
-    const sel1 = breedParent1Idx === idx;
-    const sel2 = breedParent2Idx === idx;
-    const disp = resolveMonsterSprite(m);
-    const plus = getMonsterPlus(m);
-    return `
-      <div onclick="selectBreedCandidate(${idx})" style="aspect-ratio:1/1;border:2px solid ${sel1 ? '#0284c7' : (sel2 ? '#ff7043' : '#e2e8f0')};background:${sel1 ? '#e0f2fe' : (sel2 ? '#fff3e0' : '#fff')};border-radius:10px;padding:3px 2px;display:flex;flex-direction:column;justify-content:space-between;align-items:center;cursor:pointer;">
-        <div style="font-size:8.5px;font-weight:bold;color:${sel1 ? '#0284c7' : '#ff7043'};min-height:11px;">${sel1 ? '親1' : (sel2 ? '親2' : '')}</div>
-        ${renderSprite(disp, 32, '6px')}
-        <div style="font-size:9px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;text-align:center;">${m.name}${plus > 0 ? `+${plus}` : ''}</div>
-        <div style="font-size:8.5px;color:#0284c7;">Lv.${m.lv}</div>
-      </div>
-    `;
-  }).join('');
-}
-
-function selectBreedCandidate(idx) {
-  if (breedParent1Idx === idx) { breedParent1Idx = null; renderBreedTab(); return; }
-  if (breedParent2Idx === idx) { breedParent2Idx = null; renderBreedTab(); return; }
-  const m = captured[idx];
-  if (!m || (Number(m.lv) || 1) < 10) return alert('配合にはLv.10以上のモンスターが必要です');
-  if (m.locked) return alert('ロック中のモンスターは配合できません');
-
-  const inParty = (party || []).some(v => v === idx || v === m.id);
-  const inTrain = (trainingSlots || []).some(v => v === idx || v === m.id);
-  const inStaff = (staff || []).some(v => v === idx || v === m.id);
-  if (inParty || inTrain || inStaff) return alert('編成・訓練場・酒場に配置中のモンスターは配合できません');
-
-  if (breedParent1Idx === null) {
-    breedParent1Idx = idx;
-  } else {
-    const p1 = captured[breedParent1Idx];
-    if (p1 && p1.name !== m.name) return alert('同じ種類のモンスター同士を選択してください！');
-    breedParent2Idx = idx;
-  }
-  renderBreedTab();
-}
-
-function doBreedMonsters() {
-  if (breedParent1Idx === null || breedParent2Idx === null) return;
-  const p1 = captured[breedParent1Idx];
-  const p2 = captured[breedParent2Idx];
-  if (!p1 || !p2 || p1.name !== p2.name) return;
-
-  const nextPlus = getMonsterPlus(p1) + getMonsterPlus(p2) + 1;
-  const child = {
-    id: Date.now() + Math.random(),
-    name: p1.name,
-    lv: 1,
-    exp: 0,
-    plus: nextPlus,
-    star: nextPlus,
-    elem: p1.elem,
-    rarity: p1.rarity,
-    skillId: p1.skillId,
-    locked: false
-  };
-
-  const highIdx = Math.max(breedParent1Idx, breedParent2Idx);
-  const lowIdx = Math.min(breedParent1Idx, breedParent2Idx);
-  captured.splice(highIdx, 1);
-  fixIndicesAfterSplice(highIdx);
-  captured.splice(lowIdx, 1);
-  fixIndicesAfterSplice(lowIdx);
-
-  captured.push(child);
-  breedParent1Idx = null;
-  breedParent2Idx = null;
-
-  renderBreedTab();
-  renderCaptured();
-  if (typeof updateUI === 'function') updateUI();
-  if (typeof triggerAutoSave === 'function') triggerAutoSave(true);
-  showToast(`配合成功！「${child.name} +${nextPlus}」が誕生しました！`);
-}
-
-window.renderBreedTab = renderBreedTab;
-window.doBreedMonsters = doBreedMonsters;
+window.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('#tab-cafe .card').forEach(c => {
+    if (c.id !== 'tavern-recipe-card' && c.textContent.includes('ガーデン装飾')) c.remove();
+  });
+});
