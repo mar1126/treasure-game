@@ -49,17 +49,18 @@ function openFloorSelectModal(ev) {
   const listEl = document.getElementById('floor-select-list');
   if (!modal || !listEl) return;
 
-  const reachedStage = Math.max(Number(state?.stage || 1), Number(state?.maxStage || 1));
-  const reachedFloor = Math.max(Number(state?.floor || 1), Number(state?.maxFloor || 1));
+  const curStage = Number(state?.stage || 1);
+  const reachedStage = Math.max(curStage, Number(state?.maxStage || 1));
 
   let html = '';
   for (let s = 1; s <= reachedStage; s++) {
     const info = getStageInfo(s);
-    const maxF = (s < reachedStage) ? 10 : reachedFloor;
+    const savedMaxF = (state?.maxFloorByStage && state.maxFloorByStage[s]) ? Number(state.maxFloorByStage[s]) : 1;
+    const maxF = (s < reachedStage) ? 10 : Math.max(savedMaxF, s === curStage ? Number(state?.floor || 1) : 1);
     html += `<div style="font-size:12px;font-weight:bold;color:#0277bd;margin:8px 0 4px;">S${s} ${info.name}</div>`;
     html += `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:6px;">`;
     for (let f = 1; f <= maxF; f++) {
-      const isCur = (Number(state?.stage) === s && Number(state?.floor) === f);
+      const isCur = (curStage === s && Number(state?.floor || 1) === f);
       html += `<button onclick="jumpToStageFloor(${s},${f})" style="padding:6px 2px;border-radius:8px;border:1.5px solid ${isCur ? '#ff7043' : '#cfd8dc'};background:${isCur ? '#fff3e0' : '#ffffff'};color:${isCur ? '#e65100' : '#37474f'};font-size:11px;font-weight:bold;cursor:pointer;">${s}-${f}</button>`;
     }
     html += `</div>`;
@@ -90,4 +91,12 @@ function jumpToStageFloor(s, f) {
 
 window.addEventListener('DOMContentLoaded', () => {
   renderStageBackground();
+  setTimeout(() => {
+    renderStageBackground();
+    if (typeof updateIconPreview === 'function') updateIconPreview(false);
+  }, 600);
+  setTimeout(() => {
+    renderStageBackground();
+    if (typeof updateIconPreview === 'function') updateIconPreview(false);
+  }, 1800);
 });
