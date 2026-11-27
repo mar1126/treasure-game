@@ -1,12 +1,5 @@
-// 冒険者の酒場・看板店員・内装拡張・料理売上連動 (cafe.js)
-const TAVERN_FURNITURE = [
-  { id: 'barrel',     name: '特選エール樽',     cost: 1200,  bonus: 15, desc: '芳醇なエールの香りで冒険者が集まりやすくなる' },
-  { id: 'hearth',     name: 'レンガの暖炉',     cost: 4500,  bonus: 45, desc: '冷えた体を温める火の灯りで滞在時間と注文がUP' },
-  { id: 'questboard', name: 'ギルド依頼掲示板', cost: 15000, bonus: 130, desc: '討伐帰りのパーティが連日打ち上げを開くようになる' },
-  { id: 'chandelier', name: '魔導シャンデリア', cost: 50000, bonus: 420, desc: '王都の貴族や高ランク冒険者も訪れる名門酒場に！' }
-];
-
-function getCafeIncomePerSec() {
+// 冒険者の酒場・看板店員・料理売上リアルタイム連動 (cafe.js)
+function calcCafeIncome() {
   const baseLv = Math.max(1, Number(cafeLv) || 1);
   let staffBonus = 0;
   (staff || []).forEach(val => {
@@ -19,15 +12,12 @@ function getCafeIncomePerSec() {
     }
   });
 
-  let decorBonus = 0;
-  (gardenItems || []).forEach(id => {
-    const f = TAVERN_FURNITURE.find(x => x.id === id);
-    if (f) decorBonus += f.bonus;
-  });
-
   const recipeBonus = typeof getTavernRecipeBonus === 'function' ? getTavernRecipeBonus().extraGps : 0;
-  return Math.floor((baseLv * 8 + staffBonus + decorBonus + recipeBonus));
+  return Math.floor(baseLv * 8 + staffBonus + recipeBonus);
 }
+
+window.calcCafeIncome = calcCafeIncome;
+window.getCafeIncomePerSec = calcCafeIncome;
 
 function upgradeCafe() {
   const cost = Number(cafeCost) || 200;
@@ -41,24 +31,22 @@ function upgradeCafe() {
   showToast(`酒場ランクが Lv.${cafeLv} に上がりました！`);
 }
 
-function buyTavernFurniture(id) {
-  const item = TAVERN_FURNITURE.find(x => x.id === id);
-  if (!item) return;
-  if (!Array.isArray(gardenItems)) gardenItems = [];
-  if (gardenItems.includes(id)) return;
-  if (gold < item.cost) return alert(`ゴールドが足りません（${item.cost.toLocaleString()} G 必要）`);
-  gold -= item.cost;
-  gardenItems.push(id);
-  renderCafe();
-  if (typeof updateUI === 'function') updateUI();
-  if (typeof triggerAutoSave === 'function') triggerAutoSave(true);
-  showToast(`内装「${item.name}」を設置しました！`);
-}
-
 function openStaffSelectModal(slotIdx) {
-  const modal = document.getElementById('staff-modal');
-  const listEl = document.getElementById('staff-select-list');
-  if (!modal || !listEl) return;
+  let modal = document.getElementById('staff-modal');
+  let listEl = document.getElementById('staff-select-list');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'staff-modal';
+    modal.onclick = closeStaffSelectModal;
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.62);display:none;align-items:center;justify-content:center;z-index:9998;';
+    modal.innerHTML = `<div onclick="event.stopPropagation()" style="background:#fff;border-radius:16px;padding:14px;width:90%;max-width:340px;">
+      <div style="font-size:14px;font-weight:bold;color:#e65100;margin-bottom:8px;">🐾 看板店員を選択</div>
+      <div id="staff-select-list"></div>
+      <button onclick="closeStaffSelectModal()" style="margin-top:10px;width:100%;padding:8px;border-radius:8px;border:none;background:#64748b;color:#fff;font-size:12px;font-weight:bold;cursor:pointer;">閉じる</button>
+    </div>`;
+    document.body.appendChild(modal);
+    listEl = document.getElementById('staff-select-list');
+  }
 
   let html = `<button onclick="assignStaffSlot(${slotIdx}, null)" style="width:100%;padding:8px;margin-bottom:8px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;color:#475569;font-size:12px;font-weight:bold;cursor:pointer;">店員を外す（空きにする）</button>`;
   html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-height:260px;overflow-y:auto;">`;
@@ -104,7 +92,7 @@ function renderCafe() {
   if (!pane) return;
 
   const firstCard = pane.querySelector('.card');
-  const income = getCafeIncomePerSec();
+  const income = calcCafeIncome();
   const lv = Number(cafeLv) || 1;
   const cost = Number(cafeCost) || 200;
 
@@ -132,22 +120,6 @@ function renderCafe() {
   }
   staffHtml += `</div>`;
 
-  let decorHtml = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:10px;">`;
-  TAVERN_FURNITURE.forEach(item => {
-    const owned = Array.isArray(gardenItems) && gardenItems.includes(item.id);
-    decorHtml += `
-      <div style="border:1px solid ${owned ? '#a5d6a7' : '#e2e8f0'};background:${owned ? '#f1f8e9' : '#ffffff'};border-radius:10px;padding:8px;">
-        <div style="font-size:11.5px;font-weight:bold;color:#1e293b;">${item.name}</div>
-        <div style="font-size:10px;color:#64748b;margin:2px 0;">売上 +${item.bonus} G/秒</div>
-        ${owned
-          ? `<div style="font-size:10.5px;font-weight:bold;color:#2e7d32;">✔ 設置済み</div>`
-          : `<button onclick="buyTavernFurniture('${item.id}')" style="margin-top:3px;width:100%;padding:5px;border-radius:7px;border:none;background:#ff7043;color:#ffffff;font-size:10.5px;font-weight:bold;cursor:pointer;">${item.cost.toLocaleString()} G</button>`
-        }
-      </div>
-    `;
-  });
-  decorHtml += `</div>`;
-
   if (firstCard) {
     firstCard.innerHTML = `
       <div class="card-title">🍺 冒険者の酒場（放置収益）</div>
@@ -160,8 +132,6 @@ function renderCafe() {
       </div>
       <div style="font-size:11.5px;font-weight:bold;color:#5d4037;margin-top:10px;">🐾 看板モンスター店員（最大3体）</div>
       ${staffHtml}
-      <div style="font-size:11.5px;font-weight:bold;color:#5d4037;margin-top:12px;">🪵 酒場の内装・設備</div>
-      ${decorHtml}
     `;
   }
 
