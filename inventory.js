@@ -466,7 +466,7 @@ function renderTavernRecipesSection() {
       bagBtn.id = 'nav-bag-btn';
       bagBtn.className = 'nav-item';
       bagBtn.style.cssText = 'font-size:9.5px;padding:5px 1px;';
-      bagBtn.innerHTML = '🎒<br>倉庫';
+            bagBtn.innerHTML = '倉庫';
       bagBtn.onclick = function() { if (typeof switchTab === 'function') switchTab('bag', this); };
       if (shopBtn && shopBtn.nextSibling) {
         nav.insertBefore(bagBtn, shopBtn.nextSibling);
