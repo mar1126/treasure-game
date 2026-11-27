@@ -183,21 +183,23 @@ function showBattleBanner(msg, duration = 1800) {
 }
 
 function performAllyTurn(slotIdx) {
-  const unit = state.allies[slotIdx];
+  const allies = Array.isArray(state.allies) ? state.allies : [];
+  const enemies = Array.isArray(state.enemies) ? state.enemies : [];
+  const unit = allies[slotIdx];
   if (!unit || unit.hp <= 0) return;
 
-  const livingEnemies = state.enemies.map((e, i) => ({ e, i })).filter(x => x.e.hp > 0);
+  const livingEnemies = enemies.map((e, i) => ({ e, i })).filter(x => x.e && x.e.hp > 0);
   if (livingEnemies.length === 0) return;
 
   triggerUnitMotion(`ally-slot-${slotIdx}`, 'atk-motion');
 
-  const skill = getMonsterSkill(unit.skillId);
+  const skill = typeof getMonsterSkill === 'function' ? getMonsterSkill(unit.skillId) : null;
   const useSkill = skill && skill.type !== 'passive' && Math.random() < (skill.chance || 0.25);
 
   if (useSkill && skill.type === 'heal') {
     const healVal = Math.max(1, Math.floor(unit.maxHp * (skill.power || 0.2)));
     triggerScreenFlash('rgba(105, 240, 174, 0.45)', false);
-    state.allies.forEach((a, idx) => {
+    allies.forEach((a, idx) => {
       if (a && a.hp > 0) {
         a.hp = Math.min(a.maxHp, a.hp + healVal);
         spawnHealEffect(`ally-slot-${idx}`);
@@ -227,7 +229,7 @@ function performAllyTurn(slotIdx) {
 
   targets.forEach(({ e, i }) => {
     let dmg = Math.floor(baseAtk * (0.9 + Math.random() * 0.25));
-    const elemMult = getElemMultiplier(atkElem, e.elem);
+    const elemMult = typeof getElemMultiplier === 'function' ? getElemMultiplier(atkElem, e.elem) : 1.0;
     dmg = Math.floor(dmg * elemMult);
     if (useSkill) dmg = Math.floor(dmg * (skill.power || 1.45));
     dmg = Math.max(1, dmg);
@@ -243,10 +245,11 @@ function performAllyTurn(slotIdx) {
 }
 
 function performTankTurn() {
-  const livingEnemies = state.enemies.map((e, i) => ({ e, i })).filter(x => x.e.hp > 0);
+  const enemies = Array.isArray(state.enemies) ? state.enemies : [];
+  const livingEnemies = enemies.map((e, i) => ({ e, i })).filter(x => x.e && x.e.hp > 0);
   if (livingEnemies.length === 0) return;
 
-  const tankAtk = getTankSupportAtk();
+  const tankAtk = typeof getTankSupportAtk === 'function' ? getTankSupportAtk() : 25;
   triggerScreenFlash('rgba(255, 167, 38, 0.55)', true);
 
   livingEnemies.forEach(({ e, i }) => {
@@ -259,15 +262,17 @@ function performTankTurn() {
 }
 
 function performEnemyTurn(enemyIdx) {
-  const enemy = state.enemies[enemyIdx];
+  const enemies = Array.isArray(state.enemies) ? state.enemies : [];
+  const allies = Array.isArray(state.allies) ? state.allies : [];
+  const enemy = enemies[enemyIdx];
   if (!enemy || enemy.hp <= 0) return;
 
-  const livingAllies = state.allies.map((a, i) => ({ a, i })).filter(x => x.a && x.a.hp > 0);
+  const livingAllies = allies.map((a, i) => ({ a, i })).filter(x => x.a && x.a.hp > 0);
   if (livingAllies.length === 0) return;
 
   triggerUnitMotion(`enemy-slot-${enemyIdx}`, 'atk-motion');
   const target = livingAllies[Math.floor(Math.random() * livingAllies.length)];
-  const elemMult = getElemMultiplier(enemy.elem, target.a.elem);
+  const elemMult = typeof getElemMultiplier === 'function' ? getElemMultiplier(enemy.elem, target.a.elem) : 1.0;
   const dmg = Math.max(1, Math.floor(enemy.atk * (0.85 + Math.random() * 0.25) * elemMult));
 
   target.a.hp = Math.max(0, target.a.hp - dmg);
@@ -276,7 +281,7 @@ function performEnemyTurn(enemyIdx) {
   spawnDamagePopup(`ally-slot-${target.i}`, `-${dmg}`, 'ally-dmg');
 }
 function handleWaveCleared() {
-  const stg = STAGES[state.stageIdx] || STAGES;
+  const stg = (typeof STAGES !== 'undefined' && STAGES[state.stageIdx]) ? STAGES[state.stageIdx] : { floors: 10 };
   const isBoss = state.wave >= state.maxWaves;
   const mult = Math.pow(1.38, state.stageIdx) * (1 + (state.floor - 1) * 0.14) * (isBoss ? 2.5 : 1);
 
@@ -294,37 +299,39 @@ function handleWaveCleared() {
   }
 
   const partyIds = new Set();
-  party.forEach(val => {
-    if (val !== null) {
-      const m = captured[val] || captured.find(x => x && x.id === val);
+  (party || []).forEach(val => {
+    if (val !== null && val !== undefined) {
+      const m = (captured || [])[val] || (captured || []).find(x => x && x.id === val);
       if (m) {
         partyIds.add(m.id);
-        grantMonsterExp(m, expGain);
+        if (typeof grantMonsterExp === 'function') grantMonsterExp(m, expGain);
       }
     }
   });
 
   const trainExp = Math.max(1, Math.floor(expGain * 0.1));
-  trainingSlots.forEach(id => {
-    if (id !== null && !partyIds.has(id)) {
-      const m = captured.find(x => x.id === id);
-      if (m) grantMonsterExp(m, trainExp);
+  (trainingSlots || []).forEach(id => {
+    if (id !== null && id !== undefined && !partyIds.has(id)) {
+      const m = (captured || []).find(x => x && x.id === id);
+      if (m && typeof grantMonsterExp === 'function') grantMonsterExp(m, trainExp);
     }
   });
 
-  state.enemies.forEach(e => {
-    if (captured.length < maxMonsterBox && Math.random() < (e.catchRate || 0.22)) {
-      const sp = getSpeciesByName(e.name);
-      const newMon = createMonsterInstance(sp, Math.max(1, state.stageIdx * 3 + state.floor));
-      captured.push(newMon);
-      showToast(`「${newMon.name}」が仲間になった！`);
+  (state.enemies || []).forEach(e => {
+    if (e && (captured || []).length < maxMonsterBox && Math.random() < (e.catchRate || 0.22)) {
+      const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(e.name) : null;
+      if (sp && typeof createMonsterInstance === 'function') {
+        const newMon = createMonsterInstance(sp, Math.max(1, state.stageIdx * 3 + state.floor));
+        captured.push(newMon);
+        showToast(`「${newMon.name}」が仲間になった！`);
+      }
     }
   });
 
   if (isBoss) {
     const nextFloor = state.floor + 1;
     if (nextFloor > stg.floors) {
-      if (state.stageIdx + 1 < STAGES.length) {
+      if (typeof STAGES !== 'undefined' && state.stageIdx + 1 < STAGES.length) {
         state.stageIdx += 1;
         state.floor = 1;
       } else {
@@ -334,27 +341,27 @@ function handleWaveCleared() {
       state.floor = nextFloor;
     }
     state.wave = 1;
-    updateMaxProgress();
+    if (typeof updateMaxProgress === 'function') updateMaxProgress();
 
     if (waveStopMode || !autoActive) {
       state.inBattle = false;
-      resetBattleAllies();
-      spawnEnemies();
+      if (typeof resetBattleAllies === 'function') resetBattleAllies();
+      if (typeof spawnEnemies === 'function') spawnEnemies();
       showToast('階層クリア！');
     } else {
-      resetBattleAllies();
-      spawnEnemies();
+      if (typeof resetBattleAllies === 'function') resetBattleAllies();
+      if (typeof spawnEnemies === 'function') spawnEnemies();
     }
   } else {
     state.wave += 1;
-    spawnEnemies();
+    if (typeof spawnEnemies === 'function') spawnEnemies();
   }
 
-  renderParty();
-  renderCaptured();
-  renderTraining();
-  updateUI();
-  triggerAutoSave(false);
+  if (typeof renderParty === 'function') renderParty();
+  if (typeof renderCaptured === 'function') renderCaptured();
+  if (typeof renderTraining === 'function') renderTraining();
+  if (typeof updateUI === 'function') updateUI();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
 }
 
 function tickBattleLoop() {
@@ -362,58 +369,62 @@ function tickBattleLoop() {
   const dt = Math.min(0.25, (now - lastTickAt) / 1000);
   lastTickAt = now;
 
-  if (!state.inBattle) return;
+  if (!state || !state.inBattle) return;
 
-  const speedMult = (speed2xUnlocked && speed2xActive) ? 2.0 : 1.0;
+  const allies = Array.isArray(state.allies) ? state.allies : [];
+  const enemies = Array.isArray(state.enemies) ? state.enemies : [];
+  if (allies.length === 0 || enemies.length === 0) return;
+
+  const speedMult = (typeof speed2xUnlocked !== 'undefined' && speed2xUnlocked && speed2xActive) ? 2.0 : 1.0;
   const step = dt * speedMult;
 
-  state.allies.forEach((a, idx) => {
+  allies.forEach((a, idx) => {
     if (!a || a.hp <= 0) return;
-    a.ct += step;
-    if (a.ct >= a.ctMax) {
+    a.ct = (a.ct || 0) + step;
+    if (a.ct >= (a.ctMax || 2.0)) {
       a.ct = 0;
       performAllyTurn(idx);
     }
   });
 
-  if (state.enemies.every(e => e.hp <= 0)) {
+  if (enemies.every(e => !e || e.hp <= 0)) {
     handleWaveCleared();
     return;
   }
 
   if (typeof landTankTier !== 'undefined' && Number(landTankTier) > 0) {
     state.tankCt = (state.tankCt || 0) + step;
-    const tankIv = getTankInterval();
+    const tankIv = typeof getTankInterval === 'function' ? getTankInterval() : 3.2;
     if (state.tankCt >= tankIv) {
       state.tankCt = 0;
       performTankTurn();
-      if (state.enemies.every(e => e.hp <= 0)) {
+      if (enemies.every(e => !e || e.hp <= 0)) {
         handleWaveCleared();
         return;
       }
     }
   }
 
-  state.enemies.forEach((e, idx) => {
+  enemies.forEach((e, idx) => {
     if (!e || e.hp <= 0) return;
-    e.ct += step;
-    if (e.ct >= e.ctMax) {
+    e.ct = (e.ct || 0) + step;
+    if (e.ct >= (e.ctMax || 2.5)) {
       e.ct = 0;
       performEnemyTurn(idx);
     }
   });
 
-  if (state.allies.every(a => !a || a.hp <= 0)) {
+  if (allies.every(a => !a || a.hp <= 0)) {
     state.inBattle = false;
     state.wave = 1;
-    resetBattleAllies();
-    spawnEnemies();
-    updateUI();
+    if (typeof resetBattleAllies === 'function') resetBattleAllies();
+    if (typeof spawnEnemies === 'function') spawnEnemies();
+    if (typeof updateUI === 'function') updateUI();
     showToast('全滅してしまった…体制を立て直そう！');
     return;
   }
 
-  updateBattleBarsOnly();
+  if (typeof updateBattleBarsOnly === 'function') updateBattleBarsOnly();
 }
 
 function startBattleLoop() {
@@ -426,7 +437,7 @@ function startBattle(ev) {
   if (state.inBattle) return;
 
   const hasMember = Array.isArray(party) && party.some(val =>
-    val !== null && (captured[val] || captured.some(m => m && m.id === val))
+    val !== null && val !== undefined && ((captured || [])[val] || (captured || []).some(m => m && m.id === val))
   );
   if (!hasMember) {
     alert('パーティにモンスターを1体以上編成してください！');
@@ -442,9 +453,9 @@ function startBattle(ev) {
   staminaUpdatedAt = Date.now();
   state.inBattle = true;
   state.wave = 1;
-  resetBattleAllies();
-  spawnEnemies();
-  updateUI();
+  if (typeof resetBattleAllies === 'function') resetBattleAllies();
+  if (typeof spawnEnemies === 'function') spawnEnemies();
+  if (typeof updateUI === 'function') updateUI();
   startBattleLoop();
 }
 
@@ -453,17 +464,17 @@ function retreatBattle(ev) {
   if (!state.inBattle) return;
   state.inBattle = false;
   state.wave = 1;
-  resetBattleAllies();
-  spawnEnemies();
-  updateUI();
+  if (typeof resetBattleAllies === 'function') resetBattleAllies();
+  if (typeof spawnEnemies === 'function') spawnEnemies();
+  if (typeof updateUI === 'function') updateUI();
   showToast('バトルから退却しました');
 }
 
 function toggleWaveStopMode(ev) {
   if (ev && ev.cancelable) ev.preventDefault();
   waveStopMode = !waveStopMode;
-  updateUI();
-  triggerAutoSave(false);
+  if (typeof updateUI === 'function') updateUI();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
   showToast(waveStopMode ? '1階層ごとに停止するモードにしました' : '階層連戦モードにしました');
 }
 
@@ -472,8 +483,8 @@ function toggleAutoMode(ev) {
   if (!autoUnlocked) return;
   autoActive = !autoActive;
   if (autoActive) waveStopMode = false;
-  updateUI();
-  triggerAutoSave(false);
+  if (typeof updateUI === 'function') updateUI();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
   showToast(autoActive ? '自動周回 ON' : '自動周回 OFF');
 }
 
@@ -481,8 +492,8 @@ function toggleSpeedMode(ev) {
   if (ev && ev.cancelable) ev.preventDefault();
   if (!speed2xUnlocked) return;
   speed2xActive = !speed2xActive;
-  updateUI();
-  triggerAutoSave(false);
+  if (typeof updateUI === 'function') updateUI();
+  if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
   showToast(speed2xActive ? '戦闘速度 2倍速' : '戦闘速度 通常(1x)');
 }
 
