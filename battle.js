@@ -103,7 +103,7 @@ function spawnHitEffect(targetId, elem = 'none', isSkill = false) {
       <circle cx="50" cy="50" r="24" fill="none" stroke="#b3e5fc" stroke-width="4" stroke-dasharray="12 8"/>
       <polygon points="50,10 58,42 90,50 58,58 50,90 42,58 10,50 42,42" fill="#4fc3f7" opacity="0.9"/>
     </svg>`;
-  } else if (elem === 'wind') {
+  } else if (elem === 'wind' || elem === 'sky' || elem === 'earth') {
     svg = `<svg viewBox="0 0 100 100" width="100%" height="100%">
       <polyline points="58,6 34,46 54,48 36,94" fill="none" stroke="#ffee58" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
       <polyline points="58,6 34,46 54,48 36,94" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
@@ -183,12 +183,10 @@ function showBattleBanner(msg, duration = 1800) {
 }
 
 function performAllyTurn(slotIdx) {
-  const allies = Array.isArray(state.allies) ? state.allies : [];
-  const enemies = Array.isArray(state.enemies) ? state.enemies : [];
-  const unit = allies[slotIdx];
+  const unit = battleAllies[slotIdx];
   if (!unit || unit.hp <= 0) return;
 
-  const livingEnemies = enemies.map((e, i) => ({ e, i })).filter(x => x.e && x.e.hp > 0);
+  const livingEnemies = (state.enemies || []).map((e, i) => ({ e, i })).filter(x => x.e && x.e.hp > 0);
   if (livingEnemies.length === 0) return;
 
   triggerUnitMotion(`ally-slot-${slotIdx}`, 'atk-motion');
@@ -199,7 +197,7 @@ function performAllyTurn(slotIdx) {
   if (useSkill && skill.type === 'heal') {
     const healVal = Math.max(1, Math.floor(unit.maxHp * (skill.power || 0.2)));
     triggerScreenFlash('rgba(105, 240, 174, 0.45)', false);
-    allies.forEach((a, idx) => {
+    battleAllies.forEach((a, idx) => {
       if (a && a.hp > 0) {
         a.hp = Math.min(a.maxHp, a.hp + healVal);
         spawnHealEffect(`ally-slot-${idx}`);
@@ -222,7 +220,7 @@ function performAllyTurn(slotIdx) {
   if (useSkill && skill.type === 'aoe') {
     const flashColor = atkElem === 'fire' ? 'rgba(255,87,34,0.55)'
       : (atkElem === 'water' ? 'rgba(41,182,246,0.55)'
-      : (atkElem === 'wind' ? 'rgba(255,238,88,0.55)'
+      : (atkElem === 'wind' || atkElem === 'sky' ? 'rgba(255,238,88,0.55)'
       : (atkElem === 'dark' ? 'rgba(171,71,188,0.55)' : 'rgba(255,241,118,0.6)')));
     triggerScreenFlash(flashColor, true);
   }
@@ -245,8 +243,7 @@ function performAllyTurn(slotIdx) {
 }
 
 function performTankTurn() {
-  const enemies = Array.isArray(state.enemies) ? state.enemies : [];
-  const livingEnemies = enemies.map((e, i) => ({ e, i })).filter(x => x.e && x.e.hp > 0);
+  const livingEnemies = (state.enemies || []).map((e, i) => ({ e, i })).filter(x => x.e && x.e.hp > 0);
   if (livingEnemies.length === 0) return;
 
   const tankAtk = typeof getTankSupportAtk === 'function' ? getTankSupportAtk() : 25;
@@ -262,12 +259,10 @@ function performTankTurn() {
 }
 
 function performEnemyTurn(enemyIdx) {
-  const enemies = Array.isArray(state.enemies) ? state.enemies : [];
-  const allies = Array.isArray(state.allies) ? state.allies : [];
-  const enemy = enemies[enemyIdx];
+  const enemy = (state.enemies || [])[enemyIdx];
   if (!enemy || enemy.hp <= 0) return;
 
-  const livingAllies = allies.map((a, i) => ({ a, i })).filter(x => x.a && x.a.hp > 0);
+  const livingAllies = battleAllies.map((a, i) => ({ a, i })).filter(x => x.a && x.a.hp > 0);
   if (livingAllies.length === 0) return;
 
   triggerUnitMotion(`enemy-slot-${enemyIdx}`, 'atk-motion');
@@ -281,9 +276,10 @@ function performEnemyTurn(enemyIdx) {
   spawnDamagePopup(`ally-slot-${target.i}`, `-${dmg}`, 'ally-dmg');
 }
 function handleWaveCleared() {
-  const stg = (typeof STAGES !== 'undefined' && STAGES[state.stageIdx]) ? STAGES[state.stageIdx] : { floors: 10 };
-  const isBoss = state.wave >= state.maxWaves;
-  const mult = Math.pow(1.38, state.stageIdx) * (1 + (state.floor - 1) * 0.14) * (isBoss ? 2.5 : 1);
+  const isBoss = state.wave >= 3;
+  const stageNum = Number(state.stage) || 1;
+  const floorNum = Number(state.floor) || 1;
+  const mult = Math.pow(1.38, stageNum - 1) * (1 + (floorNum - 1) * 0.14) * (isBoss ? 2.5 : 1);
 
   const goldGain = Math.floor(24 * mult);
   const expGain = Math.floor(18 * mult);
@@ -321,7 +317,7 @@ function handleWaveCleared() {
     if (e && (captured || []).length < maxMonsterBox && Math.random() < (e.catchRate || 0.22)) {
       const sp = typeof getSpeciesByName === 'function' ? getSpeciesByName(e.name) : null;
       if (sp && typeof createMonsterInstance === 'function') {
-        const newMon = createMonsterInstance(sp, Math.max(1, state.stageIdx * 3 + state.floor));
+        const newMon = createMonsterInstance(sp, Math.max(1, (stageNum - 1) * 3 + floorNum));
         captured.push(newMon);
         showToast(`「${newMon.name}」が仲間になった！`);
       }
@@ -329,32 +325,35 @@ function handleWaveCleared() {
   });
 
   if (isBoss) {
-    const nextFloor = state.floor + 1;
-    if (nextFloor > stg.floors) {
-      if (typeof STAGES !== 'undefined' && state.stageIdx + 1 < STAGES.length) {
-        state.stageIdx += 1;
+    if (floorNum >= 10) {
+      if (stageNum < 10) {
+        state.stage = stageNum + 1;
         state.floor = 1;
       } else {
-        state.floor = stg.floors;
+        state.floor = 10;
       }
     } else {
-      state.floor = nextFloor;
+      state.floor = floorNum + 1;
     }
     state.wave = 1;
-    if (typeof updateMaxProgress === 'function') updateMaxProgress();
+
+    if (Number(state.stage) > Number(maxStage || 1) || (Number(state.stage) === Number(maxStage || 1) && Number(state.floor) > Number(maxFloor || 1))) {
+      maxStage = Number(state.stage);
+      maxFloor = Number(state.floor);
+    }
 
     if (waveStopMode || !autoActive) {
       state.inBattle = false;
       if (typeof resetBattleAllies === 'function') resetBattleAllies();
-      if (typeof spawnEnemies === 'function') spawnEnemies();
+      if (typeof ensureWaveEnemies === 'function') ensureWaveEnemies();
       showToast('階層クリア！');
     } else {
       if (typeof resetBattleAllies === 'function') resetBattleAllies();
-      if (typeof spawnEnemies === 'function') spawnEnemies();
+      if (typeof ensureWaveEnemies === 'function') ensureWaveEnemies();
     }
   } else {
     state.wave += 1;
-    if (typeof spawnEnemies === 'function') spawnEnemies();
+    if (typeof ensureWaveEnemies === 'function') ensureWaveEnemies();
   }
 
   if (typeof renderParty === 'function') renderParty();
@@ -364,6 +363,34 @@ function handleWaveCleared() {
   if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
 }
 
+function updateBattleBarsOnly() {
+  for (let i = 0; i < 3; i++) {
+    const a = battleAllies[i];
+    const slot = document.getElementById(`ally-slot-${i}`);
+    const hpBar = document.getElementById(`ally-hp-${i}`);
+    const ctBar = document.getElementById(`ally-ct-${i}`);
+    if (a && a.maxHp > 0) {
+      if (slot) slot.classList.toggle('dead', a.hp <= 0);
+      if (hpBar) hpBar.style.width = `${Math.max(0, Math.min(100, (a.hp / a.maxHp) * 100))}%`;
+      if (ctBar) ctBar.style.width = `${Math.max(0, Math.min(100, ((a.ct || 0) / (a.ctMax || 2.0)) * 100))}%`;
+      const hpTxt = slot ? slot.querySelector('.hp-text') : null;
+      if (hpTxt) hpTxt.textContent = `${a.name} ${a.hp}/${a.maxHp}`;
+    }
+
+    const e = (state.enemies || [])[i];
+    const eSlot = document.getElementById(`enemy-slot-${i}`);
+    if (e && eSlot) {
+      eSlot.classList.toggle('dead', e.hp <= 0);
+      const eHp = eSlot.querySelector('.e-hp-fill');
+      const eCt = eSlot.querySelector('.e-ct-fill');
+      const eNm = eSlot.querySelector('.e-name');
+      if (eHp) eHp.style.width = `${Math.max(0, Math.min(100, (e.hp / e.maxHp) * 100))}%`;
+      if (eCt) eCt.style.width = `${Math.max(0, Math.min(100, ((e.ct || 0) / (e.ctMax || 2.5)) * 100))}%`;
+      if (eNm) eNm.textContent = `${e.name} (${e.hp})`;
+    }
+  }
+}
+
 function tickBattleLoop() {
   const now = Date.now();
   const dt = Math.min(0.25, (now - lastTickAt) / 1000);
@@ -371,14 +398,17 @@ function tickBattleLoop() {
 
   if (!state || !state.inBattle) return;
 
-  const allies = Array.isArray(state.allies) ? state.allies : [];
-  const enemies = Array.isArray(state.enemies) ? state.enemies : [];
-  if (allies.length === 0 || enemies.length === 0) return;
+  if (!Array.isArray(battleAllies) || battleAllies.length === 0) {
+    if (typeof resetBattleAllies === 'function') resetBattleAllies();
+  }
+  if (!Array.isArray(state.enemies) || state.enemies.length === 0) {
+    if (typeof ensureWaveEnemies === 'function') ensureWaveEnemies();
+  }
 
   const speedMult = (typeof speed2xUnlocked !== 'undefined' && speed2xUnlocked && speed2xActive) ? 2.0 : 1.0;
   const step = dt * speedMult;
 
-  allies.forEach((a, idx) => {
+  battleAllies.forEach((a, idx) => {
     if (!a || a.hp <= 0) return;
     a.ct = (a.ct || 0) + step;
     if (a.ct >= (a.ctMax || 2.0)) {
@@ -387,7 +417,7 @@ function tickBattleLoop() {
     }
   });
 
-  if (enemies.every(e => !e || e.hp <= 0)) {
+  if ((state.enemies || []).length > 0 && state.enemies.every(e => !e || e.hp <= 0)) {
     handleWaveCleared();
     return;
   }
@@ -398,14 +428,14 @@ function tickBattleLoop() {
     if (state.tankCt >= tankIv) {
       state.tankCt = 0;
       performTankTurn();
-      if (enemies.every(e => !e || e.hp <= 0)) {
+      if (state.enemies.every(e => !e || e.hp <= 0)) {
         handleWaveCleared();
         return;
       }
     }
   }
 
-  enemies.forEach((e, idx) => {
+  (state.enemies || []).forEach((e, idx) => {
     if (!e || e.hp <= 0) return;
     e.ct = (e.ct || 0) + step;
     if (e.ct >= (e.ctMax || 2.5)) {
@@ -414,17 +444,17 @@ function tickBattleLoop() {
     }
   });
 
-  if (allies.every(a => !a || a.hp <= 0)) {
+  if (battleAllies.some(Boolean) && battleAllies.every(a => !a || a.hp <= 0)) {
     state.inBattle = false;
     state.wave = 1;
     if (typeof resetBattleAllies === 'function') resetBattleAllies();
-    if (typeof spawnEnemies === 'function') spawnEnemies();
+    if (typeof ensureWaveEnemies === 'function') ensureWaveEnemies();
     if (typeof updateUI === 'function') updateUI();
     showToast('全滅してしまった…体制を立て直そう！');
     return;
   }
 
-  if (typeof updateBattleBarsOnly === 'function') updateBattleBarsOnly();
+  updateBattleBarsOnly();
 }
 
 function startBattleLoop() {
@@ -454,7 +484,7 @@ function startBattle(ev) {
   state.inBattle = true;
   state.wave = 1;
   if (typeof resetBattleAllies === 'function') resetBattleAllies();
-  if (typeof spawnEnemies === 'function') spawnEnemies();
+  if (typeof ensureWaveEnemies === 'function') ensureWaveEnemies();
   if (typeof updateUI === 'function') updateUI();
   startBattleLoop();
 }
@@ -465,7 +495,7 @@ function retreatBattle(ev) {
   state.inBattle = false;
   state.wave = 1;
   if (typeof resetBattleAllies === 'function') resetBattleAllies();
-  if (typeof spawnEnemies === 'function') spawnEnemies();
+  if (typeof ensureWaveEnemies === 'function') ensureWaveEnemies();
   if (typeof updateUI === 'function') updateUI();
   showToast('バトルから退却しました');
 }
