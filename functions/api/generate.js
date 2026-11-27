@@ -32,7 +32,7 @@ async function understandJapanesePromptWithAI(ai, type, species, rawPrompt, webC
 
   try {
     const sys =
-      "You are an expert Japanese-to-English visual prompt translator for Japanese anime/JRPG illustration (Flux). " +
+      "You are an expert Japanese-to-English visual prompt translator for Japanese anime/JRPG illustration. " +
       "Understand Japanese slang, anime/manga tropes, fashion, and monster motifs accurately using the provided Japanese web context. " +
       "Output ONLY a comma-separated list of concrete English visual tags (max 55 words, no sentences, no explanations). " +
       "Rules: " +
@@ -68,19 +68,12 @@ async function understandJapanesePromptWithAI(ai, type, species, rawPrompt, webC
   return `${prefix}${species}, ${rawPrompt}`;
 }
 
-async function analyzeSourceCharacterImage(ai, base64DataUrl) {
+async function extractDetailedFaceAndOutfit(ai, imgBytes) {
   try {
-    const match = String(base64DataUrl || "").match(/^data:image\/[a-zA-Z0-9+.-]+;base64,(.+)$/);
-    if (!match) return "";
-    const rawB64 = match.slice(1, 2).pop() || "";
-    const binStr = atob(rawB64);
-    const bytes = new Uint8Array(binStr.length);
-    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
-
     const visionRes = await ai.run("@cf/llava-hf/llava-1.5-7b-hf", {
-      image: Array.from(bytes),
-      prompt: "Describe this anime character's exact visual appearance in 35 words: hair color, hairstyle, eye color, headwear/ears/wings/horns, and outfit color/style.",
-      max_tokens: 80
+      image: imgBytes,
+      prompt: "List exact character identity details in 45 words: eye color and shape, facial features, hair color, bangs/hairstyle, hair accessories/ears/horns, and exact outfit colors and design.",
+      max_tokens: 95
     });
     return (visionRes && visionRes.description) ? String(visionRes.description).trim() : "";
   } catch (e) {
@@ -104,26 +97,69 @@ export async function onRequestPost({ request, env }) {
     const stampText = String(body.stamp_text || "").slice(0, 20);
     const sourceImg = String(body.source_img || "");
 
-    // 1. 日本語Web検索で言葉の意味・特徴を取得
     const webContext = await fetchJapaneseWebContext(rawPrompt || species);
-
-    // 2. 日本語に強い Qwen2.5 で意味を正しく理解して英語ビジュアルタグ化
     const understoodTags = await understandJapanesePromptWithAI(ai, type, species, rawPrompt, webContext);
 
     const jpStyle = "Japanese JRPG character and monster illustration style, clean bold black outlines, vibrant cel shading, isolated on solid pure white background #FFFFFF, no western comic style, no 3D render, no text";
+
+    if (type === "stamp") {
+      let imgBytes = null;
+      if (sourceImg.startsWith("data:image")) {
+        const match = sourceImg.match(/^data:image\/[a-zA-Z0-9+.-]+;base64,(.+)$/);
+        if (match) {
+          const rawB64 = match.slice(1, 2).pop() || "";
+          const binStr = atob(rawB64);
+          imgBytes = Array.from(new Uint8Array(binStr.length), (_, i) => binStr.charCodeAt(i));
+        }
+      }
+
+      if (imgBytes && imgBytes.length > 0) {
+        const identityTraits = await extractDetailedFaceAndOutfit(ai, imgBytes);
+        const traitPart = identityTraits ? `${identityTraits}, ` : "";
+
+        const img2imgRes = await ai.run("@cf/runwayml/stable-diffusion-v1-5-img2img", {
+          prompt: `cute Japanese anime sticker of this exact same character, ${traitPart}preserve exact face, eye color, bangs, hair accessories and outfit colors, ${understoodTags}, thick white sticker outline, solid pure white background #FFFFFF, Japanese LINE sticker art, masterpiece`,
+          negative_prompt: "different face, different eye color, different hair color, different bangs, different outfit, realistic, 3d, western comic, text, watermark, dark background",
+          image: imgBytes,
+          strength: 0.45,
+          guidance: 9.0,
+          num_steps: 16
+        });
+        if (img2imgRes) {
+          const arr = new Uint8Array(await new Response(img2imgRes).arrayBuffer());
+          let bin = "";
+          for (let i = 0; i < arr.length; i++) bin += String.fromCharCode(arr[i]);
+          return new Response(JSON.stringify({
+            ok: true,
+            image: `data:image/png;base64,${btoa(bin)}`,
+            type,
+            species,
+            stamp_text: stampText
+          }), { headers: { "Content-Type": "application/json" } });
+        }
+      }
+
+      const fallbackRes = await ai.run("@cf/black-forest-labs/flux-1-schnell", {
+        prompt: `Cute chibi SD anime sticker illustration of ${understoodTags}, expressive face, upper body pose, thick clean white sticker border, isolated on solid pure white background #FFFFFF, Japanese LINE sticker style, no text`,
+        steps: 3
+      });
+      if (!fallbackRes || !fallbackRes.image) {
+        return new Response(JSON.stringify({ error: "スタンプ生成に失敗しました" }), { status: 500, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({
+        ok: true,
+        image: `data:image/jpeg;base64,${fallbackRes.image}`,
+        type,
+        species,
+        stamp_text: stampText
+      }), { headers: { "Content-Type": "application/json" } });
+    }
 
     let fullPrompt = "";
     if (type === "monster") {
       fullPrompt = `${understoodTags}, centered full body game sprite, ${jpStyle}`;
     } else if (type === "bg") {
       fullPrompt = `${understoodTags}, Japanese anime fantasy RPG scenery background art, vibrant lighting, detailed digital painting, scenic view, no characters, no text`;
-    } else if (type === "stamp") {
-      let charAppearance = "";
-      if (sourceImg.startsWith("data:image")) {
-        charAppearance = await analyzeSourceCharacterImage(ai, sourceImg);
-      }
-      const subject = charAppearance ? `Same character (${charAppearance}), ` : "";
-      fullPrompt = `Cute chibi SD anime sticker illustration, ${subject}${understoodTags}, expressive face, upper body pose, thick clean white sticker border, isolated on solid pure white background #FFFFFF, Japanese LINE sticker style, no text`;
     }
 
     const result = await ai.run("@cf/black-forest-labs/flux-1-schnell", {
