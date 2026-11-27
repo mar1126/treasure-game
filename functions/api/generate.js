@@ -24,6 +24,8 @@ function buildJapaneseArtTags(text, speciesName, isMonsterType) {
     [/魔法使い|魔女/g, "witch hat and magic staff, "],
     [/メイド/g, "frilled maid outfit, "],
     [/笑顔|スマイル/g, "big cheerful happy smile, "],
+    [/決めポーズ/g, "cool confident signature pose, "],
+    [/クール/g, "cool stylish expression, "],
     [/手を振る/g, "waving hand happily, "],
     [/怒り|ぷんぷん/g, "cute angry pouting expression, "],
     [/泣き|涙/g, "crying with big anime tears, "],
@@ -45,6 +47,26 @@ function buildJapaneseArtTags(text, speciesName, isMonsterType) {
   return { tags: prefix + s, isHumanize };
 }
 
+async function analyzeSourceCharacterImage(ai, base64DataUrl) {
+  try {
+    const match = String(base64DataUrl || "").match(/^data:image\/[a-zA-Z0-9+.-]+;base64,(.+)$/);
+    if (!match) return "";
+    const binStr = atob(match);
+    const bytes = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+
+    const visionRes = await ai.run("@cf/llava-hf/llava-1.5-7b-hf", {
+      image: Array.from(bytes),
+      prompt: "Describe this anime character's exact visual appearance in 35 words: hair color, hairstyle, eye color, headwear/ears/wings/horns, and outfit color/style. Be specific so an artist can draw the exact same character.",
+      max_tokens: 80
+    });
+    const desc = (visionRes && visionRes.description) ? String(visionRes.description).trim() : "";
+    return desc;
+  } catch (e) {
+    return "";
+  }
+}
+
 export async function onRequestPost({ request, env }) {
   try {
     const ai = env.AI || Object.values(env).find(v => v && typeof v.run === "function");
@@ -59,7 +81,7 @@ export async function onRequestPost({ request, env }) {
     const species = String(body.species || "Slime");
     const rawPrompt = String(body.prompt || "").slice(0, 500);
     const stampText = String(body.stamp_text || "").slice(0, 20);
-    const refDesc = String(body.ref_desc || "").slice(0, 250);
+    const sourceImg = String(body.source_img || "");
 
     const { tags: prePrompt } = buildJapaneseArtTags(rawPrompt, species, type === "monster");
     let enSpecies = species;
@@ -84,7 +106,7 @@ export async function onRequestPost({ request, env }) {
       }
     } catch (e) {}
 
-    const jpStyle = "Japanese JRPG monster illustration style, clean bold black outlines, vibrant cel shading, isolated on solid pure white background #FFFFFF, no western comic style, no 3D render, no text";
+    const jpStyle = "Japanese JRPG character and monster illustration style, clean bold black outlines, vibrant cel shading, isolated on solid pure white background #FFFFFF, no western comic style, no 3D render, no text";
 
     let fullPrompt = "";
     if (type === "monster") {
@@ -92,8 +114,14 @@ export async function onRequestPost({ request, env }) {
     } else if (type === "bg") {
       fullPrompt = `${enPrompt}, Japanese anime fantasy RPG scenery background art, vibrant lighting, detailed digital painting, scenic view, no characters, no text`;
     } else if (type === "stamp") {
-      const baseLook = refDesc ? `${refDesc}, ` : `${enSpecies}, `;
-      fullPrompt = `Cute chibi SD anime sticker illustration of ${baseLook}${enPrompt}, expressive face, upper body pose, thick clean white sticker border, isolated on solid pure white background #FFFFFF, Japanese LINE sticker style, no text`;
+      let charAppearance = "";
+      if (sourceImg.startsWith("data:image")) {
+        charAppearance = await analyzeSourceCharacterImage(ai, sourceImg);
+      }
+      const subject = charAppearance
+        ? `Same character (${charAppearance})`
+        : `${enSpecies}`;
+      fullPrompt = `Cute chibi SD anime sticker illustration of ${subject}, ${enPrompt}, expressive face, upper body pose, thick clean white sticker border, isolated on solid pure white background #FFFFFF, Japanese LINE sticker style, no text`;
     }
 
     const result = await ai.run("@cf/black-forest-labs/flux-1-schnell", {
