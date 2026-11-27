@@ -1,172 +1,200 @@
-// セーブ・ロード・クラウド同期管理 (storage.js)
-let saveTimer = null, lastCloudSyncAt = 0;
+// セーブデータ構築・ローカル＆クラウド自動保存・ロード復元 (storage.js)
+let autoSaveTimer = null;
+let lastCloudSaveAt = 0;
 
-function triggerAutoSave(immediate = false) {
-  const cleanState = {
-    stage: state.stage,
-    floor: state.floor,
-    wave: 1,
-    maxStage: state.maxStage,
-    maxFloorByStage: state.maxFloorByStage
-  };
-  const payload = {
-    savedAt: Date.now(), playerName, gold, gem,
-    landTankTier, landTankLv, landUpCost,
+function getLocalSaveKey() {
+  return 'ff_save_' + (userId || 'default');
+}
+
+function buildSavePayload() {
+  return {
+    v: 50,
+    savedAt: Date.now(),
+    userName: playerName || 'ハンター',
+    gold: Number(gold) || 0,
+    gem: Number(gem) || 0,
+    stamina: Number(stamina) || 0,
+    maxStamina: Number(maxStamina) || 50,
+    staminaUpdatedAt: Number(staminaUpdatedAt) || Date.now(),
+    stage: Number(state?.stage) || 1,
+    floor: Number(state?.floor) || 1,
+    maxStage: Number(state?.maxStage) || 1,
+    maxFloor: Number(state?.maxFloor) || 1,
+    maxFloorByStage: state?.maxFloorByStage || { 1: 1 },
+    captured: Array.isArray(captured) ? captured : [],
     maxCaptured: Number(maxCaptured) || 50,
-    maxTrainingSlots: Number(maxTrainingSlots) || 3,
-    stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, waveStopMode,
-    cafeLv, cafeCost, staff, gardenItems,
-    party, trainingSlots, state: cleanState,
-    captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig
+    party: Array.isArray(party) ? party : [null, null, null],
+    trainingSlots: Array.isArray(trainingSlots) ? trainingSlots : [null, null, null, null],
+    unlockedTrainSlots: Number(unlockedTrainSlots) || 2,
+    cafeLv: Number(cafeLv) || 1,
+    cafeCost: Number(cafeCost) || 200,
+    staff: Array.isArray(staff) ? staff : [null, null, null],
+    gardenItems: Array.isArray(gardenItems) ? gardenItems : [],
+    materials: (typeof materials === 'object' && materials) ? materials : {},
+    unlockedRecipes: Array.isArray(unlockedRecipes) ? unlockedRecipes : [],
+    recipeLevels: (typeof recipeLevels === 'object' && recipeLevels) ? recipeLevels : {},
+    landTankTier: Number(landTankTier) || 0,
+    landTankLv: Number(landTankLv) || 1,
+    landUpCost: Number(landUpCost) || 500,
+    autoUnlocked: Boolean(autoUnlocked),
+    autoActive: Boolean(autoActive),
+    speed2xUnlocked: Boolean(speed2xUnlocked),
+    speed2xActive: Boolean(speed2xActive),
+    waveStopMode: Boolean(waveStopMode),
+    aiSpecies: Array.isArray(aiSpecies) ? aiSpecies : [],
+    aiBackgrounds: Array.isArray(aiBackgrounds) ? aiBackgrounds : [],
+    aiStamps: Array.isArray(aiStamps) ? aiStamps : [],
+    iconConfig: iconConfig || { species: 'デフォルト', bgIdx: -1, scale: 1.0, x: 0, y: 0, rotate: 0 }
   };
-  const jsonStr = JSON.stringify(payload);
-  localStorage.setItem('treasure_save_' + userId, jsonStr);
-  const badge = document.getElementById('save-indicator');
-  clearTimeout(saveTimer);
-  const doSync = async () => {
-    lastCloudSyncAt = Date.now();
-    if (badge) badge.textContent = '同期中...';
-    try {
-      const res = await fetch('/api/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, user_name: playerName, save_json: jsonStr }) });
-      if (!res.ok) throw new Error();
-      if (badge) badge.textContent = '自動保存済';
-    } catch (e) { if (badge) badge.textContent = '端末保存済'; }
-  };
-  const diff = Date.now() - lastCloudSyncAt;
-  if (immediate || diff >= 15000) doSync();
-  else { if (badge) badge.textContent = '端末保存済'; saveTimer = setTimeout(doSync, 15000 - diff); }
 }
-
-function applySaveData(data) {
-  if (!data) return;
-  playerName = data.playerName || 'ハンター';
-  gold = data.gold ?? 200; gem = data.gem ?? 1000;
-
-  landTankTier = Number(data.landTankTier) || 0;
-  landTankLv = Number(data.landTankLv) || 1;
-  landUpCost = Number(data.landUpCost) || 500;
-  maxCaptured = Math.min(300, Math.max(50, Number(data.maxCaptured) || 50));
-  maxTrainingSlots = Math.min(20, Math.max(3, Number(data.maxTrainingSlots) || 3));
-
-  autoUnlocked = Boolean(data.autoUnlocked);
-  speed2xUnlocked = Boolean(data.speed2xUnlocked);
-  staminaFastUnlocked = Boolean(data.staminaFastUnlocked);
-  waveStopMode = Boolean(data.waveStopMode);
-  stamina = data.stamina ?? MAX_STAMINA; staminaUpdatedAt = data.staminaUpdatedAt || Date.now(); syncStamina();
-  cafeLv = data.cafeLv ?? 1; cafeCost = data.cafeCost ?? 80;
-  staff = Array.isArray(data.staff) ? data.staff.slice(0, 3) : new Array(3).fill(null);
-  while (staff.length < 3) staff.push(null);
-  gardenItems = data.gardenItems || [];
-
-  const rawParty = Array.isArray(data.party) ? data.party : [];
-  party = [rawParty.slice(0, 1).pop() ?? null, rawParty.slice(1, 2).pop() ?? null, rawParty.slice(2, 3).pop() ?? null];
-
-  const rawTrain = Array.isArray(data.trainingSlots) ? data.trainingSlots : [];
-  trainingSlots = [];
-  for (let i = 0; i < maxTrainingSlots; i++) {
-    trainingSlots.push(rawTrain.slice(i, i + 1).pop() ?? null);
-  }
-
-  if (data.state) {
-    const s = data.state.land ? data.state.land : data.state;
-    const stg = Math.min(10, Math.max(1, Number(s.stage) || 1));
-    const flr = Math.min(50, Math.max(1, Number(s.floor) || Number(s.area) || 1));
-    state = {
-      stage: stg,
-      floor: flr,
-      wave: 1,
-      maxStage: Math.max(stg, Number(s.maxStage) || 1),
-      maxFloorByStage: s.maxFloorByStage || { [stg]: flr },
-      enemies: [],
-      inBattle: false,
-      shipCt: 0
-    };
-  }
-
-  captured = (data.captured || []).map((m, idx) => {
-    const sp = typeof getSpeciesData === 'function' ? getSpeciesData(m.name) : { name: 'スライム', elem: 'water', baseHp: 58, baseAtk: 10, baseDef: 3, ct: 1.8 };
-    const validName = ALL_MONSTER_SPECIES.some(x => x.name === m.name) ? m.name : sp.name;
-    const initSkills = Array.from(new Set(Array.isArray(m.skills) && m.skills.length > 0 ? m.skills : [typeof getSpeciesInnateSkillId === 'function' ? getSpeciesInnateSkillId(validName) : 'tackle']));
-    const initTraits = Array.from(new Set(Array.isArray(m.traits) && m.traits.length > 0 ? m.traits : [typeof getSpeciesInnateTraitId === 'function' ? getSpeciesInnateTraitId(validName) : 'valor']));
-    return {
-      id: m.id || ('M' + idx),
-      name: validName,
-      elem: m.elem || sp.elem || 'none',
-      lv: Number(m.lv) || 1,
-      maxLv: Number(m.maxLv) || 10,
-      exp: Number(m.exp) || 0,
-      plus: Number(m.plus) || 0,
-      bonusHp: Number(m.bonusHp) || 0,
-      bonusAtk: Number(m.bonusAtk) || 0,
-      bonusDef: Number(m.bonusDef) || 0,
-      baseHp: Number(m.baseHp) || sp.baseHp,
-      baseAtk: Number(m.baseAtk) || sp.baseAtk,
-      baseDef: Number(m.baseDef) || sp.baseDef,
-      ct: Number(m.ct) || sp.ct,
-      skills: initSkills,
-      traits: initTraits,
-      customSkin: m.customSkin || null,
-      customBgIdx: (typeof m.customBgIdx === 'number') ? m.customBgIdx : -1
-    };
-  });
-
-  speciesSkins = data.speciesSkins || {}; aiBackgrounds = data.aiBackgrounds || []; aiStamps = data.aiStamps || [];
-  if (data.iconConfig) iconConfig = data.iconConfig;
-  if (document.getElementById('player-name')) document.getElementById('player-name').value = playerName;
-  if (document.getElementById('hud-name')) document.getElementById('hud-name').textContent = playerName;
-  if (document.getElementById('icon-scale')) {
-    document.getElementById('icon-scale').value = iconConfig.scale; document.getElementById('icon-x').value = iconConfig.x;
-    document.getElementById('icon-y').value = iconConfig.y; document.getElementById('icon-rot').value = iconConfig.rotate;
-  }
-
-  ensureWaveEnemies();
-  if (typeof resetBattleAllies === 'function') resetBattleAllies();
-  if (typeof renderParty === 'function') renderParty();
-  if (typeof renderTraining === 'function') renderTraining();
-  if (typeof renderCaptured === 'function') renderCaptured();
-  if (typeof renderCafe === 'function') renderCafe();
-  if (typeof renderShop === 'function') renderShop();
-  if (typeof updateSelectOptions === 'function') updateSelectOptions();
-  if (document.getElementById('icon-char-sel')) { document.getElementById('icon-char-sel').value = iconConfig.species; document.getElementById('icon-bg-sel').value = iconConfig.bgIdx; }
-  if (typeof renderSpeciesGallery === 'function') renderSpeciesGallery();
-  if (typeof renderStamps === 'function') renderStamps();
-  if (typeof updateIconPreview === 'function') updateIconPreview(false);
-  updateUI();
-}
-
-async function initCloudLoad() {
-  const idEl = document.getElementById('my-user-id');
-  if (idEl) idEl.textContent = userId;
-  let localData = null;
-  const localStr = localStorage.getItem('treasure_save_' + userId);
-  if (localStr) {
-    try { localData = JSON.parse(localStr); applySaveData(localData); } catch (e) {}
-  } else {
-    ensureWaveEnemies();
-    if (typeof resetBattleAllies === 'function') resetBattleAllies();
-    if (typeof renderParty === 'function') renderParty();
-    if (typeof renderTraining === 'function') renderTraining();
-    if (typeof renderCaptured === 'function') renderCaptured();
-    if (typeof renderCafe === 'function') renderCafe();
-    if (typeof renderShop === 'function') renderShop();
-    if (typeof updateSelectOptions === 'function') updateSelectOptions();
-    if (typeof renderSpeciesGallery === 'function') renderSpeciesGallery();
-    if (typeof renderStamps === 'function') renderStamps();
-    if (typeof updateIconPreview === 'function') updateIconPreview(false);
-    updateUI();
-  }
+function saveToLocalOnly(payload) {
   try {
-    const res = await fetch(`/api/save?user_id=${encodeURIComponent(userId)}`);
-    const row = await res.json();
-    if (row && row.save_json) {
-      const cloudData = JSON.parse(row.save_json);
-      if (!localData || (cloudData.savedAt || 0) > (localData.savedAt || 0)) applySaveData(cloudData);
-    }
+    const data = payload || buildSavePayload();
+    localStorage.setItem(getLocalSaveKey(), JSON.stringify(data));
   } catch (e) {}
 }
 
+function setSaveBadgeStatus(text, isOk = true) {
+  const el = document.getElementById('save-status');
+  if (!el) return;
+  el.textContent = text;
+  el.style.background = isOk ? '#e0f2f1' : '#fff3e0';
+  el.style.color = isOk ? '#00897b' : '#e65100';
+}
+
+async function syncSaveToCloud(force = false) {
+  if (!userId) return;
+  const now = Date.now();
+  if (!force && now - lastCloudSaveAt < 8000) return;
+  lastCloudSaveAt = now;
+
+  const payload = buildSavePayload();
+  saveToLocalOnly(payload);
+  setSaveBadgeStatus('保存中...', false);
+
+  try {
+    const res = await fetch('/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        user_name: payload.userName,
+        max_stage: payload.maxStage,
+        max_floor: payload.maxFloor,
+        save_json: JSON.stringify(payload)
+      })
+    });
+    if (!res.ok) throw new Error();
+    setSaveBadgeStatus('☁️保存済', true);
+  } catch (e) {
+    setSaveBadgeStatus('端末保存', false);
+  }
+}
+
+function triggerAutoSave(immediateCloud = false) {
+  saveToLocalOnly();
+  if (immediateCloud) {
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    syncSaveToCloud(true);
+    return;
+  }
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => syncSaveToCloud(false), 2500);
+}
+
+function applySaveData(d) {
+  if (!d || typeof d !== 'object') return;
+  if (d.userName) playerName = String(d.userName);
+  if (typeof d.gold === 'number') gold = d.gold;
+  if (typeof d.gem === 'number') gem = d.gem;
+  if (typeof d.stamina === 'number') stamina = d.stamina;
+  if (typeof d.maxStamina === 'number') maxStamina = d.maxStamina;
+  if (typeof d.staminaUpdatedAt === 'number') staminaUpdatedAt = d.staminaUpdatedAt;
+
+  if (typeof state === 'object' && state) {
+    if (d.stage) state.stage = Number(d.stage) || 1;
+    if (d.floor) state.floor = Number(d.floor) || 1;
+    if (d.maxStage) state.maxStage = Number(d.maxStage) || 1;
+    if (d.maxFloor) state.maxFloor = Number(d.maxFloor) || 1;
+    if (d.maxFloorByStage && typeof d.maxFloorByStage === 'object') {
+      state.maxFloorByStage = d.maxFloorByStage;
+    }
+  }
+
+  if (Array.isArray(d.captured)) captured = d.captured;
+  if (typeof d.maxCaptured === 'number') maxCaptured = d.maxCaptured;
+  if (Array.isArray(d.party)) party = d.party;
+  if (Array.isArray(d.trainingSlots)) trainingSlots = d.trainingSlots;
+  if (typeof d.unlockedTrainSlots === 'number') unlockedTrainSlots = d.unlockedTrainSlots;
+
+  if (typeof d.cafeLv === 'number') cafeLv = d.cafeLv;
+  if (typeof d.cafeCost === 'number') cafeCost = d.cafeCost;
+  if (Array.isArray(d.staff)) staff = d.staff;
+  if (Array.isArray(d.gardenItems)) gardenItems = d.gardenItems;
+
+  materials = (d.materials && typeof d.materials === 'object') ? d.materials : {};
+  unlockedRecipes = Array.isArray(d.unlockedRecipes) ? d.unlockedRecipes : [];
+  recipeLevels = (d.recipeLevels && typeof d.recipeLevels === 'object') ? d.recipeLevels : {};
+
+  if (typeof d.landTankTier === 'number') landTankTier = d.landTankTier;
+  if (typeof d.landTankLv === 'number') landTankLv = d.landTankLv;
+  if (typeof d.landUpCost === 'number') landUpCost = d.landUpCost;
+
+  if (typeof d.autoUnlocked === 'boolean') autoUnlocked = d.autoUnlocked;
+  if (typeof d.autoActive === 'boolean') autoActive = d.autoActive;
+  if (typeof d.speed2xUnlocked === 'boolean') speed2xUnlocked = d.speed2xUnlocked;
+  if (typeof d.speed2xActive === 'boolean') speed2xActive = d.speed2xActive;
+  if (typeof d.waveStopMode === 'boolean') waveStopMode = d.waveStopMode;
+
+  if (Array.isArray(d.aiSpecies)) aiSpecies = d.aiSpecies;
+  if (Array.isArray(d.aiBackgrounds)) aiBackgrounds = d.aiBackgrounds;
+  if (Array.isArray(d.aiStamps)) aiStamps = d.aiStamps;
+  if (d.iconConfig && typeof d.iconConfig === 'object') iconConfig = d.iconConfig;
+
+  const nameInp = document.getElementById('player-name');
+  if (nameInp) nameInp.value = playerName;
+  const hudName = document.getElementById('hud-name');
+  if (hudName) hudName.textContent = playerName;
+
+  if (typeof renderStageBackground === 'function') renderStageBackground();
+  if (typeof resetBattleAllies === 'function') resetBattleAllies();
+  if (typeof ensureWaveEnemies === 'function') ensureWaveEnemies();
+  if (typeof renderParty === 'function') renderParty();
+  if (typeof renderCaptured === 'function') renderCaptured();
+  if (typeof renderTraining === 'function') renderTraining();
+  if (typeof renderCafe === 'function') renderCafe();
+  if (typeof renderBag === 'function') renderBag();
+  if (typeof renderTavernRecipesSection === 'function') renderTavernRecipesSection();
+  if (typeof updateIconPreview === 'function') updateIconPreview(false);
+  if (typeof updateUI === 'function') updateUI();
+}
+
+async function initCloudLoad() {
+  let localData = null;
+  try {
+    const raw = localStorage.getItem(getLocalSaveKey());
+    if (raw) localData = JSON.parse(raw);
+  } catch (e) {}
+
+  if (localData) applySaveData(localData);
+
+  if (!userId) return;
+  try {
+    const res = await fetch('/api/save?user_id=' + encodeURIComponent(userId));
+    if (!res.ok) throw new Error();
+    const row = await res.json();
+    if (row && row.save_json) {
+      const cloudData = typeof row.save_json === 'string' ? JSON.parse(row.save_json) : row.save_json;
+      if (!localData || (Number(cloudData.savedAt) || 0) >= (Number(localData.savedAt) || 0)) {
+        applySaveData(cloudData);
+      }
+    }
+    setSaveBadgeStatus('☁️同期済', true);
+  } catch (e) {
+    setSaveBadgeStatus('端末保存', false);
+  }
+}
+
 window.addEventListener('beforeunload', () => {
-  const cleanState = { stage: state.stage, floor: state.floor, wave: 1, maxStage: state.maxStage, maxFloorByStage: state.maxFloorByStage };
-  const payload = { savedAt: Date.now(), playerName, gold, gem, landTankTier, landTankLv, landUpCost, maxCaptured: Number(maxCaptured) || 50, maxTrainingSlots: Number(maxTrainingSlots) || 3, stamina, staminaUpdatedAt, autoUnlocked, speed2xUnlocked, staminaFastUnlocked, waveStopMode, cafeLv, cafeCost, staff, gardenItems, party, trainingSlots, state: cleanState, captured, speciesSkins, aiBackgrounds, aiStamps, iconConfig };
-  localStorage.setItem('treasure_save_' + userId, JSON.stringify(payload));
+  saveToLocalOnly();
 });
