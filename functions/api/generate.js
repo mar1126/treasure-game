@@ -163,17 +163,30 @@ export async function onRequestPost({ request, env }) {
           num_steps: 16
         });
         if (img2imgRes) {
-          const arr = new Uint8Array(await new Response(img2imgRes).arrayBuffer());
-          let bin = "";
-          for (let i = 0; i < arr.length; i++) bin += String.fromCharCode(arr[i]);
+          let base64Str = '';
+          if (typeof img2imgRes.image === 'string') {
+            base64Str = img2imgRes.image;
+          } else {
+            const buf = img2imgRes instanceof ReadableStream
+              ? await new Response(img2imgRes).arrayBuffer()
+              : img2imgRes;
+            const bytes = new Uint8Array(buf);
+            let binary = '';
+            const chunkSize = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+              binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+            }
+            base64Str = btoa(binary);
+          }
           return new Response(JSON.stringify({
             ok: true,
-            image: `data:image/png;base64,${btoa(bin)}`,
+            image: `data:image/png;base64,${base64Str}`,
             type,
             species,
             stamp_text: stampText
           }), { headers: { "Content-Type": "application/json" } });
         }
+
       }
 
       const fallbackRes = await ai.run("@cf/black-forest-labs/flux-1-schnell", {
