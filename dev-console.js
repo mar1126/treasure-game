@@ -15,12 +15,12 @@ function escHtml(str) {
 }
 
 function initDevConsoleButton() {
+  const existing = document.getElementById('dev-console-trigger');
   if (!isDevAdminUser()) {
-    const existing = document.getElementById('dev-console-trigger');
     if (existing) existing.remove();
     return;
   }
-  if (document.getElementById('dev-console-trigger')) return;
+  if (existing) return;
   const btn = document.createElement('button');
   btn.id = 'dev-console-trigger';
   btn.textContent = '🛠️ AI開発';
@@ -239,4 +239,5 @@ async function runDevBatchCommit() {
 if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', initDevConsoleButton);
   setTimeout(initDevConsoleButton, 1000);
+  setInterval(initDevConsoleButton, 2000);
 }

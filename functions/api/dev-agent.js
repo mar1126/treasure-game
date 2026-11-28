@@ -1,4 +1,34 @@
 // ゲーム内AI開発コンソール API（メイン＋user-save-do 全リポジトリ自動取得・一括コミット対応）
+
+function jsonRes(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
+function decodeBase64Utf8(b64) {
+  try {
+    const binStr = atob(String(b64 || '').replace(/\s/g, ''));
+    const bytes = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) {
+      bytes[i] = binStr.charCodeAt(i);
+    }
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch (e) {
+    return '';
+  }
+}
+
+function encodeBase64Utf8(str) {
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
 export async function onRequestPost(context) {
   const { request, env } = context;
 
@@ -19,8 +49,8 @@ export async function onRequestPost(context) {
     const cleanRepo = s => String(s || '')
       .trim()
       .replace(/^https?:\/\/(www\.)?github\.com\//i, '')
-      .replace(/\.git\$/i, '')
-      .replace(/^\/+|\/+\$/g, '');
+      .replace(/\.git$/i, '')
+      .replace(/^\/+|\/+$/g, '');
 
     const mainRepo = cleanRepo(env.GITHUB_REPO);
     const extraRepos = (env.GITHUB_EXTRA_REPOS || '')
@@ -84,9 +114,15 @@ export async function onRequestPost(context) {
         .map(f => '=== REPO: ' + f.repo + ' | FILE: ' + f.path + ' ===\n' + f.content + '\n=== END FILE ===')
         .join('\n\n');
 
-      const prompt = [
+      const userPrompt = [
         'あなたはWebブラウザRPG（フロントエンド: ' + mainRepo + ' / セーブ・通信サーバー: ' + (extraRepos.join(', ') || 'なし') + '）の熟練エンジニアです。',
         '全リポジトリ内の全' + validFiles.length + 'ファイルを読み込み、ユーザーの指示に従って【修正が必要なファイルのみ】を修正した完全なコードを出力してください。',
+        '',
+        '【ユーザー指示】',
+        instruction,
+        '',
+        '【全リポジトリの全ファイル群（全' + validFiles.length + 'ファイル）】',
+        filesBlock,
         '',
         '【絶対厳守ルール】',
         '- 指示されていない既存のUI、CSS、計算式、関数名、変数名を勝手に変更・削除しないこと。',
