@@ -23,11 +23,12 @@ export async function onRequestPost(context) {
       .filter(Boolean);
     const allRepos = [mainRepo, ...extraRepos];
 
+    const ghApi = (path) => new URL(path, 'https://github.com').href;
     const ghHeaders = {
-      'Authorization': 'token ' + env.GITHUB_TOKEN.trim(),
+      'Authorization': 'Bearer ' + env.GITHUB_TOKEN.trim(),
       'Accept': 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'Cloudflare-Pages-DevAgent/1.0'
+      'User-Agent': 'Cloudflare-Pages-DevAgent'
     };
 
     if (action === 'generate_batch') {
@@ -37,16 +38,17 @@ export async function onRequestPost(context) {
       const validFiles = [];
 
       for (const repo of allRepos) {
-        const repoBase = 'https://github.com' + repo;
-        const repoInfoRes = await fetch(repoBase, { headers: ghHeaders });
+        const repoUrl = ghApi('/repos/' + repo);
+        const repoInfoRes = await fetch(repoUrl, { headers: ghHeaders });
         if (!repoInfoRes.ok) {
           const errTxt = await repoInfoRes.text();
-          return jsonRes({ error: repo + ' 取得失敗 (' + repoInfoRes.status + '): ' + errTxt.slice(0, 120) }, 400);
+          return jsonRes({ error: repoUrl + ' 取得失敗 (' + repoInfoRes.status + '): ' + errTxt.slice(0, 120) }, 400);
         }
         const repoInfo = await repoInfoRes.json();
         const branch = repoInfo.default_branch || 'main';
 
-        const treeRes = await fetch(repoBase + '/git/trees/' + encodeURIComponent(branch) + '?recursive=1', { headers: ghHeaders });
+        const treeUrl = ghApi('/repos/' + repo + '/git/trees/' + encodeURIComponent(branch) + '?recursive=1');
+        const treeRes = await fetch(treeUrl, { headers: ghHeaders });
         if (!treeRes.ok) continue;
         const treeData = await treeRes.json();
 
@@ -57,7 +59,8 @@ export async function onRequestPost(context) {
         );
 
         const repoFiles = await Promise.all(blobs.map(async (blob) => {
-          const res = await fetch(repoBase + '/contents/' + blob.path + '?ref=' + encodeURIComponent(branch), { headers: ghHeaders });
+          const fileUrl = ghApi('/repos/' + repo + '/contents/' + blob.path + '?ref=' + encodeURIComponent(branch));
+          const res = await fetch(fileUrl, { headers: ghHeaders });
           if (!res.ok) return null;
           const data = await res.json();
           return {
@@ -93,8 +96,10 @@ export async function onRequestPost(context) {
         filesBlock
       ].join('\n');
 
-      const geminiUrl = 'https://googleapis.com' + env.GEMINI_API_KEY.trim();
-      const aiRes = await fetch(geminiUrl, {
+      const geminiUrl = new URL('/v1beta/models/gemini-2.5-pro:generateContent', 'https://googleapis.com');
+      geminiUrl.searchParams.set('key', env.GEMINI_API_KEY.trim());
+
+      const aiRes = await fetch(geminiUrl.href, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -109,8 +114,8 @@ export async function onRequestPost(context) {
       }
 
       const aiJson = await aiRes.json();
-      const firstCand = Array.isArray(aiJson.candidates) ? aiJson.candidates[0] : null;
-      const firstPart = (firstCand && firstCand.content && Array.isArray(firstCand.content.parts)) ? firstCand.content.parts[0] : null;
+      const firstCand = Array.isArray(aiJson.candidates) ? aiJson.candidates : null;
+      const firstPart = (firstCand && firstCand.content && Array.isArray(firstCand.content.parts)) ? firstCand.content.parts : null;
       const rawText = (firstPart && firstPart.text) ? firstPart.text : '{}';
       const parsed = JSON.parse(rawText);
 
@@ -143,18 +148,17 @@ export async function onRequestPost(context) {
 
       const savedList = [];
       for (const [repo, repoChanges] of Object.entries(byRepo)) {
-        const repoBase = 'https://github.com' + repo;
-        const repoInfoRes = await fetch(repoBase, { headers: ghHeaders });
+        const repoInfoRes = await fetch(ghApi('/repos/' + repo), { headers: ghHeaders });
         if (!repoInfoRes.ok) return jsonRes({ error: repo + ' の情報取得に失敗しました' }, 500);
         const repoInfo = await repoInfoRes.json();
         const branch = repoInfo.default_branch || 'main';
 
-        const refRes = await fetch(repoBase + '/git/ref/heads/' + encodeURIComponent(branch), { headers: ghHeaders });
+        const refRes = await fetch(ghApi('/repos/' + repo + '/git/ref/heads/' + encodeURIComponent(branch)), { headers: ghHeaders });
         if (!refRes.ok) return jsonRes({ error: repo + ' のブランチ取得に失敗しました' }, 500);
         const refData = await refRes.json();
         const latestCommitSha = refData.object.sha;
 
-        const commitRes = await fetch(repoBase + '/git/commits/' + latestCommitSha, { headers: ghHeaders });
+        const commitRes = await fetch(ghApi('/repos/' + repo + '/git/commits/' + latestCommitSha), { headers: ghHeaders });
         const commitData = await commitRes.json();
         const baseTreeSha = commitData.tree.sha;
 
@@ -165,7 +169,7 @@ export async function onRequestPost(context) {
           content: ch.code
         }));
 
-        const treeRes = await fetch(repoBase + '/git/trees', {
+        const treeRes = await fetch(ghApi('/repos/' + repo + '/git/trees'), {
           method: 'POST',
           headers: { ...ghHeaders, 'Content-Type': 'application/json' },
           body: JSON.stringify({ base_tree: baseTreeSha, tree: treeItems })
@@ -173,7 +177,7 @@ export async function onRequestPost(context) {
         if (!treeRes.ok) return jsonRes({ error: repo + ' のGit Tree作成に失敗しました' }, 500);
         const newTreeData = await treeRes.json();
 
-        const newCommitRes = await fetch(repoBase + '/git/commits', {
+        const newCommitRes = await fetch(ghApi('/repos/' + repo + '/git/commits'), {
           method: 'POST',
           headers: { ...ghHeaders, 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -185,7 +189,7 @@ export async function onRequestPost(context) {
         if (!newCommitRes.ok) return jsonRes({ error: repo + ' のコミット作成に失敗しました' }, 500);
         const newCommitData = await newCommitRes.json();
 
-        const updateRefRes = await fetch(repoBase + '/git/refs/heads/' + encodeURIComponent(branch), {
+        const updateRefRes = await fetch(ghApi('/repos/' + repo + '/git/refs/heads/' + encodeURIComponent(branch)), {
           method: 'PATCH',
           headers: { ...ghHeaders, 'Content-Type': 'application/json' },
           body: JSON.stringify({ sha: newCommitData.sha })
