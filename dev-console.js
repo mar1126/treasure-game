@@ -69,8 +69,14 @@ async function runDevBatchGenerate() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'generate_batch', instruction })
     });
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.error || '生成失敗');
+    const rawResp = await res.text();
+    let data = {};
+    try {
+      data = JSON.parse(rawResp);
+    } catch (_) {
+      throw new Error(`HTTP ${res.status}: ${rawResp.slice(0, 150) || '空レスポンス'}`);
+    }
+    if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}: 生成失敗`);
 
     devBatchFiles = data.files || [];
     document.getElementById('dev-summary-text').textContent = data.summary;
@@ -119,8 +125,14 @@ async function runDevBatchCommit() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'commit_batch', changes })
     });
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.error || '保存失敗');
+    const rawResp = await res.text();
+    let data = {};
+    try {
+      data = JSON.parse(rawResp);
+    } catch (_) {
+      throw new Error(`HTTP ${res.status}: ${rawResp.slice(0, 150) || '空レスポンス'}`);
+    }
+    if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}: 保存失敗`);
 
     statusEl.textContent = '🎉 ' + data.message;
     alert(data.message);
