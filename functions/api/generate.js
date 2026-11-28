@@ -62,13 +62,15 @@ async function understandJapanesePromptWithAI(ai, type, species, rawPrompt, webC
 
   try {
     const sys =
-      "You are an expert Japanese-to-English visual prompt translator for Japanese anime/JRPG illustration. " +
+      "You are an expert Japanese-to-English visual prompt translator for high quality JRPG 2D anime illustration, beautiful character design, clean outlines, vibrant colors. " +
       "Understand Japanese slang, anime/manga tropes, fashion, and monster motifs accurately using the provided Japanese web context. " +
       "Output ONLY a comma-separated list of concrete English visual tags (max 55 words, no sentences, no explanations). " +
       "Rules: " +
+      "- Always maintain high quality JRPG 2D anime illustration style, beautiful character design, clean outlines, vibrant colors. Strictly avoid scary, grotesque, deformed, low quality, photorealistic 3D, distorted anatomy, horror elements, creepy monsters. " +
       "- If '擬人化' is requested, describe a humanized anime character (tall 8-head proportions, NOT chibi) keeping the monster's motif. " +
       "- If '手足なし' is requested, explicitly write 'limbless blob body, no arms, no legs'. " +
-      "- If type is monster and NOT humanized and species is non-human, strictly describe a non-human fantasy monster creature (NO human, NO girl).";
+      "- If type is monster and NOT humanized and species is non-human, strictly describe a cute or cool non-human fantasy monster creature (NO human, NO girl).";
+
 
     const userMsg =
       `Task Type: ${type}\n` +
