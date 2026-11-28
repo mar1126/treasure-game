@@ -101,7 +101,7 @@ export async function onRequestPost(context) {
         : '';
 
       const historyBlock = Array.isArray(chatHistory) && chatHistory.length > 0
-        ? '\n【これまでの会話履歴】\n' + chatHistory.map(h => (h.role === 'user' ? 'ユーザー: ' : 'AI: ') + h.text).join('\n')
+        ? '\n【これまでの会話履歴】\n' + chatHistory.slice(-4).map(h => (h.role === 'user' ? 'ユーザー: ' : 'AI: ') + h.text).join('\n')
         : '';
 
       const isConsult = action === 'chat' || mode === 'consult';
@@ -166,24 +166,32 @@ export async function onRequestPost(context) {
 
       for (const model of models) {
         const geminiUrl = geminiOrigin + '/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(env.GEMINI_API_KEY.trim());
-        const aiRes = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts }],
-            generationConfig: { maxOutputTokens: 65536 }
-          })
-        });
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const aiRes = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts }],
+              generationConfig: { maxOutputTokens: 65536 }
+            })
+          });
 
-        if (aiRes.ok) {
-          aiJson = await aiRes.json();
+          if (aiRes.ok) {
+            aiJson = await aiRes.json();
+            break;
+          }
+          lastErr = await aiRes.text();
+          if (aiRes.status === 503 || aiRes.status === 429) {
+            await new Promise(r => setTimeout(r, 1500));
+            continue;
+          }
           break;
         }
-        lastErr = await aiRes.text();
+        if (aiJson) break;
       }
 
       if (!aiJson) {
-        return jsonRes({ error: 'Gemini APIエラー: ' + lastErr }, 500);
+        return jsonRes({ error: 'Gemini APIが混み合っています（少し時間を置いて再試行してください）: ' + lastErr.slice(0, 150) }, 500);
       }
 
       const candList = Array.isArray(aiJson.candidates) ? aiJson.candidates : [];
