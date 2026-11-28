@@ -1,171 +1,207 @@
-// ゲーム内AI開発コンソール（複数ファイル一括対応版）(dev-console.js)
-let devBatchFiles = [];
-
-const DEV_ALL_FILES = [
-  { path: 'index.html', label: 'index.html（画面HTML）' },
-  { path: 'game.js', label: 'game.js（メイン進行）' },
-  { path: 'party.js', label: 'party.js（編成・仲間）' },
-  { path: 'breed.js', label: 'breed.js（配合）' },
-  { path: 'cafe.js', label: 'cafe.js（酒場）' },
-  { path: 'inventory.js', label: 'inventory.js（倉庫・料理）' },
-  { path: 'battle.js', label: 'battle.js（バトル）' },
-  { path: 'monsters.js', label: 'monsters.js（種族・スキル）' },
-  { path: 'storage.js', label: 'storage.js（セーブ・ロード）' },
-  { path: 'atelier.js', label: 'atelier.js（アトリエ）' }
-];
-
-function initDevConsoleButton() {
-  if (document.getElementById('dev-console-trigger')) return;
-  const btn = document.createElement('button');
-  btn.id = 'dev-console-trigger';
-  btn.textContent = '🛠️ AI開発';
-  btn.onclick = openDevConsoleModal;
-  btn.style.cssText = 'position:fixed;bottom:64px;right:10px;z-index:9990;padding:6px 10px;border-radius:20px;border:1px solid #334155;background:rgba(15,23,42,0.88);color:#f8fafc;font-size:11px;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,0.25);cursor:pointer;';
-  document.body.appendChild(btn);
-}
-
-function openDevConsoleModal() {
-  let modal = document.getElementById('dev-console-modal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'dev-console-modal';
-    modal.onclick = closeDevConsoleModal;
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.75);display:none;align-items:center;justify-content:center;z-index:9999;padding:10px;';
-
-    const checksHtml = DEV_ALL_FILES.map(f => `
-      <label style="display:flex;align-items:center;gap:4px;font-size:10.5px;background:#1e293b;padding:4px 6px;border-radius:6px;cursor:pointer;">
-        <input type="checkbox" class="dev-file-chk" value="${f.path}" checked>
-        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.label}</span>
-      </label>
-    `).join('');
-
-    modal.innerHTML = `
-      <div onclick="event.stopPropagation()" style="background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:16px;padding:14px;width:100%;max-width:430px;max-height:92vh;overflow-y:auto;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <div style="font-size:14px;font-weight:900;color:#38bdf8;">🛠️ AI一括開発コンソール</div>
-          <button onclick="closeDevConsoleModal()" style="background:#334155;color:#fff;border:none;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;">✕</button>
-        </div>
-
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-          <span style="font-size:11px;color:#94a3b8;">AIに読み込ませるファイル（複数選択可）</span>
-          <button onclick="toggleAllDevFiles()" style="font-size:10px;padding:2px 6px;border-radius:5px;border:1px solid #475569;background:#1e293b;color:#cbd5e1;cursor:pointer;">全選択/解除</button>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px;">
-          ${checksHtml}
-        </div>
-
-        <div style="font-size:11px;color:#94a3b8;margin-bottom:4px;">AIへの一括修正・機能追加の指示</div>
-        <textarea id="dev-instruction" rows="4" placeholder="例：〇〇と〇〇のバグをまとめて直して / 元のUIに戻して" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid #334155;background:#1e293b;color:#fff;font-size:12px;line-height:1.4;margin-bottom:8px;"></textarea>
-
-        <button id="dev-gen-btn" onclick="runDevBatchGenerate()" style="width:100%;padding:10px;border-radius:10px;border:none;background:#0284c7;color:#fff;font-size:12.5px;font-weight:bold;cursor:pointer;">✨ 選択ファイルを一括解析して修正案を作成</button>
-
-        <div id="dev-status-box" style="margin-top:8px;font-size:11.5px;color:#fbbf24;white-space:pre-wrap;"></div>
-
-        <div id="dev-preview-area" style="display:none;margin-top:10px;border-top:1px solid #334155;padding-top:10px;">
-          <div style="font-size:11px;font-weight:bold;color:#4ade80;margin-bottom:4px;">📋 一括修正の要約：</div>
-          <div id="dev-summary-text" style="background:#1e293b;padding:8px;border-radius:8px;font-size:11.5px;color:#e2e8f0;margin-bottom:8px;"></div>
-          <div id="dev-files-list" style="margin-bottom:8px;"></div>
-          <button id="dev-commit-btn" onclick="runDevBatchCommit()" style="width:100%;padding:10px;border-radius:10px;border:none;background:#16a34a;color:#fff;font-size:12.5px;font-weight:bold;cursor:pointer;">🚀 修正ファイルをGitHubへ一括保存する</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-  }
-  modal.style.display = 'flex';
-}
-
-function closeDevConsoleModal() {
-  const modal = document.getElementById('dev-console-modal');
-  if (modal) modal.style.display = 'none';
-}
-
-function toggleAllDevFiles() {
-  const chks = Array.from(document.querySelectorAll('.dev-file-chk'));
-  const allChecked = chks.every(c => c.checked);
-  chks.forEach(c => { c.checked = !allChecked; });
-}
-
-async function runDevBatchGenerate() {
-  const filePaths = Array.from(document.querySelectorAll('.dev-file-chk:checked')).map(c => c.value);
-  const instruction = document.getElementById('dev-instruction')?.value.trim();
-  const statusEl = document.getElementById('dev-status-box');
-  const genBtn = document.getElementById('dev-gen-btn');
-  const previewArea = document.getElementById('dev-preview-area');
-
-  if (filePaths.length === 0) return alert('対象ファイルを1つ以上チェックしてください');
-  if (!instruction) return alert('AIへの修正指示を入力してください');
-
-  genBtn.disabled = true;
-  genBtn.textContent = '⏳ 複数ファイル一括解析＆生成中（20〜40秒）...';
-  statusEl.textContent = `${filePaths.length}個のファイルをGitHubから読み込んで一括解析しています...`;
-  previewArea.style.display = 'none';
+// ゲーム内AI開発コンソール API（メイン＋user-save-do 全リポジトリ自動取得・一括コミット対応）
+export async function onRequestPost(context) {
+  const { request, env } = context;
 
   try {
-    const res = await fetch('/api/dev-agent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'generate_batch', filePaths, instruction })
-    });
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.error || '生成失敗');
+    const body = await request.json();
+    const { action, instruction, changes, commitMessage } = body;
 
-    devBatchFiles = data.files || [];
-    document.getElementById('dev-summary-text').textContent = data.summary;
-
-    const listEl = document.getElementById('dev-files-list');
-    if (devBatchFiles.length === 0) {
-      listEl.innerHTML = '<div style="font-size:11px;color:#94a3b8;">変更が必要なファイルはありませんでした。</div>';
-    } else {
-      listEl.innerHTML = devBatchFiles.map((f, i) => `
-        <div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px;margin-bottom:6px;">
-          <div style="font-size:11.5px;font-weight:bold;color:#38bdf8;">📄 ${f.path}</div>
-          <div style="font-size:10.5px;color:#cbd5e1;margin:2px 0 6px;">${f.reason}</div>
-          <textarea id="dev-batch-code-${i}" rows="5" style="width:100%;box-sizing:border-box;padding:6px;border-radius:6px;border:1px solid #334155;background:#020617;color:#a5f3fc;font-family:monospace;font-size:10px;">${f.code}</textarea>
-        </div>
-      `).join('');
+    if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) {
+      return jsonRes({ error: 'Cloudflareに GITHUB_TOKEN または GITHUB_REPO が設定されていません' }, 500);
     }
 
-    previewArea.style.display = 'block';
-    statusEl.textContent = `✅ ${devBatchFiles.length}個のファイルの修正案ができました！内容を確認して「一括保存」を押してください。`;
+    const mainRepo = env.GITHUB_REPO.trim();
+    const extraRepos = (env.GITHUB_EXTRA_REPOS || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    const allRepos = [mainRepo, ...extraRepos];
+
+    const ghHeaders = {
+      'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'TreasureGame-DevAgent'
+    };
+
+    // モード1: 全リポジトリの全ファイルを自動取得し、AIに一括修正案を作成させる
+    if (action === 'generate_batch') {
+      if (!env.GEMINI_API_KEY) return jsonRes({ error: 'GEMINI_API_KEY が未設定です' }, 500);
+
+      const targetExts = ['.html', '.js', '.css', '.json', '.sql', '.md', '.toml'];
+      const validFiles = [];
+
+      for (const repo of allRepos) {
+        const repoBase = `https://github.com{repo}`;
+        const refRes = await fetch(`${repoBase}/git/ref/heads/main`, { headers: ghHeaders });
+        if (!refRes.ok) continue;
+        const refData = await refRes.json();
+        const latestCommitSha = refData.object.sha;
+
+        const treeRes = await fetch(`${repoBase}/git/trees/${latestCommitSha}?recursive=1`, { headers: ghHeaders });
+        if (!treeRes.ok) continue;
+        const treeData = await treeRes.json();
+
+        const blobs = (treeData.tree || []).filter(item =>
+          item.type === 'blob' &&
+          targetExts.some(ext => item.path.toLowerCase().endsWith(ext)) &&
+          !item.path.startsWith('.')
+        );
+
+        const repoFiles = await Promise.all(blobs.map(async (blob) => {
+          const res = await fetch(`${repoBase}/contents/${blob.path}`, { headers: ghHeaders });
+          if (!res.ok) return null;
+          const data = await res.json();
+          return {
+            repo,
+            path: blob.path,
+            fullPath: `${repo}:${blob.path}`,
+            content: decodeBase64Utf8(data.content)
+          };
+        }));
+
+        repoFiles.filter(Boolean).forEach(f => validFiles.push(f));
+      }
+
+      const filesBlock = validFiles
+        .map(f => `=== REPO: ${f.repo} | FILE: ${f.path} ===\n${f.content}\n=== END FILE ===`)
+        .join('\n\n');
+
+      const prompt = `あなたはWebブラウザRPG（フロントエンド: ${mainRepo} / セーブ・通信サーバー: ${extraRepos.join(', ') || 'なし'}）の熟練エンジニアです。
+全リポジトリ内の全${validFiles.length}ファイルを読み込み、ユーザーの指示に従って【修正が必要なファイルのみ】を修正した完全なコードを出力してください。
+
+【絶対厳守ルール】
+- 指示されていない既存のUI、CSS、計算式、関数名、変数名を勝手に変更・削除しないこと。
+- フロントエンドとサーバー（user-save-do）間のAPI仕様やセーブデータ構造の整合性を完全に一致させること。
+- 「// 省略」「// 既存コードと同じ」などの省略は絶対にせず、修正するファイルは先頭から末尾まで完全なコードを出力すること。
+- 変更が不要なファイルは出力配列に含めないこと。
+- 出力は必ず以下のJSON形式のみ（マークダウンの \`\`\`json などは付けない生JSON）で返すこと：
+{"summary":"全体の変更要約（日本語）","files":[{"repo":"${mainRepo}","path":"ファイルパス","reason":"このファイルの変更点","code":"修正後の完全なコード"}]}
+
+【ユーザーの修正指示】
+${instruction}
+
+【全リポジトリの全ファイル群（全${validFiles.length}ファイル）】
+${filesBlock}`;
+
+      const geminiUrl = `https://googleapis.com{env.GEMINI_API_KEY}`;
+      const aiRes = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: 'application/json' }
+        })
+      });
+
+      if (!aiRes.ok) {
+        const errTxt = await aiRes.text();
+        return jsonRes({ error: `Gemini APIエラー: ${errTxt}` }, 500);
+      }
+
+      const aiJson = await aiRes.json();
+      const rawText = aiJson?.candidates?.?.content?.parts?.?.text || '{}';
+      const parsed = JSON.parse(rawText);
+
+      const resultFiles = (parsed.files || []).map(f => ({
+        repo: f.repo || mainRepo,
+        path: f.path,
+        reason: f.reason || '',
+        code: f.code
+      }));
+
+      return jsonRes({
+        ok: true,
+        scannedCount: validFiles.length,
+        summary: parsed.summary || '一括修正案を作成しました',
+        files: resultFiles
+      });
+    }
+
+    // モード2: リポジトリごとにまとめて1回のコミットで一括保存
+    if (action === 'commit_batch') {
+      if (!Array.isArray(changes) || changes.length === 0) {
+        return jsonRes({ error: '保存する変更ファイルがありません' }, 400);
+      }
+
+      const byRepo = {};
+      changes.forEach(ch => {
+        const r = ch.repo || mainRepo;
+        if (!byRepo[r]) byRepo[r] = [];
+        byRepo[r].push(ch);
+      });
+
+      const savedList = [];
+      for (const [repo, repoChanges] of Object.entries(byRepo)) {
+        const repoBase = `https://github.com{repo}`;
+        const refRes = await fetch(`${repoBase}/git/ref/heads/main`, { headers: ghHeaders });
+        if (!refRes.ok) return jsonRes({ error: `${repo} のmainブランチ取得に失敗しました` }, 500);
+        const refData = await refRes.json();
+        const latestCommitSha = refData.object.sha;
+
+        const commitRes = await fetch(`${repoBase}/git/commits/${latestCommitSha}`, { headers: ghHeaders });
+        const commitData = await commitRes.json();
+        const baseTreeSha = commitData.tree.sha;
+
+        const treeItems = repoChanges.map(ch => ({
+          path: ch.path,
+          mode: '100644',
+          type: 'blob',
+          content: ch.code
+        }));
+
+        const treeRes = await fetch(`${repoBase}/git/trees`, {
+          method: 'POST',
+          headers: { ...ghHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base_tree: baseTreeSha, tree: treeItems })
+        });
+        if (!treeRes.ok) return jsonRes({ error: `${repo} のGit Tree作成に失敗しました` }, 500);
+        const newTreeData = await treeRes.json();
+
+        const newCommitRes = await fetch(`${repoBase}/git/commits`, {
+          method: 'POST',
+          headers: { ...ghHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: commitMessage || `AI DevConsole Batch (${repoChanges.map(c => c.path).join(', ')})`,
+            tree: newTreeData.sha,
+            parents: [latestCommitSha]
+          })
+        });
+        if (!newCommitRes.ok) return jsonRes({ error: `${repo} のコミット作成に失敗しました` }, 500);
+        const newCommitData = await newCommitRes.json();
+
+        const updateRefRes = await fetch(`${repoBase}/git/refs/heads/main`, {
+          method: 'PATCH',
+          headers: { ...ghHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sha: newCommitData.sha })
+        });
+        if (!updateRefRes.ok) return jsonRes({ error: `${repo} のブランチ更新に失敗しました` }, 500);
+
+        repoChanges.forEach(c => savedList.push(`${repo}/${c.path}`));
+      }
+
+      return jsonRes({
+        ok: true,
+        message: `${savedList.length}ファイル（${savedList.join(', ')}）をGitHubへ一括保存しました！約30秒後に自動反映されます。`
+      });
+    }
+
+    return jsonRes({ error: '不明なactionです' }, 400);
   } catch (e) {
-    statusEl.textContent = '❌ エラー: ' + e.message;
-  } finally {
-    genBtn.disabled = false;
-    genBtn.textContent = '✨ 選択ファイルを一括解析して修正案を作成';
+    return jsonRes({ error: e.message || 'サーバーエラーが発生しました' }, 500);
   }
 }
 
-async function runDevBatchCommit() {
-  if (!Array.isArray(devBatchFiles) || devBatchFiles.length === 0) return;
-  const changes = devBatchFiles.map((f, i) => ({
-    path: f.path,
-    code: document.getElementById(`dev-batch-code-${i}`)?.value ?? f.code
-  }));
-
-  if (!confirm(`${changes.length}ファイル（${changes.map(c => c.path).join(', ')}）を1回のコミットでGitHubへ一括保存しますか？`)) return;
-
-  const statusEl = document.getElementById('dev-status-box');
-  const commitBtn = document.getElementById('dev-commit-btn');
-  commitBtn.disabled = true;
-  commitBtn.textContent = '⏳ 一括保存中...';
-
-  try {
-    const res = await fetch('/api/dev-agent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'commit_batch', changes })
-    });
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.error || '保存失敗');
-
-    statusEl.textContent = '🎉 ' + data.message;
-    alert(data.message);
-  } catch (e) {
-    statusEl.textContent = '❌ 保存エラー: ' + e.message;
-  } finally {
-    commitBtn.disabled = false;
-    commitBtn.textContent = '🚀 修正ファイルをGitHubへ一括保存する';
-  }
+function jsonRes(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  });
 }
 
-window.addEventListener('DOMContentLoaded', initDevConsoleButton);
+function decodeBase64Utf8(b64) {
+  const clean = b64.replace(/\s/g, '');
+  const bin = atob(clean);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(bytes);
+}
