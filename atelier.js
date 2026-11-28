@@ -535,7 +535,7 @@ function removeWhiteBackground(dataUrl) {
     const img = new Image();
     img.onload = () => {
       try {
-        const size = 512;
+        const size = 1024;
         const canvas = document.createElement('canvas');
         canvas.width = size;
         canvas.height = size;
@@ -552,7 +552,7 @@ function removeWhiteBackground(dataUrl) {
 
         const isBackgroundWhite = (idx) => {
           const r = d[idx * 4], g = d[idx * 4 + 1], b = d[idx * 4 + 2];
-          return (r > 215 && g > 215 && b > 215) && (Math.max(r, g, b) - Math.min(r, g, b) < 25);
+          return (r > 195 && g > 195 && b > 195) && (Math.max(r, g, b) - Math.min(r, g, b) < 40);
         };
 
         for (let x = 0; x < size; x++) {
@@ -579,7 +579,7 @@ function removeWhiteBackground(dataUrl) {
           const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], a = d[i * 4 + 3];
           if (a === 0) continue;
 
-          if (r > 210 && g > 210 && b > 210 && Math.max(r, g, b) - Math.min(r, g, b) < 30) {
+          if (r > 185 && g > 185 && b > 185 && Math.max(r, g, b) - Math.min(r, g, b) < 45) {
             let transparentNeighbors = 0;
             const x = i % size, y = Math.floor(i / size);
             for (let dy = -1; dy <= 1; dy++) {
@@ -591,13 +591,9 @@ function removeWhiteBackground(dataUrl) {
                 }
               }
             }
-            if (transparentNeighbors >= 2 || visited[i]) {
-              d[i * 4 + 3] = 0;
-            } else {
+            if (transparentNeighbors >= 1) {
               const whiteness = (r + g + b) / 3;
-              if (whiteness > 230) {
-                d[i * 4 + 3] = Math.max(0, d[i * 4 + 3] - (whiteness - 220) * 2);
-              }
+              d[i * 4 + 3] = Math.max(0, a - Math.floor((255 - whiteness) * 1.8));
             }
           }
         }
@@ -610,6 +606,7 @@ function removeWhiteBackground(dataUrl) {
     img.src = dataUrl;
   });
 }
+
 
 function composeStampWithCaption(cleanImgUrl, captionText) {
   return new Promise(resolve => {
