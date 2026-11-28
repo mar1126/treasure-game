@@ -98,7 +98,7 @@ export async function onRequestPost(context) {
       ].join('\n');
 
       const geminiOrigin = ['https://', 'generativelanguage.', 'googleapis.com'].join('');
-      const geminiUrl = geminiOrigin + '/v1beta/models/gemini-2.5-pro:generateContent?key=' + encodeURIComponent(env.GEMINI_API_KEY.trim());
+      const geminiUrl = geminiOrigin + '/v1beta/models/gemini-3.1-pro-preview:generateContent?key=' + encodeURIComponent(env.GEMINI_API_KEY.trim());
 
       const aiRes = await fetch(geminiUrl, {
         method: 'POST',
@@ -115,8 +115,8 @@ export async function onRequestPost(context) {
       }
 
       const aiJson = await aiRes.json();
-      const firstCand = Array.isArray(aiJson.candidates) ? aiJson.candidates[0] : null;
-      const firstPart = (firstCand && firstCand.content && Array.isArray(firstCand.content.parts)) ? firstCand.content.parts[0] : null;
+      const firstCand = Array.isArray(aiJson.candidates) ? aiJson.candidates : null;
+      const firstPart = (firstCand && firstCand.content && Array.isArray(firstCand.content.parts)) ? firstCand.content.parts : null;
       const rawText = (firstPart && firstPart.text) ? firstPart.text : '{}';
       const parsed = JSON.parse(rawText);
 
