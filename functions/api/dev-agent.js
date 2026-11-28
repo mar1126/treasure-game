@@ -10,10 +10,16 @@ export async function onRequestPost(context) {
       return jsonRes({ error: 'Cloudflareに GITHUB_TOKEN または GITHUB_REPO が設定されていません' }, 500);
     }
 
-    const mainRepo = env.GITHUB_REPO.trim();
+    const cleanRepo = s => String(s || '')
+      .trim()
+      .replace(/^https?:\/\/(www\.)?github\.com\//i, '')
+      .replace(/\.git\$/i, '')
+      .replace(/^\/+|\/+\$/g, '');
+
+    const mainRepo = cleanRepo(env.GITHUB_REPO);
     const extraRepos = (env.GITHUB_EXTRA_REPOS || '')
       .split(',')
-      .map(s => s.trim())
+      .map(cleanRepo)
       .filter(Boolean);
     const allRepos = [mainRepo, ...extraRepos];
 
@@ -109,7 +115,7 @@ export async function onRequestPost(context) {
       const parsed = JSON.parse(rawText);
 
       const resultFiles = (parsed.files || []).map(f => ({
-        repo: f.repo || mainRepo,
+        repo: cleanRepo(f.repo) || mainRepo,
         path: f.path,
         reason: f.reason || '',
         code: f.code
@@ -130,7 +136,7 @@ export async function onRequestPost(context) {
 
       const byRepo = {};
       changes.forEach(ch => {
-        const r = ch.repo || mainRepo;
+        const r = cleanRepo(ch.repo) || mainRepo;
         if (!byRepo[r]) byRepo[r] = [];
         byRepo[r].push(ch);
       });
