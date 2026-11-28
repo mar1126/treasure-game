@@ -16,6 +16,51 @@ function escHtml(str) {
     .replace(/>/g, '&gt;');
 }
 
+function copyDevText(text, btn) {
+  if (!text) return;
+  const finish = () => {
+    if (btn) {
+      const orig = btn.getAttribute('data-orig-text') || btn.textContent;
+      if (!btn.getAttribute('data-orig-text')) btn.setAttribute('data-orig-text', orig);
+      btn.textContent = '✅ コピー完了';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(finish).catch(() => fallbackCopy(text, finish));
+  } else {
+    fallbackCopy(text, finish);
+  }
+}
+
+function fallbackCopy(text, cb) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (_) {}
+  document.body.removeChild(ta);
+  if (cb) cb();
+}
+
+function copyDevLogMessage(btn) {
+  const card = btn.closest('.dev-chat-card');
+  if (!card) return;
+  const bodyEl = card.querySelector('.dev-msg-body');
+  if (bodyEl) {
+    copyDevText(bodyEl.innerText || bodyEl.textContent, btn);
+  }
+}
+
+function copyDevCodeBlock(elementId, btn) {
+  const el = document.getElementById(elementId);
+  if (el) {
+    copyDevText(el.value || el.innerText || el.textContent, btn);
+  }
+}
+
 function initDevConsoleButton() {
   const existing = document.getElementById('dev-console-trigger');
   if (!isDevAdminUser()) {
@@ -238,10 +283,17 @@ function renderDevChatLog() {
         `</div>`;
     }
 
+    const titleHtml = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div style="font-size:10px;font-weight:bold;color:${isUser ? '#94a3b8' : '#38bdf8'};">${title}</div>
+        ${!isUser ? `<button onclick="copyDevLogMessage(this)" style="background:#0f172a;color:#38bdf8;border:1px solid #0284c7;border-radius:4px;padding:2px 7px;font-size:9.5px;font-weight:bold;cursor:pointer;">📋 コピー</button>` : ''}
+      </div>
+    `;
+
     return `
-      <div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:7px 9px;">
-        <div style="font-size:10px;font-weight:bold;color:${isUser ? '#94a3b8' : '#38bdf8'};margin-bottom:2px;">${title}</div>
-        <div style="color:#f8fafc;white-space:pre-wrap;">${escHtml(h.text)}</div>
+      <div class="dev-chat-card" style="background:${bg};border:1px solid ${border};border-radius:8px;padding:7px 9px;">
+        ${titleHtml}
+        <div class="dev-msg-body" style="color:#f8fafc;white-space:pre-wrap;">${escHtml(h.text)}</div>
         ${attHtml}
       </div>
     `;
@@ -332,7 +384,10 @@ async function runDevChatSubmit(actionType) {
       } else {
         listEl.innerHTML = devBatchFiles.map((f, i) => `
           <div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px;margin-bottom:6px;">
-            <div style="font-size:11.5px;font-weight:bold;color:#38bdf8;">📄 ${escHtml((f.repo ? f.repo + '/' : '') + f.path)}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <div style="font-size:11.5px;font-weight:bold;color:#38bdf8;">📄 ${escHtml((f.repo ? f.repo + '/' : '') + f.path)}</div>
+              <button onclick="copyDevCodeBlock('dev-batch-code-${i}', this)" style="background:#0f172a;color:#38bdf8;border:1px solid #0284c7;border-radius:4px;padding:2px 7px;font-size:9.5px;font-weight:bold;cursor:pointer;">📋 コピー</button>
+            </div>
             <div style="font-size:10.5px;color:#cbd5e1;margin:2px 0 6px;">${escHtml(f.reason)}</div>
             <textarea id="dev-batch-code-${i}" rows="5" style="width:100%;box-sizing:border-box;padding:6px;border-radius:6px;border:1px solid #334155;background:#020617;color:#a5f3fc;font-family:monospace;font-size:10px;">${escHtml(f.code)}</textarea>
           </div>
