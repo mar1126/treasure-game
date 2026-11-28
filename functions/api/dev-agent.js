@@ -103,7 +103,6 @@ export async function onRequestPost(context) {
         '【全リポジトリの全ファイル群（全' + validFiles.length + 'ファイル）】',
         filesBlock
       ].join('\n');
-
       const geminiOrigin = ['https://', 'generativelanguage.', 'googleapis.com'].join('');
       const models = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview'];
       let aiJson = null;
@@ -131,25 +130,27 @@ export async function onRequestPost(context) {
         return jsonRes({ error: 'Gemini APIエラー: ' + lastErr }, 500);
       }
 
-      const firstCand = Array.isArray(aiJson.candidates) ? aiJson.candidates : null;
-      const firstPart = (firstCand && firstCand.content && Array.isArray(firstCand.content.parts)) ? firstCand.content.parts : null;
-      const rawText = (firstPart && firstPart.text) ? firstPart.text : '';
+      const candList = Array.isArray(aiJson.candidates) ? aiJson.candidates : [];
+      const cand0 = candList.length > 0 ? candList.at(0) : null;
+      const partList = (cand0 && cand0.content && Array.isArray(cand0.content.parts)) ? cand0.content.parts : [];
+      const part0 = partList.length > 0 ? partList.at(0) : null;
+      const rawText = (part0 && typeof part0.text === 'string') ? part0.text : '';
 
       const sumMatch = rawText.match(/<<<SUMMARY>>>([\s\S]*?)<<<END_SUMMARY>>>/);
-      const summary = sumMatch ? sumMatch[1].trim() : '一括修正案を作成しました';
+      const summary = sumMatch ? sumMatch.at(1).trim() : '一括修正案を作成しました';
 
       const resultFiles = [];
       const fileRegex = /<<<FILE:([^:>]+):([^>]+)>>>([\s\S]*?)<<<END_FILE>>>/g;
       let m;
       while ((m = fileRegex.exec(rawText)) !== null) {
-        const fRepo = cleanRepo(m[1]) || mainRepo;
-        const fPath = m[2].trim();
-        let bodyText = m[3];
+        const fRepo = cleanRepo(m.at(1)) || mainRepo;
+        const fPath = String(m.at(2) || '').trim();
+        let bodyText = String(m.at(3) || '');
         let reason = '';
         const rMatch = bodyText.match(/<<<REASON>>>([\s\S]*?)<<<END_REASON>>>/);
         if (rMatch) {
-          reason = rMatch[1].trim();
-          bodyText = bodyText.replace(rMatch[0], '');
+          reason = rMatch.at(1).trim();
+          bodyText = bodyText.replace(rMatch.at(0), '');
         }
         const cleanCode = bodyText.replace(/^\r?\n/, '').replace(/\r?\n$/, '');
         if (fPath && cleanCode) {
