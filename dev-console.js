@@ -61,6 +61,26 @@ function copyDevCodeBlock(elementId, btn) {
   }
 }
 
+function copyDevBatchPrompt(btn) {
+  if (!Array.isArray(devBatchFiles) || devBatchFiles.length === 0) {
+    alert('コピーする修正案がありません。');
+    return;
+  }
+
+  const summary = document.getElementById('dev-summary-text')?.textContent || '';
+  
+  let promptText = `以下の修正案を反映してください。\n\n【変更要約】\n${summary}\n\n`;
+
+  devBatchFiles.forEach((f, i) => {
+    const currentCode = document.getElementById(`dev-batch-code-${i}`)?.value ?? f.code;
+    const fileLabel = (f.repo ? f.repo + '/' : '') + f.path;
+    promptText += `=== FILE: ${fileLabel} ===\n\`\`\`javascript\n${currentCode}\n\`\`\`\n\n`;
+  });
+
+  copyDevText(promptText.trim(), btn);
+}
+
+
 function initDevConsoleButton() {
   const existing = document.getElementById('dev-console-trigger');
   if (!isDevAdminUser()) {
@@ -125,9 +145,13 @@ function openDevConsoleModal() {
 
         <!-- 修正プレビュー・コミットエリア -->
         <div id="dev-preview-area" style="display:none;border-top:1px solid #334155;padding-top:10px;">
-          <div style="font-size:11px;font-weight:bold;color:#4ade80;margin-bottom:4px;">📋 一括修正の要約：</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <div style="font-size:11px;font-weight:bold;color:#4ade80;">📋 一括修正の要約：</div>
+            <button onclick="copyDevBatchPrompt(this)" style="background:#0f172a;color:#38bdf8;border:1px solid #0284c7;border-radius:4px;padding:3px 10px;font-size:10px;font-weight:bold;cursor:pointer;">📋 修整案提出プロンプトをコピー</button>
+          </div>
           <div id="dev-summary-text" style="background:#1e293b;padding:8px;border-radius:8px;font-size:11.5px;color:#e2e8f0;margin-bottom:8px;"></div>
           <div id="dev-files-list" style="margin-bottom:8px;"></div>
+
           
           <button id="dev-ui-preview-btn" onclick="runDevUiPreview()" style="width:100%;padding:9px;border-radius:8px;border:none;background:#8b5cf6;color:#fff;font-size:12px;font-weight:bold;cursor:pointer;margin-bottom:8px;">👁️ 変更後のUI画面をプレビュー確認する</button>
           
