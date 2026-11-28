@@ -11,7 +11,7 @@ async function fetchJapaneseWebContext(queryText) {
   try {
     const q = String(queryText || "").replace(/[!！@][^\s]+\s*/g, "").trim().slice(0, 40);
     if (!q) return "";
-    const url = `https://wikipedia.org{encodeURIComponent(q)}&format=json&srlimit=2`;
+    const url = `https://ja.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&format=json&srlimit=2`;
     const res = await fetch(url, { headers: { "User-Agent": "FantasyFrontierGame/1.0" } });
     if (!res.ok) return "";
     const data = await res.json();
@@ -25,6 +25,36 @@ async function fetchJapaneseWebContext(queryText) {
     return "";
   }
 }
+
+async function fetchWikipediaImageUrl(queryText) {
+  try {
+    const q = String(queryText || "").replace(/[!！@][^\s]+\s*/g, "").trim().slice(0, 40);
+    if (!q) return null;
+    const searchUrl = `https://ja.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&format=json&srlimit=1`;
+    const sRes = await fetch(searchUrl, { headers: { "User-Agent": "FantasyFrontierGame/1.0" } });
+    if (!sRes.ok) return null;
+    const sData = await sRes.json();
+    const page = sData?.query?.search?.[0];
+    if (!page || !page.title) return null;
+
+    const imgUrl = `https://ja.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(page.title)}&prop=pageimages&pithumbsize=500&format=json`;
+    const iRes = await fetch(imgUrl, { headers: { "User-Agent": "FantasyFrontierGame/1.0" } });
+    if (!iRes.ok) return null;
+    const iData = await iRes.json();
+    const pages = iData?.query?.pages || {};
+    const pageId = Object.keys(pages)[0];
+    if (pageId && pages[pageId]?.thumbnail?.source) {
+      const thumbSrc = pages[pageId].thumbnail.source;
+      const imgFetch = await fetch(thumbSrc);
+      if (imgFetch.ok) {
+        const buf = await imgFetch.arrayBuffer();
+        return Array.from(new Uint8Array(buf));
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
 
 async function understandJapanesePromptWithAI(ai, type, species, rawPrompt, webContext) {
   const isHumanize = /擬人化|美少女|美女|イケメン|女の子|男の子|人型|メイド|巫女/.test(rawPrompt);
@@ -98,9 +128,16 @@ export async function onRequestPost({ request, env }) {
     const sourceImg = String(body.source_img || "");
 
     const webContext = await fetchJapaneseWebContext(rawPrompt || species);
-    const understoodTags = await understandJapanesePromptWithAI(ai, type, species, rawPrompt, webContext);
+    let visualContext = "";
+    const wikiImgBytes = await fetchWikipediaImageUrl(rawPrompt || species);
+    if (wikiImgBytes && wikiImgBytes.length > 0) {
+      visualContext = await extractDetailedFaceAndOutfit(ai, wikiImgBytes);
+    }
+    const combinedContext = webContext + (visualContext ? ` / Visual Features: ${visualContext}` : "");
+    const understoodTags = await understandJapanesePromptWithAI(ai, type, species, rawPrompt, combinedContext);
 
     const jpStyle = "Japanese JRPG character and monster illustration style, clean bold black outlines, vibrant cel shading, isolated on solid pure white background #FFFFFF, no western comic style, no 3D render, no text";
+
 
     if (type === "stamp") {
       let imgBytes = null;
