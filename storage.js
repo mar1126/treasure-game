@@ -8,7 +8,7 @@ function getLocalSaveKey() {
 
 function buildSavePayload() {
   return {
-    v: 68,
+    v: 69,
     savedAt: Date.now(),
     userName: playerName || 'ハンター',
     gold: Number(gold) || 0,

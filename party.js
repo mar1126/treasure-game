@@ -260,15 +260,16 @@ function renderCaptured() {
   if (!box) return;
 
   box.style.display = 'grid';
-  box.style.gridTemplateColumns = 'repeat(4, 1fr)';
-  box.style.gap = '6px';
+  box.style.gridTemplateColumns = 'repeat(5, 1fr)';
+  box.style.gap = '4px';
 
   const cap = typeof maxCaptured !== 'undefined' ? Number(maxCaptured) : 50;
   const countEl = document.getElementById('mon-count-disp') || document.getElementById('captured-count');
   if (countEl) countEl.textContent = `${(captured || []).length}/${cap}`;
 
-  if (!document.getElementById('bulk-release-bar')) {
-    const bar = document.createElement('div');
+  let bar = document.getElementById('bulk-release-bar');
+  if (!bar && box.parentNode) {
+    bar = document.createElement('div');
     bar.id = 'bulk-release-bar';
     bar.style.cssText = 'display:flex;justify-content:flex-end;margin:6px 0 8px;';
     bar.innerHTML = `<button onclick="releaseBulkMonsters()" style="padding:5px 10px;border-radius:8px;border:1px solid #f59e0b;background:#fffbeb;color:#b45309;font-size:10.5px;font-weight:bold;cursor:pointer;">🍃 未編成をまとめて逃がす（素材獲得）</button>`;
@@ -294,16 +295,10 @@ function renderCaptured() {
     const rarBorder = m.rarity === 'UR' ? '#c084fc' : (m.rarity === 'SR' ? '#f59e0b' : (m.rarity === 'R' ? '#38bdf8' : '#cbd5e1'));
 
     return `
-      <div onclick="openMonsterModal(${idx})" style="aspect-ratio:1/1;border:1.5px solid ${rarBorder};border-radius:10px;padding:3px 2px;display:flex;flex-direction:column;justify-content:space-between;align-items:center;background:#ffffff;cursor:pointer;overflow:hidden;min-width:0;">
-        <div style="width:100%;display:flex;justify-content:space-between;align-items:center;min-height:12px;padding:0 2px;">
-          <span>${badge}</span>
-          <span style="font-size:9px;">${lockMark}</span>
-        </div>
-        <div style="display:flex;justify-content:center;align-items:center;flex:1;">${renderSprite(disp, 34, '6px')}</div>
-        <div style="width:100%;text-align:center;line-height:1.15;">
-          <div style="font-size:9px;font-weight:bold;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
-          <div style="font-size:8.5px;color:#0284c7;font-weight:bold;">Lv.${m.lv || 1}${plus > 0 ? `<span style="color:#ff7043;"> +${plus}</span>` : ''}</div>
-        </div>
+      <div onclick="openMonsterModal(${idx})" class="mini-mon-card ${inParty ? 'in-party' : (inTrain ? 'train' : '')}" style="border-color:${rarBorder};">
+        <div class="m-top"><span class="m-lv">Lv.${m.lv || 1}</span>${badge}${lockMark ? `<span style="font-size:8px;">${lockMark}</span>` : ''}</div>
+        <div class="m-icon">${renderSprite(disp, 32, '8px')}</div>
+        <div class="m-bot">${plus > 0 ? `<span class="m-plus">+${plus}</span>` : `<span class="m-nm">${m.name}</span>`}</div>
       </div>
     `;
   }).join('');
@@ -328,10 +323,8 @@ function openMonsterModal(idx) {
   const elemLabel = elemMap[m.elem || sp?.elem || 'none'] || '無属性';
   const needExp = Math.floor(25 * Math.pow(1.22, (Number(m.lv) || 1) - 1));
   const curExp = Number(m.exp) || 0;
-  const expPct = (Number(m.lv) || 1) >= maxLv ? 100 : Math.min(100, Math.round((curExp / needExp) * 100));
 
   const inParty = (party || []).some(v => v === idx || v === m.id);
-  const inTrain = (trainingSlots || []).some(v => v === idx || v === m.id);
 
   const spriteEl = document.getElementById('modal-mon-sprite');
   const nameEl = document.getElementById('modal-mon-name');
