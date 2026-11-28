@@ -1,4 +1,4 @@
-// ゲーム内AI開発コンソール API（マルチモーダル画像/ファイル添付・対話チャット・全リポジトリ一括対応）
+// ゲーム内AI開発コンソール API（全リポジトリ完全読み込み・賢さ＆速度両立版）
 const ADMIN_USER_IDS = ['H-ORM8PM4M'];
 
 export async function onRequestPost(context) {
@@ -172,7 +172,10 @@ export async function onRequestPost(context) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents: [{ parts }],
-              generationConfig: { maxOutputTokens: 65536 }
+              generationConfig: {
+                maxOutputTokens: 65536,
+                thinkingConfig: { thinkingBudget: 4096 }
+              }
             })
           });
 
@@ -182,7 +185,7 @@ export async function onRequestPost(context) {
           }
           lastErr = await aiRes.text();
           if (aiRes.status === 503 || aiRes.status === 429) {
-            await new Promise(r => setTimeout(r, 1500));
+            await new Promise(r => setTimeout(r, 1200));
             continue;
           }
           break;
