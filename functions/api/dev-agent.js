@@ -86,9 +86,16 @@ export async function onRequestPost(context) {
         '- 指示されていない既存のUI、CSS、計算式、関数名、変数名を勝手に変更・削除しないこと。',
         '- フロントエンドとサーバー（user-save-do）間のAPI仕様やセーブデータ構造の整合性を完全に一致させること。',
         '- 「// 省略」「// 既存コードと同じ」などの省略は絶対にせず、修正するファイルは先頭から末尾まで完全なコードを出力すること。',
-        '- 変更が不要なファイルは出力配列に含めないこと。',
-        '- 出力は必ず以下のJSON形式のみ（マークダウンの ```json などは付けない生JSON）で返すこと：',
-        '{"summary":"全体の変更要約（日本語）","files":[{"repo":"' + mainRepo + '","path":"ファイルパス","reason":"このファイルの変更点","code":"修正後の完全なコード"}]}',
+        '- 変更が不要なファイルは出力しないこと。',
+        '- JSONは使わず、必ず以下の専用ブロック形式のみで出力すること（マークダウンの ``` は絶対に付けない）：',
+        '',
+        '<<<SUMMARY>>>',
+        '全体の変更要約（日本語）',
+        '<<<END_SUMMARY>>>',
+        '<<<FILE:' + mainRepo + ':ファイルパス>>>',
+        '<<<REASON>>>このファイルの変更理由<<<END_REASON>>>',
+        '修正後の完全なコード（先頭から末尾まで省略なし）',
+        '<<<END_FILE>>>',
         '',
         '【ユーザーの修正指示】',
         instruction,
@@ -109,7 +116,7 @@ export async function onRequestPost(context) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: 'application/json' }
+            generationConfig: { maxOutputTokens: 65536 }
           })
         });
 
@@ -124,22 +131,36 @@ export async function onRequestPost(context) {
         return jsonRes({ error: 'Gemini APIエラー: ' + lastErr }, 500);
       }
 
-      const firstCand = Array.isArray(aiJson.candidates) ? aiJson.candidates[0] : null;
-      const firstPart = (firstCand && firstCand.content && Array.isArray(firstCand.content.parts)) ? firstCand.content.parts[0] : null;
-      const rawText = (firstPart && firstPart.text) ? firstPart.text : '{}';
-      const parsed = JSON.parse(rawText);
+      const firstCand = Array.isArray(aiJson.candidates) ? aiJson.candidates : null;
+      const firstPart = (firstCand && firstCand.content && Array.isArray(firstCand.content.parts)) ? firstCand.content.parts : null;
+      const rawText = (firstPart && firstPart.text) ? firstPart.text : '';
 
-      const resultFiles = (parsed.files || []).map(f => ({
-        repo: cleanRepo(f.repo) || mainRepo,
-        path: f.path,
-        reason: f.reason || '',
-        code: f.code
-      }));
+      const sumMatch = rawText.match(/<<<SUMMARY>>>([\s\S]*?)<<<END_SUMMARY>>>/);
+      const summary = sumMatch ? sumMatch[1].trim() : '一括修正案を作成しました';
+
+      const resultFiles = [];
+      const fileRegex = /<<<FILE:([^:>]+):([^>]+)>>>([\s\S]*?)<<<END_FILE>>>/g;
+      let m;
+      while ((m = fileRegex.exec(rawText)) !== null) {
+        const fRepo = cleanRepo(m[1]) || mainRepo;
+        const fPath = m[2].trim();
+        let bodyText = m[3];
+        let reason = '';
+        const rMatch = bodyText.match(/<<<REASON>>>([\s\S]*?)<<<END_REASON>>>/);
+        if (rMatch) {
+          reason = rMatch[1].trim();
+          bodyText = bodyText.replace(rMatch[0], '');
+        }
+        const cleanCode = bodyText.replace(/^\r?\n/, '').replace(/\r?\n$/, '');
+        if (fPath && cleanCode) {
+          resultFiles.push({ repo: fRepo, path: fPath, reason, code: cleanCode });
+        }
+      }
 
       return jsonRes({
         ok: true,
         scannedCount: validFiles.length,
-        summary: parsed.summary || '一括修正案を作成しました',
+        summary,
         files: resultFiles
       });
     }
