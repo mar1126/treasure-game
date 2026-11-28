@@ -1,5 +1,11 @@
 // ゲーム内AI一括開発コンソール（複数リポジトリ全ファイル自動検出版）(dev-console.js)
 let devBatchFiles = [];
+const DEV_ADMIN_USER_IDS = ['H-ORM8PM4M'];
+
+function isDevAdminUser() {
+  const currentUid = (typeof userId !== 'undefined' && userId) ? userId : localStorage.getItem('treasure_uid');
+  return DEV_ADMIN_USER_IDS.includes(String(currentUid || ''));
+}
 
 function escHtml(str) {
   return String(str || '')
@@ -9,6 +15,11 @@ function escHtml(str) {
 }
 
 function initDevConsoleButton() {
+  if (!isDevAdminUser()) {
+    const existing = document.getElementById('dev-console-trigger');
+    if (existing) existing.remove();
+    return;
+  }
   if (document.getElementById('dev-console-trigger')) return;
   const btn = document.createElement('button');
   btn.id = 'dev-console-trigger';
@@ -19,6 +30,11 @@ function initDevConsoleButton() {
 }
 
 function openDevConsoleModal() {
+  if (!isDevAdminUser()) {
+    alert('管理者権限がありません。');
+    return;
+  }
+
   let modal = document.getElementById('dev-console-modal');
   if (!modal) {
     modal = document.createElement('div');
@@ -74,6 +90,9 @@ async function runDevBatchGenerate() {
   const previewArea = document.getElementById('dev-preview-area');
 
   if (!instruction) return alert('AIへの修正指示を入力してください');
+  if (!isDevAdminUser()) return alert('管理者権限が必要です');
+
+  const currentUserId = (typeof userId !== 'undefined' && userId) ? userId : localStorage.getItem('treasure_uid');
 
   genBtn.disabled = true;
   genBtn.textContent = '⏳ 全リポジトリ自動読込＆AI生成中...';
@@ -86,7 +105,7 @@ async function runDevBatchGenerate() {
     const res = await fetch('/api/dev-agent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'generate_batch', instruction })
+      body: JSON.stringify({ action: 'generate_batch', instruction, userId: currentUserId })
     });
     const rawResp = await res.text();
     let data = {};
@@ -175,6 +194,10 @@ async function runDevUiPreview() {
 
 async function runDevBatchCommit() {
   if (!Array.isArray(devBatchFiles) || devBatchFiles.length === 0) return;
+  if (!isDevAdminUser()) return alert('管理者権限が必要です');
+
+  const currentUserId = (typeof userId !== 'undefined' && userId) ? userId : localStorage.getItem('treasure_uid');
+
   const changes = devBatchFiles.map((f, i) => ({
     repo: f.repo,
     path: f.path,
@@ -192,7 +215,7 @@ async function runDevBatchCommit() {
     const res = await fetch('/api/dev-agent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'commit_batch', changes })
+      body: JSON.stringify({ action: 'commit_batch', changes, userId: currentUserId })
     });
     const rawResp = await res.text();
     let data = {};
@@ -213,4 +236,7 @@ async function runDevBatchCommit() {
   }
 }
 
-window.addEventListener('DOMContentLoaded', initDevConsoleButton);
+if (typeof window !== 'undefined') {
+  window.addEventListener('DOMContentLoaded', initDevConsoleButton);
+  setTimeout(initDevConsoleButton, 1000);
+}
