@@ -271,6 +271,7 @@ async function runDevChatSubmit(actionType) {
   const currentAtts = [...devAttachments];
   const reqImages = currentAtts.filter(a => a.type === 'image').map(a => ({ mimeType: a.mimeType, data: a.data }));
   const reqTexts = currentAtts.filter(a => a.type === 'text').map(a => ({ name: a.name, content: a.content }));
+  const reqMode = actionType === 'chat' ? 'consult' : 'generate';
 
   if (actionType === 'chat') {
     statusEl.textContent = '⏳ AI回答を生成中...';
@@ -285,6 +286,7 @@ async function runDevChatSubmit(actionType) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: actionType,
+        mode: reqMode,
         instruction,
         chatHistory: devChatHistory,
         images: reqImages,
@@ -307,7 +309,7 @@ async function runDevChatSubmit(actionType) {
       attachments: currentAtts
     });
 
-    if (actionType === 'chat') {
+    if (actionType === 'chat' || reqMode === 'consult') {
       devChatHistory.push({
         role: 'model',
         text: data.reply || 'ご質問への回答を作成しました。'
