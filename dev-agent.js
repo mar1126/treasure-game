@@ -33,7 +33,9 @@ export async function onRequestPost(context) {
       for (const repo of allRepos) {
         const repoBase = `https://github.com{repo}`;
         const refRes = await fetch(`${repoBase}/git/ref/heads/main`, { headers: ghHeaders });
-        if (!refRes.ok) continue;
+        if (!refRes.ok) {
+          return jsonRes({ error: `${repo} のブランチ取得に失敗しました (${refRes.status})。リポジトリ名やトークン権限を確認してください。` }, 400);
+        }
         const refData = await refRes.json();
         const latestCommitSha = refData.object.sha;
 
@@ -54,7 +56,6 @@ export async function onRequestPost(context) {
           return {
             repo,
             path: blob.path,
-            fullPath: `${repo}:${blob.path}`,
             content: decodeBase64Utf8(data.content)
           };
         }));
@@ -95,11 +96,11 @@ ${filesBlock}`;
 
       if (!aiRes.ok) {
         const errTxt = await aiRes.text();
-        return jsonRes({ error: `Gemini APIエラー: ${errTxt}` }, 500);
+        return jsonRes({ error: `Gemini APIエラー (${aiRes.status}): ${errTxt}` }, 500);
       }
 
       const aiJson = await aiRes.json();
-      const rawText = aiJson?.candidates?.?.content?.parts?.?.text || '{}';
+      const rawText = aiJson?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
       const parsed = JSON.parse(rawText);
 
       const resultFiles = (parsed.files || []).map(f => ({
