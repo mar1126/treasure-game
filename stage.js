@@ -14,7 +14,7 @@ const STAGE_MASTER = [
 
 function getStageInfo(stageNum) {
   const s = Math.min(10, Math.max(1, Number(stageNum) || 1));
-  return STAGE_MASTER[s - 1] || STAGE_MASTER;
+  return STAGE_MASTER[s - 1] || STAGE_MASTER[0];
 }
 
 function renderStageBackground() {
@@ -25,10 +25,11 @@ function renderStageBackground() {
 
   const sNum = (typeof state !== 'undefined' && state.stage) ? Number(state.stage) : 1;
   const fNum = (typeof state !== 'undefined' && state.floor) ? Number(state.floor) : 1;
+  const waveNum = (typeof state !== 'undefined' && state.wave) ? Number(state.wave) : 1;
   const info = getStageInfo(sNum);
 
   if (floorEl) {
-    floorEl.textContent = `S${sNum} ${info.name} ${sNum}-${fNum} ▾`;
+    floorEl.textContent = `S${sNum} ${info.name} ${fNum}-${waveNum} ▾`;
   }
 
   const officialStageImg = (typeof officialAssets === 'object' && officialAssets)
@@ -52,18 +53,25 @@ function openFloorSelectModal(ev) {
   if (!modal || !listEl) return;
 
   const curStage = Number(state?.stage || 1);
+  const curFloor = Number(state?.floor || 1);
   const reachedStage = Math.max(curStage, Number(state?.maxStage || 1));
 
   let html = '';
   for (let s = 1; s <= reachedStage; s++) {
     const info = getStageInfo(s);
     const savedMaxF = (state?.maxFloorByStage && state.maxFloorByStage[s]) ? Number(state.maxFloorByStage[s]) : 1;
-    const maxF = (s < reachedStage) ? 20 : Math.max(savedMaxF, s === curStage ? Number(state?.floor || 1) : 1);
+    let maxF = savedMaxF;
+    if (s < reachedStage) {
+      maxF = Math.max(maxF, 20);
+    } else {
+      maxF = Math.max(maxF, curFloor);
+    }
+
     html += `<div style="font-size:12px;font-weight:bold;color:#0277bd;margin:8px 0 4px;">S${s} ${info.name}</div>`;
     html += `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:6px;">`;
     for (let f = 1; f <= maxF; f++) {
-      const isCur = (curStage === s && Number(state?.floor || 1) === f);
-      html += `<button onclick="jumpToStageFloor(${s},${f})" style="padding:6px 2px;border-radius:8px;border:1.5px solid ${isCur ? '#ff7043' : '#cfd8dc'};background:${isCur ? '#fff3e0' : '#ffffff'};color:${isCur ? '#e65100' : '#37474f'};font-size:11px;font-weight:bold;cursor:pointer;">${s}-${f}</button>`;
+      const isCur = (curStage === s && curFloor === f);
+      html += `<button onclick="jumpToStageFloor(${s},${f})" style="padding:6px 2px;border-radius:8px;border:1.5px solid ${isCur ? '#ff7043' : '#cfd8dc'};background:${isCur ? '#fff3e0' : '#ffffff'};color:${isCur ? '#e65100' : '#37474f'};font-size:11px;font-weight:bold;cursor:pointer;">${f}F</button>`;
     }
     html += `</div>`;
   }
@@ -81,6 +89,7 @@ function closeFloorSelectModal() {
 function jumpToStageFloor(s, f) {
   if (typeof state !== 'undefined') {
     state.inBattle = false;
+    autoActive = false;
     state.stage = s;
     state.floor = f;
     state.wave = 1;
@@ -91,8 +100,10 @@ function jumpToStageFloor(s, f) {
   if (typeof resetBattleAllies === 'function') resetBattleAllies();
   if (typeof ensureWaveEnemies === 'function') ensureWaveEnemies();
   if (typeof updateUI === 'function') updateUI();
-  showToast(`S${s} ${getStageInfo(s).name} ${s}-${f} へ移動しました`);
+  showToast(`S${s} ${getStageInfo(s).name} ${s}-${f}-1 へ移動しました`);
 }
+window.selectStageFloor = jumpToStageFloor;
+window.jumpToStageFloor = jumpToStageFloor;
 
 window.addEventListener('DOMContentLoaded', () => {
   window.updateBattleStageBackground = renderStageBackground;

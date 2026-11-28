@@ -215,7 +215,7 @@ function renderTraining() {
   const box = document.getElementById('training-slots');
   if (!box) return;
   const maxSlots = getTrainingCap();
-  const countEl = document.getElementById('training-count-disp') || document.getElementById('training-count');
+  const countEl = document.getElementById('train-count-disp') || document.getElementById('training-count-disp') || document.getElementById('training-count');
   if (countEl) {
     const activeCnt = (trainingSlots || []).slice(0, maxSlots).filter(v => v !== null && v !== undefined).length;
     countEl.textContent = `${activeCnt}/${maxSlots}`;

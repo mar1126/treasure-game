@@ -201,9 +201,12 @@ function updateUI() {
   const incHud = document.getElementById('cafe-income-hud');
   if (incHud) incHud.textContent = inc.toLocaleString();
 
-  const stInfo = typeof getCurrentStageInfo === 'function' ? getCurrentStageInfo() : { id: 1, name: '街周辺' };
+  const sNum = Number(state.stage) || 1;
+  const fNum = Number(state.floor) || 1;
+  const wNum = Number(state.wave) || 1;
+  const stInfo = typeof getStageInfo === 'function' ? getStageInfo(sNum) : { name: '街周辺' };
   const floorEl = document.getElementById('floor-text');
-  if (floorEl) floorEl.textContent = `S${state.stage} ${stInfo.name} ${state.floor}-${state.wave} ▾`;
+  if (floorEl) floorEl.textContent = `S${sNum} ${stInfo.name} ${fNum}-${wNum} ▾`;
 
   const waveBtn = document.getElementById('hud-wave-mode-btn');
   if (waveBtn) {
@@ -324,7 +327,7 @@ function ensureWaveEnemies() {
     return;
   }
 
-  const stInfo = typeof getCurrentStageInfo === 'function' ? getCurrentStageInfo() : { id: 1, monsters: ['スライム', 'プチバット', 'ゴブリン'] };
+  const stInfo = typeof getStageInfo === 'function' ? getStageInfo(state.stage || 1) : { stage: 1, monsters: ['スライム'] };
   const pool = Array.isArray(stInfo.monsters) && stInfo.monsters.length > 0 ? stInfo.monsters : ['スライム'];
   const floorNum = ((Number(state.stage) || 1) - 1) * 20 + (Number(state.floor) || 1);
   const waveNum = Number(state.wave) || 1;
@@ -334,7 +337,8 @@ function ensureWaveEnemies() {
 
   state.enemies = [];
   for (let i = 0; i < count; i++) {
-    const spName = pool[(floorNum + waveNum + i) % pool.length];
+    const rawMon = pool[(floorNum + waveNum + i) % pool.length];
+    const spName = typeof rawMon === 'string' ? rawMon : (rawMon?.name || 'スライム');
     const sp = typeof getSpeciesData === 'function' ? getSpeciesData(spName) : { name: spName, elem: 'none', baseHp: 70, baseAtk: 10, baseDef: 2, ct: 2.0 };
     const maxHp = Math.floor((sp.baseHp || 70) * scale);
     const atk = Math.floor((sp.baseAtk || 10) * scale);
@@ -353,10 +357,15 @@ function ensureWaveEnemies() {
     });
   }
 }
+
 function getDefaultMonsterVisual(speciesName) {
-  const sp = typeof getSpeciesData === 'function' ? getSpeciesData(speciesName) : { name: speciesName, elem: 'none' };
+  const name = String(speciesName || '').replace(/^\[強敵\]\s*/, '');
+  if (officialAssets && officialAssets[`mon:${name}`]) {
+    return officialAssets[`mon:${name}`];
+  }
+  const sp = typeof getSpeciesData === 'function' ? getSpeciesData(name) : { name, elem: 'none' };
   const elem = sp.elem || 'none';
-  const label = String(sp.name || speciesName || '魔').slice(0, 1);
+  const label = String(sp.name || name || '魔').slice(0, 1);
   return `EMBLEM:${elem}:${label}`;
 }
 
@@ -369,6 +378,7 @@ function getSpeciesDisplay(speciesName) {
   }
   return getDefaultMonsterVisual(name);
 }
+
 // --- battle.js / vehicle.js / storage.js との完全互換ブリッジ ---
 Object.defineProperty(state, 'gold', {
   get() { return gold; },
@@ -390,6 +400,7 @@ function getSpeedMultiplier() {
 function getBattleSpeed() {
   return speed2xActive ? 2 : 1;
 }
+
 // --- 公式デフォルトアセット（モンスター・ステージ背景）管理 ---
 let officialAssets = {};
 
@@ -406,17 +417,6 @@ async function loadOfficialAssets() {
       }
     }
   } catch (e) {}
-}
-
-function getDefaultMonsterVisual(speciesName) {
-  const name = String(speciesName || '').replace(/^\[強敵\]\s*/, '');
-  if (officialAssets && officialAssets[`mon:${name}`]) {
-    return officialAssets[`mon:${name}`];
-  }
-  const sp = typeof getSpeciesData === 'function' ? getSpeciesData(name) : { name, elem: 'none' };
-  const elem = sp.elem || 'none';
-  const label = String(sp.name || name || '魔').slice(0, 1);
-  return `EMBLEM:${elem}:${label}`;
 }
 
 function updateStageBackgroundArt() {
@@ -447,43 +447,3 @@ updateUI = function() {
 };
 
 loadOfficialAssets();
-function openFloorSelectModal(e) {
-  if (e) { e.preventDefault(); e.stopPropagation(); }
-  const modal = document.getElementById('floor-modal');
-  const listEl = document.getElementById('floor-select-list');
-  if (!modal || !listEl) return;
-
-  const maxSt = Math.max(1, Number(state.maxStage) || 1);
-  let html = '';
-  for (let s = 1; s <= maxSt; s++) {
-    const maxFl = Math.max(1, (state.maxFloorByStage && state.maxFloorByStage[s]) ? Number(state.maxFloorByStage[s]) : 1);
-    const stName = (typeof getStageInfoById === 'function') ? getStageInfoById(s).name : `ステージ${s}`;
-    html += `<div style="font-size:12px;font-weight:bold;color:#0277bd;margin:6px 0 4px;">S${s} ${stName}</div><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;">`;
-    for (let f = 1; f <= maxFl; f++) {
-      const isCur = (state.stage === s && state.floor === f);
-      html += `<button onclick="selectStageFloor(${s}, ${f})" style="padding:6px 2px;border-radius:6px;border:1px solid ${isCur ? '#ff7043' : '#cfd8dc'};background:${isCur ? '#fff3e0' : '#ffffff'};font-size:11px;font-weight:bold;color:#263238;cursor:pointer;">${f}F</button>`;
-    }
-    html += `</div>`;
-  }
-  listEl.innerHTML = html;
-  modal.style.display = 'flex';
-}
-
-function closeFloorSelectModal() {
-  const modal = document.getElementById('floor-modal');
-  if (modal) modal.style.display = 'none';
-}
-
-function selectStageFloor(s, f) {
-  state.inBattle = false;
-  autoActive = false;
-  state.stage = s;
-  state.floor = f;
-  state.wave = 1;
-  state.enemies = [];
-  ensureWaveEnemies();
-  resetBattleAllies();
-  updateUI();
-  closeFloorSelectModal();
-  showToast(`S${s} ${f}-1 へ移動しました`);
-}

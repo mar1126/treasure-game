@@ -406,6 +406,12 @@ function handleWaveCleared() {
     }
   });
 
+  // 最高到達階層の記録更新
+  if (!state.maxFloorByStage) state.maxFloorByStage = {};
+  state.maxFloorByStage[stageNum] = Math.max(Number(state.maxFloorByStage[stageNum]) || 1, floorNum);
+  if (stageNum > (Number(state.maxStage) || 1)) state.maxStage = stageNum;
+  if (floorNum > (Number(state.maxFloor) || 1)) state.maxFloor = floorNum;
+
   if (isBoss) {
     if (floorNum >= 20) {
       if (stageNum < 10) {
@@ -419,14 +425,10 @@ function handleWaveCleared() {
     }
     state.wave = 1;
 
-    if (typeof recordClearedStageFloor === 'function') {
-      recordClearedStageFloor(state.stage, state.floor);
-    } else if (typeof state.maxStage !== 'undefined') {
-      if (state.stage > state.maxStage || (state.stage === state.maxStage && state.floor > (state.maxFloor || 1))) {
-        state.maxStage = state.stage;
-        state.maxFloor = state.floor;
-      }
-    }
+    // 進んだ後のステージ・階層も最高到達値として確実に更新
+    state.maxFloorByStage[state.stage] = Math.max(Number(state.maxFloorByStage[state.stage]) || 1, state.floor);
+    if (state.stage > (Number(state.maxStage) || 1)) state.maxStage = state.stage;
+    if (state.floor > (Number(state.maxFloor) || 1)) state.maxFloor = state.floor;
 
     state.enemies = [];
     if (waveStopMode || !autoActive) {
