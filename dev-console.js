@@ -1,6 +1,13 @@
 // ゲーム内AI一括開発コンソール（複数リポジトリ全ファイル自動検出版）(dev-console.js)
 let devBatchFiles = [];
 
+function escHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function initDevConsoleButton() {
   if (document.getElementById('dev-console-trigger')) return;
   const btn = document.createElement('button');
@@ -87,9 +94,9 @@ async function runDevBatchGenerate() {
     } else {
       listEl.innerHTML = devBatchFiles.map((f, i) => `
         <div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px;margin-bottom:6px;">
-          <div style="font-size:11.5px;font-weight:bold;color:#38bdf8;">📄 ${f.repo ? f.repo + '/' : ''}${f.path}</div>
-          <div style="font-size:10.5px;color:#cbd5e1;margin:2px 0 6px;">${f.reason}</div>
-          <textarea id="dev-batch-code-${i}" rows="5" style="width:100%;box-sizing:border-box;padding:6px;border-radius:6px;border:1px solid #334155;background:#020617;color:#a5f3fc;font-family:monospace;font-size:10px;">${f.code}</textarea>
+          <div style="font-size:11.5px;font-weight:bold;color:#38bdf8;">📄 ${escHtml((f.repo ? f.repo + '/' : '') + f.path)}</div>
+          <div style="font-size:10.5px;color:#cbd5e1;margin:2px 0 6px;">${escHtml(f.reason)}</div>
+          <textarea id="dev-batch-code-${i}" rows="5" style="width:100%;box-sizing:border-box;padding:6px;border-radius:6px;border:1px solid #334155;background:#020617;color:#a5f3fc;font-family:monospace;font-size:10px;">${escHtml(f.code)}</textarea>
         </div>
       `).join('');
     }
