@@ -371,6 +371,11 @@ function closeMonsterModal() {
 }
 window.closeMonsterModal = closeMonsterModal;
 
+function closeMonModal() {
+  closeMonsterModal();
+}
+window.closeMonModal = closeMonModal;
+
 function assignMonsterToParty(idx) {
   if (!Array.isArray(party)) party = [null, null, null];
   const m = captured[idx];
