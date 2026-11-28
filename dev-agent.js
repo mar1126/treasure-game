@@ -23,7 +23,6 @@ export async function onRequestPost(context) {
       'User-Agent': 'TreasureGame-DevAgent'
     };
 
-    // モード1: 全リポジトリの全ファイルを自動取得し、AIに一括修正案を作成させる
     if (action === 'generate_batch') {
       if (!env.GEMINI_API_KEY) return jsonRes({ error: 'GEMINI_API_KEY が未設定です' }, 500);
 
@@ -34,7 +33,7 @@ export async function onRequestPost(context) {
         const repoBase = `https://github.com{repo}`;
         const refRes = await fetch(`${repoBase}/git/ref/heads/main`, { headers: ghHeaders });
         if (!refRes.ok) {
-          return jsonRes({ error: `${repo} のブランチ取得に失敗しました (${refRes.status})。リポジトリ名やトークン権限を確認してください。` }, 400);
+          return jsonRes({ error: `${repo} のブランチ取得失敗 (${refRes.status})` }, 400);
         }
         const refData = await refRes.json();
         const latestCommitSha = refData.object.sha;
@@ -100,7 +99,9 @@ ${filesBlock}`;
       }
 
       const aiJson = await aiRes.json();
-      const rawText = aiJson?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      const firstCand = Array.isArray(aiJson.candidates) ? aiJson.candidates[0] : null;
+      const firstPart = (firstCand && firstCand.content && Array.isArray(firstCand.content.parts)) ? firstCand.content.parts[0] : null;
+      const rawText = (firstPart && firstPart.text) ? firstPart.text : '{}';
       const parsed = JSON.parse(rawText);
 
       const resultFiles = (parsed.files || []).map(f => ({
@@ -118,7 +119,6 @@ ${filesBlock}`;
       });
     }
 
-    // モード2: リポジトリごとにまとめて1回のコミットで一括保存
     if (action === 'commit_batch') {
       if (!Array.isArray(changes) || changes.length === 0) {
         return jsonRes({ error: '保存する変更ファイルがありません' }, 400);
