@@ -465,7 +465,13 @@ async function runDevUiPreview() {
     const filename = f.path.split('/').pop();
     if (!filename) return;
 
+    // functions/配下のバックエンドファイルや、サーバーサイド専用のES Modules構文（export/import）を含むファイルは除外
+    if (f.path.startsWith('functions/') || /(^|\s)(export|import)\s/m.test(code)) {
+      return;
+    }
+
     if (f.path.endsWith('.js')) {
+
       const scriptReg = new RegExp(`<script[^>]*src=["'][^"']*${filename.replace('.', '\\.')}(?:\\?[^"']*)?["'][^>]*>\\s*<\\/script>`, 'gi');
       if (scriptReg.test(baseHtml)) {
         baseHtml = baseHtml.replace(scriptReg, `<script>${code.replace(/<\/script>/gi, '<\\/script>')}</script>`);
