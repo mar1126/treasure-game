@@ -283,12 +283,14 @@ function renderDevChatLog() {
         `</div>`;
     }
 
+    const isModel = h.role === 'model';
     const titleHtml = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
         <div style="font-size:10px;font-weight:bold;color:${isUser ? '#94a3b8' : '#38bdf8'};">${title}</div>
-        ${!isUser ? `<button onclick="copyDevLogMessage(this)" style="background:#0f172a;color:#38bdf8;border:1px solid #0284c7;border-radius:4px;padding:2px 7px;font-size:9.5px;font-weight:bold;cursor:pointer;">📋 コピー</button>` : ''}
+        ${isModel ? `<button onclick="copyDevLogMessage(this)" style="background:#0f172a;color:#38bdf8;border:1px solid #0284c7;border-radius:4px;padding:2px 8px;font-size:9.5px;font-weight:bold;cursor:pointer;transition:all 0.15s ease;">📋 コピー</button>` : ''}
       </div>
     `;
+
 
     return `
       <div class="dev-chat-card" style="background:${bg};border:1px solid ${border};border-radius:8px;padding:7px 9px;">
