@@ -4,6 +4,45 @@ let breedState = {
   parentBId: ''
 };
 
+function getMonStats(mon) {
+  if (!mon) return { lv: 1, plus: 0, maxHp: 50, atk: 10, def: 2, ctMax: 2.0 };
+  const lv = Math.max(1, Number(mon.lv) || 1);
+  const plus = typeof getMonsterPlus === 'function' ? getMonsterPlus(mon) : Math.max(Number(mon.plus) || 0, Number(mon.star) || 0);
+  const sp = typeof getSpeciesData === 'function' ? getSpeciesData(mon.name) : null;
+
+  if (typeof getMonsterBattleStats === 'function') {
+    const bSt = getMonsterBattleStats(mon);
+    const stageMul = 1 + ((Number(sp?.stage) || 1) - 1) * 0.25;
+    const plusMul = 1 + plus * 0.22;
+    const baseDef = Number(mon.baseDef) || sp?.baseDef || 4;
+    const bonusDef = Number(mon.bonusDef) || 0;
+    const def = Math.floor((baseDef + (lv - 1) * 1.5 + bonusDef) * stageMul * plusMul);
+    return {
+      lv,
+      plus,
+      maxHp: bSt.maxHp,
+      atk: bSt.atk,
+      def,
+      ctMax: bSt.ctMax
+    };
+  }
+
+  const baseHp = Number(mon.baseHp) || sp?.baseHp || 65;
+  const baseAtk = Number(mon.baseAtk) || sp?.baseAtk || 14;
+  const baseDef = Number(mon.baseDef) || sp?.baseDef || 4;
+  const bonusHp = Number(mon.bonusHp) || 0;
+  const bonusAtk = Number(mon.bonusAtk) || 0;
+  const bonusDef = Number(mon.bonusDef) || 0;
+
+  return {
+    lv,
+    plus,
+    maxHp: Math.floor(baseHp + (lv - 1) * 18 + bonusHp),
+    atk: Math.floor(baseAtk + (lv - 1) * 4.5 + bonusAtk),
+    def: Math.floor(baseDef + (lv - 1) * 1.5 + bonusDef)
+  };
+}
+
 function getBreedChildSpeciesName(monA, monB) {
   if (!monA || !monB) return 'スライム';
   if (monA.name === monB.name) return monA.name;
@@ -74,7 +113,7 @@ function renderBreedTab() {
   `;
 
   gridEl.innerHTML = (captured || []).map(m => {
-    const st = typeof getMonStats === 'function' ? getMonStats(m) : { lv: 1, plus: 0 };
+    const st = getMonStats(m);
     const isEligible = st.lv >= 10;
     const isA = m.id === breedState.parentAId;
     const isB = m.id === breedState.parentBId;
@@ -102,7 +141,8 @@ function clearBreedSlot(slot) {
 function selectBreedMonster(monId) {
   const m = captured.find(x => x.id === monId);
   if (!m) return;
-  if ((Number(m.lv) || 1) < 10) {
+  const st = getMonStats(m);
+  if (st.lv < 10) {
     return showToast('配合できるのは Lv.10以上 の仲間だけです');
   }
   if (breedState.parentAId === monId) { breedState.parentAId = ''; renderBreedTab(); return; }
@@ -112,6 +152,7 @@ function selectBreedMonster(monId) {
   renderBreedTab();
   if (breedState.parentAId && breedState.parentBId) openBreedConfirmModal();
 }
+
 function openBreedConfirmModal() {
   const monA = captured.find(x => x.id === breedState.parentAId);
   const monB = captured.find(x => x.id === breedState.parentBId);
