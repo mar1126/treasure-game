@@ -98,25 +98,34 @@ export async function onRequestPost(context) {
       ].join('\n');
 
       const geminiOrigin = ['https://', 'generativelanguage.', 'googleapis.com'].join('');
-      const geminiUrl = geminiOrigin + '/v1beta/models/gemini-3.1-pro-preview:generateContent?key=' + encodeURIComponent(env.GEMINI_API_KEY.trim());
+      const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+      let aiJson = null;
+      let lastErr = '';
 
-      const aiRes = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: 'application/json' }
-        })
-      });
+      for (const model of models) {
+        const geminiUrl = geminiOrigin + '/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(env.GEMINI_API_KEY.trim());
+        const aiRes = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: 'application/json' }
+          })
+        });
 
-      if (!aiRes.ok) {
-        const errTxt = await aiRes.text();
-        return jsonRes({ error: 'Gemini APIエラー (' + aiRes.status + '): ' + errTxt }, 500);
+        if (aiRes.ok) {
+          aiJson = await aiRes.json();
+          break;
+        }
+        lastErr = await aiRes.text();
       }
 
-      const aiJson = await aiRes.json();
-      const firstCand = Array.isArray(aiJson.candidates) ? aiJson.candidates : null;
-      const firstPart = (firstCand && firstCand.content && Array.isArray(firstCand.content.parts)) ? firstCand.content.parts : null;
+      if (!aiJson) {
+        return jsonRes({ error: 'Gemini APIエラー: ' + lastErr }, 500);
+      }
+
+      const firstCand = Array.isArray(aiJson.candidates) ? aiJson.candidates[0] : null;
+      const firstPart = (firstCand && firstCand.content && Array.isArray(firstCand.content.parts)) ? firstCand.content.parts[0] : null;
       const rawText = (firstPart && firstPart.text) ? firstPart.text : '{}';
       const parsed = JSON.parse(rawText);
 
