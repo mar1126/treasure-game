@@ -17,6 +17,7 @@ let gold = 200;
 let gem = 1000;
 let stamina = 30;
 const MAX_STAMINA = 30;
+let maxStamina = 30;
 let staminaUpdatedAt = Date.now();
 
 let autoUnlocked = false;
@@ -99,8 +100,9 @@ function showDamagePopup(slotId, text, typeClass = '') {
 
 function syncStamina() {
   const intervalMs = staminaFastUnlocked ? 30000 : 60000;
-  if (stamina >= MAX_STAMINA) {
-    stamina = MAX_STAMINA;
+  const cap = typeof maxStamina !== 'undefined' ? maxStamina : MAX_STAMINA;
+  if (stamina >= cap) {
+    stamina = cap;
     staminaUpdatedAt = Date.now();
     return 0;
   }
@@ -108,10 +110,10 @@ function syncStamina() {
   const elapsed = now - staminaUpdatedAt;
   if (elapsed >= intervalMs) {
     const recovered = Math.floor(elapsed / intervalMs);
-    stamina = Math.min(MAX_STAMINA, stamina + recovered);
-    staminaUpdatedAt = stamina >= MAX_STAMINA ? now : (staminaUpdatedAt + recovered * intervalMs);
+    stamina = Math.min(cap, stamina + recovered);
+    staminaUpdatedAt = stamina >= cap ? now : (staminaUpdatedAt + recovered * intervalMs);
   }
-  if (stamina >= MAX_STAMINA) return 0;
+  if (stamina >= cap) return 0;
   return Math.ceil((intervalMs - (Date.now() - staminaUpdatedAt)) / 1000);
 }
 
@@ -189,8 +191,9 @@ function updateUI() {
   const secLeft = syncStamina();
   const stEl = document.getElementById('stamina-disp');
   const stTimerEl = document.getElementById('stamina-timer');
+  const cap = typeof maxStamina !== 'undefined' ? maxStamina : MAX_STAMINA;
   if (stEl) stEl.textContent = stamina;
-  if (stTimerEl) stTimerEl.textContent = stamina >= MAX_STAMINA ? 'MAX' : `${secLeft}s`;
+  if (stTimerEl) stTimerEl.textContent = stamina >= cap ? 'MAX' : `${secLeft}s`;
 
   const goldEl = document.getElementById('gold');
   const gemEl = document.getElementById('gem');

@@ -7,6 +7,7 @@ function getLocalSaveKey() {
 }
 
 function buildSavePayload() {
+  const curMaxStamina = typeof maxStamina !== 'undefined' ? Number(maxStamina) : (typeof MAX_STAMINA !== 'undefined' ? Number(MAX_STAMINA) : 30);
   return {
     v: 69,
     savedAt: Date.now(),
@@ -14,7 +15,7 @@ function buildSavePayload() {
     gold: Number(gold) || 0,
     gem: Number(gem) || 0,
     stamina: Number(stamina) || 0,
-    maxStamina: Number(maxStamina) || 30,
+    maxStamina: curMaxStamina || 30,
     staminaUpdatedAt: Number(staminaUpdatedAt) || Date.now(),
     stage: Number(state?.stage) || 1,
     floor: Number(state?.floor) || 1,
@@ -109,7 +110,9 @@ function applySaveData(d) {
   if (typeof d.gold === 'number') gold = d.gold;
   if (typeof d.gem === 'number') gem = d.gem;
   if (typeof d.stamina === 'number') stamina = d.stamina;
-  if (typeof d.maxStamina === 'number') maxStamina = d.maxStamina;
+  if (typeof d.maxStamina === 'number') {
+    if (typeof maxStamina !== 'undefined') maxStamina = d.maxStamina;
+  }
   if (typeof d.staminaUpdatedAt === 'number') staminaUpdatedAt = d.staminaUpdatedAt;
 
   if (typeof state === 'object' && state) {
@@ -221,6 +224,19 @@ async function loadFromCloudById() {
 window.addEventListener('beforeunload', () => {
   saveToLocalOnly();
 });
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    triggerAutoSave(true);
+  }
+});
+
+// 15秒ごとの定期オートセーブタイマー
+if (!window._autoSaveIntervalTimer) {
+  window._autoSaveIntervalTimer = setInterval(() => {
+    triggerAutoSave(false);
+  }, 15000);
+}
 
 window.addEventListener('DOMContentLoaded', () => {
   const uidEl = document.getElementById('my-user-id');
