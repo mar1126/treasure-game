@@ -43,6 +43,16 @@ function openDevConsoleModal() {
           <div style="font-size:11px;font-weight:bold;color:#4ade80;margin-bottom:4px;">📋 一括修正の要約：</div>
           <div id="dev-summary-text" style="background:#1e293b;padding:8px;border-radius:8px;font-size:11.5px;color:#e2e8f0;margin-bottom:8px;"></div>
           <div id="dev-files-list" style="margin-bottom:8px;"></div>
+          
+          <button id="dev-ui-preview-btn" onclick="runDevUiPreview()" style="width:100%;padding:10px;border-radius:10px;border:none;background:#8b5cf6;color:#fff;font-size:12.5px;font-weight:bold;cursor:pointer;margin-bottom:8px;">👁️ 変更後のUI画面をプレビュー確認する</button>
+          
+          <div id="dev-iframe-container" style="display:none;margin-bottom:10px;text-align:center;">
+            <div style="font-size:11px;color:#94a3b8;margin-bottom:4px;">📱 スマホ画面プレビュー枠（375px × 600px相当）</div>
+            <div style="width:375px;height:600px;max-width:100%;margin:0 auto;border:2px solid #475569;border-radius:16px;overflow:hidden;background:#ffffff;box-shadow:0 4px 14px rgba(0,0,0,0.5);">
+              <iframe id="dev-preview-iframe" sandbox="allow-scripts allow-same-origin" style="width:100%;height:100%;border:none;background:#ffffff;"></iframe>
+            </div>
+          </div>
+
           <button id="dev-commit-btn" onclick="runDevBatchCommit()" style="width:100%;padding:10px;border-radius:10px;border:none;background:#16a34a;color:#fff;font-size:12.5px;font-weight:bold;cursor:pointer;">🚀 修正ファイルをGitHubへ一括保存する</button>
         </div>
       </div>
@@ -69,6 +79,8 @@ async function runDevBatchGenerate() {
   genBtn.textContent = '⏳ 全リポジトリ自動読込＆AI生成中...';
   statusEl.textContent = 'GitHubの全リポジトリ（本体＋セーブサーバー）から全ファイルを自動取得して解析しています...';
   previewArea.style.display = 'none';
+  const iframeContainer = document.getElementById('dev-iframe-container');
+  if (iframeContainer) iframeContainer.style.display = 'none';
 
   try {
     const res = await fetch('/api/dev-agent', {
@@ -109,6 +121,56 @@ async function runDevBatchGenerate() {
     genBtn.disabled = false;
     genBtn.textContent = '✨ 全リポジトリを自動解析して修正案を作成';
   }
+}
+
+async function runDevUiPreview() {
+  const container = document.getElementById('dev-iframe-container');
+  const iframe = document.getElementById('dev-preview-iframe');
+  if (!container || !iframe) return;
+
+  container.style.display = 'block';
+
+  let baseHtml = '';
+  const indexFileIdx = devBatchFiles.findIndex(f => f.path === 'index.html' || f.path.endsWith('/index.html'));
+  if (indexFileIdx !== -1) {
+    baseHtml = document.getElementById(`dev-batch-code-${indexFileIdx}`)?.value ?? devBatchFiles[indexFileIdx].code;
+  } else {
+    try {
+      const res = await fetch(window.location.pathname || '/');
+      if (res.ok) {
+        baseHtml = await res.text();
+      } else {
+        baseHtml = document.documentElement.outerHTML;
+      }
+    } catch (e) {
+      baseHtml = document.documentElement.outerHTML;
+    }
+  }
+
+  // 修正案に含まれる各.js / .css の最新コードをインラインに置換・結合
+  devBatchFiles.forEach((f, i) => {
+    const code = document.getElementById(`dev-batch-code-${i}`)?.value ?? f.code;
+    const filename = f.path.split('/').pop();
+    if (!filename) return;
+
+    if (f.path.endsWith('.js')) {
+      const scriptReg = new RegExp(`<script[^>]*src=["'][^"']*${filename.replace('.', '\\.')}(?:\\?[^"']*)?["'][^>]*>\\s*<\\/script>`, 'gi');
+      if (scriptReg.test(baseHtml)) {
+        baseHtml = baseHtml.replace(scriptReg, `<script>${code.replace(/<\/script>/gi, '<\\/script>')}</script>`);
+      } else {
+        baseHtml = baseHtml.replace('</body>', `<script>${code.replace(/<\/script>/gi, '<\\/script>')}</script></body>`);
+      }
+    } else if (f.path.endsWith('.css')) {
+      const linkReg = new RegExp(`<link[^>]*href=["'][^"']*${filename.replace('.', '\\.')}(?:\\?[^"']*)?["'][^>]*>`, 'gi');
+      if (linkReg.test(baseHtml)) {
+        baseHtml = baseHtml.replace(linkReg, `<style>${code.replace(/<\/style>/gi, '<\\/style>')}</style>`);
+      } else {
+        baseHtml = baseHtml.replace('</head>', `<style>${code.replace(/<\/style>/gi, '<\\/style>')}</style></head>`);
+      }
+    }
+  });
+
+  iframe.srcdoc = baseHtml;
 }
 
 async function runDevBatchCommit() {
