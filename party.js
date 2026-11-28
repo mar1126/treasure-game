@@ -381,7 +381,11 @@ function assignMonsterToParty(idx) {
   const m = captured[idx];
   if (!m) return;
   if (party.some(v => v === idx || v === m.id)) return alert('すでにパーティに編成されています');
+  if (Array.isArray(trainingSlots) && trainingSlots.some(v => v === idx || v === m.id)) {
+    return alert('訓練場に配置されているモンスターはパーティに編成できません');
+  }
   const emptySlot = party.findIndex(v => v === null || v === undefined);
+
   if (emptySlot === -1) return alert('パーティ枠（3体）がいっぱいです');
   party[emptySlot] = idx;
   if (!state?.inBattle) resetBattleAllies();
@@ -397,7 +401,11 @@ function assignMonsterToTraining(idx) {
   const m = captured[idx];
   if (!m) return;
   if (trainingSlots.some(v => v === idx || v === m.id)) return alert('すでに訓練場に配置されています');
+  if (Array.isArray(party) && party.some(v => v === idx || v === m.id)) {
+    return alert('パーティに編成されているモンスターは訓練場に配置できません');
+  }
   let emptySlot = -1;
+
   for (let i = 0; i < maxSlots; i++) {
     if (trainingSlots[i] === null || trainingSlots[i] === undefined) { emptySlot = i; break; }
   }
