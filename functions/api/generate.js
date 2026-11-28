@@ -60,21 +60,31 @@ async function understandJapanesePromptWithAI(ai, type, species, rawPrompt, webC
   const isHumanize = /擬人化|美少女|美女|イケメン|女の子|男の子|人型|メイド|巫女/.test(rawPrompt);
   const isHumanoidSpecies = HUMANOID_SPECIES.some(h => String(species || "").includes(h));
 
+  const MONSTER_VISUAL_DICTS = {
+    "ホブゴブリン": "muscular humanoid goblin warrior, green or brown skin, pointy ears, rugged leather armor, heroic JRPG fantasy art style",
+    "ゴブリン": "small clever goblin rogue, pointy ears, crude dagger, JRPG fantasy art style",
+    "オーク": "large muscular orc warrior, tusks, green skin, heavy iron armor, JRPG fantasy art style",
+    "リザードマン": "humanoid lizard warrior, reptilian humanoid, scales, spear, JRPG fantasy art style",
+    "スケルトン": "animated skeleton warrior, glowing eyes, rusty armor, fantasy RPG art style",
+    "スライム": "cute bouncy gelatinous slime creature, translucent, glossy, friendly JRPG fantasy mascot style"
+  };
+
   try {
+    const presetVisual = MONSTER_VISUAL_DICTS[species] || "";
     const sys =
       "You are an expert Japanese-to-English visual prompt translator for high quality JRPG 2D anime illustration, beautiful character design, clean outlines, vibrant colors. " +
       "Understand Japanese slang, anime/manga tropes, fashion, and monster motifs accurately using the provided Japanese web context. " +
-      "Output ONLY a comma-separated list of concrete English visual tags (max 55 words, no sentences, no explanations). " +
-      "Rules: " +
-      "- Always maintain high quality JRPG 2D anime illustration style, beautiful character design, clean outlines, vibrant colors. Strictly avoid scary, grotesque, deformed, low quality, photorealistic 3D, distorted anatomy, horror elements, creepy monsters. " +
-      "- If '擬人化' is requested, describe a humanized anime character (tall 8-head proportions, NOT chibi) keeping the monster's motif. " +
-      "- If '手足なし' is requested, explicitly write 'limbless blob body, no arms, no legs'. " +
-      "- If type is monster and NOT humanized and species is non-human, strictly describe a cute or cool non-human fantasy monster creature (NO human, NO girl).";
-
+      "Output ONLY a comma-separated list of concrete English visual tags (max 65 words, no sentences, no explanations). " +
+      "Mandatory Rules: " +
+      "1. Style: Always enforce attractive, friendly JRPG 2D anime illustration style, clean bold outlines, vibrant colors, masterpiece aesthetics. " +
+      "2. Negative/Forbidden: Strictly AVOID dinosaurs, ugly reptiles, grotesque, distorted anatomy, creepy monsters, low quality 3D, photorealistic, deformed proportions. For humanoid or fantasy species, never make them look like clumsy dinosaurs or misshapen lizards. " +
+      "3. Species Consistency: Ensure humanoid monsters retain proper humanoid proportions and cool/cute JRPG anime character aesthetics. " +
+      (presetVisual ? `4. Preset Visual Base for '${species}': ${presetVisual}\n` : "");
 
     const userMsg =
       `Task Type: ${type}\n` +
       `Monster Species: ${species} (Humanoid species: ${isHumanoidSpecies})\n` +
+      `Preset Visual Tag: ${presetVisual}\n` +
       `Japanese User Prompt: ${rawPrompt}\n` +
       (webContext ? `Japanese Reference Info: ${webContext}` : "");
 
@@ -83,7 +93,7 @@ async function understandJapanesePromptWithAI(ai, type, species, rawPrompt, webC
         { role: "system", content: sys },
         { role: "user", content: userMsg }
       ],
-      max_tokens: 120,
+      max_tokens: 140,
       temperature: 0.3
     });
 
@@ -95,10 +105,12 @@ async function understandJapanesePromptWithAI(ai, type, species, rawPrompt, webC
 
   let prefix = "";
   if (type === "monster" && !isHumanize && !isHumanoidSpecies) {
-    prefix = "non-human fantasy RPG creature, NO human, NO girl, ";
+    prefix = "non-human fantasy RPG creature, NO dinosaurs, NO ugly reptiles, ";
   }
-  return `${prefix}${species}, ${rawPrompt}`;
+  const dictFallback = MONSTER_VISUAL_DICTS[species] || `${species}, JRPG fantasy art style`;
+  return `${prefix}${dictFallback}, ${rawPrompt}`;
 }
+
 
 async function extractDetailedFaceAndOutfit(ai, imgBytes) {
   try {
@@ -193,7 +205,7 @@ export async function onRequestPost({ request, env }) {
 
       const fallbackRes = await ai.run("@cf/black-forest-labs/flux-1-schnell", {
         prompt: `Cute chibi SD anime sticker illustration of ${understoodTags}, expressive face, upper body pose, thick clean white sticker border, isolated on solid pure white background #FFFFFF, Japanese LINE sticker style, no text`,
-        steps: 3
+        steps: 6
       });
       if (!fallbackRes || !fallbackRes.image) {
         return new Response(JSON.stringify({ error: "スタンプ生成に失敗しました" }), { status: 500, headers: { "Content-Type": "application/json" } });
@@ -216,8 +228,9 @@ export async function onRequestPost({ request, env }) {
 
     const result = await ai.run("@cf/black-forest-labs/flux-1-schnell", {
       prompt: fullPrompt,
-      steps: 3
+      steps: 6
     });
+
 
     if (!result || !result.image) {
       return new Response(JSON.stringify({
