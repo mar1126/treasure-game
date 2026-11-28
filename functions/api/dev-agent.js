@@ -84,10 +84,11 @@ export async function onRequestPost(context) {
         '',
         '【絶対厳守ルール】',
         '- 指示されていない既存のUI、CSS、計算式、関数名、変数名を勝手に変更・削除しないこと。',
+        '- index.html を編集する際は <script src="/dev-console.js..."></script> を絶対に消さないこと。',
         '- フロントエンドとサーバー（user-save-do）間のAPI仕様やセーブデータ構造の整合性を完全に一致させること。',
         '- 「// 省略」「// 既存コードと同じ」などの省略は絶対にせず、修正するファイルは先頭から末尾まで完全なコードを出力すること。',
         '- 変更が不要なファイルは出力しないこと。',
-        '- JSONは使わず、必ず以下の専用ブロック形式のみで出力すること（マークダウンの ``` は絶対に付けない）：',
+        '- JSONは使わず、必ず以下の専用ブロック形式のみで出力すること（マークダウンの ``` は付けない）：',
         '',
         '<<<SUMMARY>>>',
         '全体の変更要約（日本語）',
@@ -136,11 +137,11 @@ export async function onRequestPost(context) {
       const part0 = partList.length > 0 ? partList.at(0) : null;
       const rawText = (part0 && typeof part0.text === 'string') ? part0.text : '';
 
-      const sumMatch = rawText.match(/<<<SUMMARY>>>([\s\S]*?)<<<END_SUMMARY>>>/);
+      const sumMatch = rawText.match(/<<<SUMMARY>>>([\s\S]*?)(?:<<<END_SUMMARY>>>|<<<FILE)/);
       const summary = sumMatch ? sumMatch.at(1).trim() : '一括修正案を作成しました';
 
       const resultFiles = [];
-      const fileRegex = /<<<FILE:([^:>]+):([^>]+)>>>([\s\S]*?)<<<END_FILE>>>/g;
+      const fileRegex = /<<<FILE\s*:\s*([^:>]+?)\s*:\s*([^>]+?)\s*>>>([\s\S]*?)(?:<<<END_FILE>>>|(?=<<<FILE\s*:)|$)/g;
       let m;
       while ((m = fileRegex.exec(rawText)) !== null) {
         const fRepo = cleanRepo(m.at(1)) || mainRepo;
@@ -152,7 +153,10 @@ export async function onRequestPost(context) {
           reason = rMatch.at(1).trim();
           bodyText = bodyText.replace(rMatch.at(0), '');
         }
-        const cleanCode = bodyText.replace(/^\r?\n/, '').replace(/\r?\n$/, '');
+        const cleanCode = bodyText
+          .replace(/^```[a-zA-Z]*\(\r?\n/, '') .replace(/\r\)?\n```$/, '')
+          .replace(/^\r?\n/, '')
+          .replace(/\r?\n$/, '');
         if (fPath && cleanCode) {
           resultFiles.push({ repo: fRepo, path: fPath, reason, code: cleanCode });
         }
