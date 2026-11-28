@@ -18,7 +18,7 @@ export async function onRequestPost(context) {
     const allRepos = [mainRepo, ...extraRepos];
 
     const ghHeaders = {
-      'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+      'Authorization': 'Bearer ' + env.GITHUB_TOKEN.trim(),
       'Accept': 'application/vnd.github.v3+json',
       'User-Agent': 'TreasureGame-DevAgent'
     };
@@ -30,15 +30,15 @@ export async function onRequestPost(context) {
       const validFiles = [];
 
       for (const repo of allRepos) {
-        const repoBase = `https://github.com{repo}`;
-        const refRes = await fetch(`${repoBase}/git/ref/heads/main`, { headers: ghHeaders });
+        const repoBase = 'https://github.com' + repo;
+        const refRes = await fetch(repoBase + '/git/ref/heads/main', { headers: ghHeaders });
         if (!refRes.ok) {
-          return jsonRes({ error: `${repo} のブランチ取得失敗 (${refRes.status})` }, 400);
+          return jsonRes({ error: repo + ' のブランチ取得失敗 (' + refRes.status + ')' }, 400);
         }
         const refData = await refRes.json();
         const latestCommitSha = refData.object.sha;
 
-        const treeRes = await fetch(`${repoBase}/git/trees/${latestCommitSha}?recursive=1`, { headers: ghHeaders });
+        const treeRes = await fetch(repoBase + '/git/trees/' + latestCommitSha + '?recursive=1', { headers: ghHeaders });
         if (!treeRes.ok) continue;
         const treeData = await treeRes.json();
 
@@ -49,7 +49,7 @@ export async function onRequestPost(context) {
         );
 
         const repoFiles = await Promise.all(blobs.map(async (blob) => {
-          const res = await fetch(`${repoBase}/contents/${blob.path}`, { headers: ghHeaders });
+          const res = await fetch(repoBase + '/contents/' + blob.path, { headers: ghHeaders });
           if (!res.ok) return null;
           const data = await res.json();
           return {
@@ -63,27 +63,29 @@ export async function onRequestPost(context) {
       }
 
       const filesBlock = validFiles
-        .map(f => `=== REPO: ${f.repo} | FILE: ${f.path} ===\n${f.content}\n=== END FILE ===`)
+        .map(f => '=== REPO: ' + f.repo + ' | FILE: ' + f.path + ' ===\n' + f.content + '\n=== END FILE ===')
         .join('\n\n');
 
-      const prompt = `あなたはWebブラウザRPG（フロントエンド: ${mainRepo} / セーブ・通信サーバー: ${extraRepos.join(', ') || 'なし'}）の熟練エンジニアです。
-全リポジトリ内の全${validFiles.length}ファイルを読み込み、ユーザーの指示に従って【修正が必要なファイルのみ】を修正した完全なコードを出力してください。
+      const prompt = [
+        'あなたはWebブラウザRPG（フロントエンド: ' + mainRepo + ' / セーブ・通信サーバー: ' + (extraRepos.join(', ') || 'なし') + '）の熟練エンジニアです。',
+        '全リポジトリ内の全' + validFiles.length + 'ファイルを読み込み、ユーザーの指示に従って【修正が必要なファイルのみ】を修正した完全なコードを出力してください。',
+        '',
+        '【絶対厳守ルール】',
+        '- 指示されていない既存のUI、CSS、計算式、関数名、変数名を勝手に変更・削除しないこと。',
+        '- フロントエンドとサーバー（user-save-do）間のAPI仕様やセーブデータ構造の整合性を完全に一致させること。',
+        '- 「// 省略」「// 既存コードと同じ」などの省略は絶対にせず、修正するファイルは先頭から末尾まで完全なコードを出力すること。',
+        '- 変更が不要なファイルは出力配列に含めないこと。',
+        '- 出力は必ず以下のJSON形式のみ（マークダウンの ```json などは付けない生JSON）で返すこと：',
+        '{"summary":"全体の変更要約（日本語）","files":[{"repo":"' + mainRepo + '","path":"ファイルパス","reason":"このファイルの変更点","code":"修正後の完全なコード"}]}',
+        '',
+        '【ユーザーの修正指示】',
+        instruction,
+        '',
+        '【全リポジトリの全ファイル群（全' + validFiles.length + 'ファイル）】',
+        filesBlock
+      ].join('\n');
 
-【絶対厳守ルール】
-- 指示されていない既存のUI、CSS、計算式、関数名、変数名を勝手に変更・削除しないこと。
-- フロントエンドとサーバー（user-save-do）間のAPI仕様やセーブデータ構造の整合性を完全に一致させること。
-- 「// 省略」「// 既存コードと同じ」などの省略は絶対にせず、修正するファイルは先頭から末尾まで完全なコードを出力すること。
-- 変更が不要なファイルは出力配列に含めないこと。
-- 出力は必ず以下のJSON形式のみ（マークダウンの \`\`\`json などは付けない生JSON）で返すこと：
-{"summary":"全体の変更要約（日本語）","files":[{"repo":"${mainRepo}","path":"ファイルパス","reason":"このファイルの変更点","code":"修正後の完全なコード"}]}
-
-【ユーザーの修正指示】
-${instruction}
-
-【全リポジトリの全ファイル群（全${validFiles.length}ファイル）】
-${filesBlock}`;
-
-      const geminiUrl = `https://googleapis.com{env.GEMINI_API_KEY}`;
+      const geminiUrl = 'https://googleapis.com' + env.GEMINI_API_KEY.trim();
       const aiRes = await fetch(geminiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -95,12 +97,12 @@ ${filesBlock}`;
 
       if (!aiRes.ok) {
         const errTxt = await aiRes.text();
-        return jsonRes({ error: `Gemini APIエラー (${aiRes.status}): ${errTxt}` }, 500);
+        return jsonRes({ error: 'Gemini APIエラー (' + aiRes.status + '): ' + errTxt }, 500);
       }
 
       const aiJson = await aiRes.json();
-      const firstCand = Array.isArray(aiJson.candidates) ? aiJson.candidates[0] : null;
-      const firstPart = (firstCand && firstCand.content && Array.isArray(firstCand.content.parts)) ? firstCand.content.parts[0] : null;
+      const firstCand = Array.isArray(aiJson.candidates) ? aiJson.candidates : null;
+      const firstPart = (firstCand && firstCand.content && Array.isArray(firstCand.content.parts)) ? firstCand.content.parts : null;
       const rawText = (firstPart && firstPart.text) ? firstPart.text : '{}';
       const parsed = JSON.parse(rawText);
 
@@ -133,13 +135,13 @@ ${filesBlock}`;
 
       const savedList = [];
       for (const [repo, repoChanges] of Object.entries(byRepo)) {
-        const repoBase = `https://github.com{repo}`;
-        const refRes = await fetch(`${repoBase}/git/ref/heads/main`, { headers: ghHeaders });
-        if (!refRes.ok) return jsonRes({ error: `${repo} のmainブランチ取得に失敗しました` }, 500);
+        const repoBase = 'https://github.com' + repo;
+        const refRes = await fetch(repoBase + '/git/ref/heads/main', { headers: ghHeaders });
+        if (!refRes.ok) return jsonRes({ error: repo + ' のmainブランチ取得に失敗しました' }, 500);
         const refData = await refRes.json();
         const latestCommitSha = refData.object.sha;
 
-        const commitRes = await fetch(`${repoBase}/git/commits/${latestCommitSha}`, { headers: ghHeaders });
+        const commitRes = await fetch(repoBase + '/git/commits/' + latestCommitSha, { headers: ghHeaders });
         const commitData = await commitRes.json();
         const baseTreeSha = commitData.tree.sha;
 
@@ -150,39 +152,39 @@ ${filesBlock}`;
           content: ch.code
         }));
 
-        const treeRes = await fetch(`${repoBase}/git/trees`, {
+        const treeRes = await fetch(repoBase + '/git/trees', {
           method: 'POST',
           headers: { ...ghHeaders, 'Content-Type': 'application/json' },
           body: JSON.stringify({ base_tree: baseTreeSha, tree: treeItems })
         });
-        if (!treeRes.ok) return jsonRes({ error: `${repo} のGit Tree作成に失敗しました` }, 500);
+        if (!treeRes.ok) return jsonRes({ error: repo + ' のGit Tree作成に失敗しました' }, 500);
         const newTreeData = await treeRes.json();
 
-        const newCommitRes = await fetch(`${repoBase}/git/commits`, {
+        const newCommitRes = await fetch(repoBase + '/git/commits', {
           method: 'POST',
           headers: { ...ghHeaders, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            message: commitMessage || `AI DevConsole Batch (${repoChanges.map(c => c.path).join(', ')})`,
+            message: commitMessage || 'AI DevConsole Batch (' + repoChanges.map(c => c.path).join(', ') + ')',
             tree: newTreeData.sha,
             parents: [latestCommitSha]
           })
         });
-        if (!newCommitRes.ok) return jsonRes({ error: `${repo} のコミット作成に失敗しました` }, 500);
+        if (!newCommitRes.ok) return jsonRes({ error: repo + ' のコミット作成に失敗しました' }, 500);
         const newCommitData = await newCommitRes.json();
 
-        const updateRefRes = await fetch(`${repoBase}/git/refs/heads/main`, {
+        const updateRefRes = await fetch(repoBase + '/git/refs/heads/main', {
           method: 'PATCH',
           headers: { ...ghHeaders, 'Content-Type': 'application/json' },
           body: JSON.stringify({ sha: newCommitData.sha })
         });
-        if (!updateRefRes.ok) return jsonRes({ error: `${repo} のブランチ更新に失敗しました` }, 500);
+        if (!updateRefRes.ok) return jsonRes({ error: repo + ' のブランチ更新に失敗しました' }, 500);
 
-        repoChanges.forEach(c => savedList.push(`${repo}/${c.path}`));
+        repoChanges.forEach(c => savedList.push(repo + '/' + c.path));
       }
 
       return jsonRes({
         ok: true,
-        message: `${savedList.length}ファイル（${savedList.join(', ')}）をGitHubへ一括保存しました！約30秒後に自動反映されます。`
+        message: savedList.length + 'ファイル（' + savedList.join(', ') + '）をGitHubへ一括保存しました！約30秒後に自動反映されます。'
       });
     }
 
