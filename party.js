@@ -15,7 +15,7 @@ function getMonsterPlus(mon) {
 }
 
 function getMonsterMaxLevel(mon) {
-  return 20 + getMonsterPlus(mon) * 10;
+  return (Number(mon?.maxLv) || 20) + getMonsterPlus(mon) * 10;
 }
 
 function getTrainingCap() {
@@ -36,11 +36,14 @@ function getMonsterBattleStats(mon) {
   const hpMul = 1 + (tavernBonus.hpPct || 0) / 100;
   const atkMul = 1 + (tavernBonus.atkPct || 0) / 100;
 
-  const baseHp = sp?.baseHp || 65;
-  const baseAtk = sp?.baseAtk || 14;
-  const maxHp = Math.floor((baseHp + (lv - 1) * 18) * stageMul * plusMul * hpMul);
-  const atk = Math.floor((baseAtk + (lv - 1) * 4.5) * stageMul * plusMul * atkMul);
-  const ctMax = Math.max(0.85, (sp?.ct || 2.0) - plus * 0.04);
+  const baseHp = Number(mon.baseHp) || sp?.baseHp || 65;
+  const baseAtk = Number(mon.baseAtk) || sp?.baseAtk || 14;
+  const bonusHp = Number(mon.bonusHp) || 0;
+  const bonusAtk = Number(mon.bonusAtk) || 0;
+
+  const maxHp = Math.floor((baseHp + (lv - 1) * 18 + bonusHp) * stageMul * plusMul * hpMul);
+  const atk = Math.floor((baseAtk + (lv - 1) * 4.5 + bonusAtk) * stageMul * plusMul * atkMul);
+  const ctMax = Math.max(0.85, (Number(mon.ct) || sp?.ct || 2.0) - plus * 0.04);
   return { maxHp, atk, ctMax };
 }
 
@@ -49,7 +52,7 @@ function resetBattleAllies() {
   for (let i = 0; i < 3; i++) {
     const val = (party || [])[i];
     if (val !== null && val !== undefined) {
-      const m = (captured || [])[val] || (captured || []).find(x => x && x.id === val);
+      const m = (typeof val === 'object' && val !== null) ? val : ((captured || []).find(x => x && (x.id === val || captured.indexOf(x) === val)));
       if (m) {
         const st = getMonsterBattleStats(m);
         const sp = typeof getSpeciesData === 'function' ? getSpeciesData(m.name) : null;
@@ -60,7 +63,7 @@ function resetBattleAllies() {
           name: m.name,
           disp: disp,
           elem: m.elem || sp?.elem || 'none',
-          skillId: m.skillId || sp?.innateSkill || null,
+          skillId: (Array.isArray(m.skills) ? m.skills[0] : m.skillId) || sp?.innateSkill || null,
           hp: st.maxHp,
           maxHp: st.maxHp,
           atk: st.atk,
@@ -108,39 +111,73 @@ function tryAutoRecruit(enemyObj) {
   if (Math.random() < catchRate) {
     const lv = Math.max(1, (stageNum - 1) * 4 + Math.floor((Number(state?.floor || 1) - 1) / 3) + 1);
     const newMon = {
-      id: Date.now() + Math.random(),
+      id: 'M' + Date.now() + Math.floor(Math.random() * 1000),
       name: sp.name,
       lv,
+      maxLv: 20,
       exp: 0,
       plus: 0,
       star: 0,
       elem: sp.elem || 'none',
-      skillId: sp.innateSkill || null,
+      baseHp: sp.baseHp || 65,
+      baseAtk: sp.baseAtk || 14,
+      baseDef: sp.baseDef || 4,
+      ct: sp.ct || 2.0,
+      skills: [sp.innateSkill || 'tackle'],
+      traits: [sp.innateTrait || 'valor'],
       locked: false
     };
     captured.push(newMon);
+    if (typeof renderCaptured === 'function') renderCaptured();
+    if (typeof updateUI === 'function') updateUI();
+    if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
     showToast(`「${newMon.name}」が仲間になった！`);
   }
 }
 
-function fixIndicesAfterSplice(removedIdx) {
+function fixIndicesAfterSplice(removedIdxOrId) {
   if (Array.isArray(party)) {
-    party = party.map(v => (typeof v === 'number' && v >= 0 && v < 1000) ? (v === removedIdx ? null : (v > removedIdx ? v - 1 : v)) : v);
+    party = party.map(v => {
+      if (v === null || v === undefined) return null;
+      if (typeof v === 'string' && typeof removedIdxOrId === 'string' && v === removedIdxOrId) return null;
+      if (typeof v === 'number' && typeof removedIdxOrId === 'number') {
+        if (v === removedIdxOrId) return null;
+        if (v > removedIdxOrId) return v - 1;
+      }
+      return v;
+    });
   }
   if (Array.isArray(trainingSlots)) {
-    trainingSlots = trainingSlots.map(v => (typeof v === 'number' && v >= 0 && v < 1000) ? (v === removedIdx ? null : (v > removedIdx ? v - 1 : v)) : v);
+    trainingSlots = trainingSlots.map(v => {
+      if (v === null || v === undefined) return null;
+      if (typeof v === 'string' && typeof removedIdxOrId === 'string' && v === removedIdxOrId) return null;
+      if (typeof v === 'number' && typeof removedIdxOrId === 'number') {
+        if (v === removedIdxOrId) return null;
+        if (v > removedIdxOrId) return v - 1;
+      }
+      return v;
+    });
   }
   if (Array.isArray(staff)) {
-    staff = staff.map(v => (typeof v === 'number' && v >= 0 && v < 1000) ? (v === removedIdx ? null : (v > removedIdx ? v - 1 : v)) : v);
+    staff = staff.map(v => {
+      if (v === null || v === undefined) return null;
+      if (typeof v === 'string' && typeof removedIdxOrId === 'string' && v === removedIdxOrId) return null;
+      if (typeof v === 'number' && typeof removedIdxOrId === 'number') {
+        if (v === removedIdxOrId) return null;
+        if (v > removedIdxOrId) return v - 1;
+      }
+      return v;
+    });
   }
 }
+
 function renderParty() {
   const box = document.getElementById('party-slots');
   if (!box) return;
   let html = '';
   for (let i = 0; i < 3; i++) {
     const val = (party || [])[i];
-    const m = (val !== null && val !== undefined) ? ((captured || [])[val] || (captured || []).find(x => x && x.id === val)) : null;
+    const m = (val !== null && val !== undefined) ? ((captured || []).find(x => x && (x.id === val || captured.indexOf(x) === val))) : null;
     if (m) {
       const disp = getMonsterVisual(m);
       const st = getMonsterBattleStats(m);
@@ -178,7 +215,7 @@ function renderTraining() {
   const box = document.getElementById('training-slots');
   if (!box) return;
   const maxSlots = getTrainingCap();
-  const countEl = document.getElementById('training-count');
+  const countEl = document.getElementById('training-count-disp') || document.getElementById('training-count');
   if (countEl) {
     const activeCnt = (trainingSlots || []).slice(0, maxSlots).filter(v => v !== null && v !== undefined).length;
     countEl.textContent = `${activeCnt}/${maxSlots}`;
@@ -187,7 +224,7 @@ function renderTraining() {
   let html = '';
   for (let i = 0; i < maxSlots; i++) {
     const val = (trainingSlots || [])[i];
-    const m = (val !== null && val !== undefined) ? ((captured || [])[val] || (captured || []).find(x => x && x.id === val)) : null;
+    const m = (val !== null && val !== undefined) ? ((captured || []).find(x => x && (x.id === val || captured.indexOf(x) === val))) : null;
     if (m) {
       const disp = getMonsterVisual(m);
       const plus = getMonsterPlus(m);
@@ -227,7 +264,7 @@ function renderCaptured() {
   box.style.gap = '6px';
 
   const cap = typeof maxCaptured !== 'undefined' ? Number(maxCaptured) : 50;
-  const countEl = document.getElementById('captured-count');
+  const countEl = document.getElementById('mon-count-disp') || document.getElementById('captured-count');
   if (countEl) countEl.textContent = `${(captured || []).length}/${cap}`;
 
   if (!document.getElementById('bulk-release-bar')) {
@@ -271,22 +308,22 @@ function renderCaptured() {
     `;
   }).join('');
 }
+
 function openMonsterModal(idx) {
   const m = (captured || [])[idx];
   if (!m) return;
   selectedMonsterIdx = idx;
 
-  const modal = document.getElementById('monster-modal');
-  const body = document.getElementById('monster-modal-content') || document.getElementById('monster-modal-body');
-  if (!modal || !body) return;
+  const modal = document.getElementById('mon-modal') || document.getElementById('monster-modal');
+  if (!modal) return;
 
   const disp = getMonsterVisual(m);
   const st = getMonsterBattleStats(m);
   const maxLv = getMonsterMaxLevel(m);
   const plus = getMonsterPlus(m);
   const sp = typeof getSpeciesData === 'function' ? getSpeciesData(m.name) : null;
-  const skillId = m.skillId || sp?.innateSkill || null;
-  const skill = (typeof SKILL_MASTER === 'object' && skillId) ? SKILL_MASTER[skillId] : null;
+  const skillId = (Array.isArray(m.skills) ? m.skills[0] : m.skillId) || sp?.innateSkill || null;
+  const skill = (typeof SKILL_MASTER === 'object' && SKILL_MASTER[skillId]) ? SKILL_MASTER[skillId] : (typeof getSkillById === 'function' ? getSkillById(skillId) : null);
   const elemMap = { fire: '🔥 火属性', water: '💧 水属性', wind: '🍃 風属性', sky: '⚡ 空属性', earth: '🪨 地属性', light: '✨ 光属性', dark: '🌙 闇属性', none: '⚪ 無属性' };
   const elemLabel = elemMap[m.elem || sp?.elem || 'none'] || '無属性';
   const needExp = Math.floor(25 * Math.pow(1.22, (Number(m.lv) || 1) - 1));
@@ -296,46 +333,47 @@ function openMonsterModal(idx) {
   const inParty = (party || []).some(v => v === idx || v === m.id);
   const inTrain = (trainingSlots || []).some(v => v === idx || v === m.id);
 
-  body.innerHTML = `
-    <div style="display:flex;align-items:center;gap:12px;border-bottom:1px solid #e2e8f0;padding-bottom:10px;">
-      <div style="width:72px;height:72px;border-radius:14px;border:2px solid #cbd5e1;background:#f8fafc;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-        ${renderSprite(disp, 58, '12px')}
-      </div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:11px;color:#475569;font-weight:bold;">${elemLabel}</div>
-        <div style="font-size:16px;font-weight:900;color:#1e293b;">${m.name} ${plus > 0 ? `<span style="color:#ff7043;">+${plus}</span>` : ''}</div>
-        <div style="font-size:12px;color:#0284c7;font-weight:bold;">Lv.${m.lv || 1} / ${maxLv}</div>
-        <div style="background:#e2e8f0;height:6px;border-radius:4px;overflow:hidden;margin-top:4px;">
-          <div style="background:#38bdf8;height:100%;width:${expPct}%;"></div>
-        </div>
-        <div style="font-size:9.5px;color:#64748b;margin-top:1px;">EXP: ${(Number(m.lv) || 1) >= maxLv ? 'MAX' : `${curExp} / ${needExp}`}</div>
-      </div>
-    </div>
+  const spriteEl = document.getElementById('modal-mon-sprite');
+  const nameEl = document.getElementById('modal-mon-name');
+  const rarityEl = document.getElementById('modal-mon-rarity');
+  const lvEl = document.getElementById('modal-mon-lv');
+  const atkEl = document.getElementById('modal-mon-atk');
+  const terrainEl = document.getElementById('modal-mon-terrain');
+  const skillEl = document.getElementById('modal-mon-skill');
+  const traitEl = document.getElementById('modal-mon-trait');
+  const partyBtn = document.getElementById('modal-party-btn');
 
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px;background:#f8fafc;padding:8px;border-radius:10px;text-align:center;">
-      <div><div style="font-size:10px;color:#64748b;">最大HP</div><div style="font-size:13px;font-weight:900;color:#16a34a;">${st.maxHp}</div></div>
-      <div><div style="font-size:10px;color:#64748b;">攻撃力</div><div style="font-size:13px;font-weight:900;color:#ea580c;">${st.atk}</div></div>
-      <div><div style="font-size:10px;color:#64748b;">行動間隔</div><div style="font-size:13px;font-weight:900;color:#0284c7;">${st.ctMax.toFixed(2)}s</div></div>
-    </div>
+  if (spriteEl) spriteEl.innerHTML = renderSprite(disp, 58, '12px');
+  if (nameEl) nameEl.textContent = `${m.name} ${plus > 0 ? `+${plus}` : ''}`;
+  if (rarityEl) rarityEl.textContent = m.rarity || sp?.rarity || 'N';
+  if (lvEl) lvEl.textContent = `Lv.${m.lv || 1} / ${maxLv} (EXP: ${curExp}/${needExp})`;
+  if (atkEl) atkEl.textContent = `HP: ${st.maxHp} ｜ 攻撃力: ${st.atk} ｜ CT: ${st.ctMax.toFixed(2)}s`;
+  if (terrainEl) terrainEl.textContent = elemLabel;
+  if (skillEl) skillEl.textContent = skill ? `${skill.name}（威力${Math.round((skill.mult||1)*100)}%）` : (skillId || '通常攻撃');
+  if (traitEl) {
+    const traitId = Array.isArray(m.traits) ? m.traits[0] : (m.trait || sp?.innateTrait || 'valor');
+    const tr = typeof getMonsterTrait === 'function' ? getMonsterTrait(traitId) : { name: traitId, desc: '' };
+    traitEl.textContent = `${tr.name}: ${tr.desc}`;
+  }
+  if (partyBtn) {
+    partyBtn.textContent = inParty ? '⚔️ パーティから外す' : '⚔️ パーティに編成する';
+    partyBtn.onclick = () => {
+      if (inParty) {
+        const pIdx = party.findIndex(v => v === idx || v === m.id);
+        if (pIdx !== -1) removeFromParty(pIdx);
+      } else {
+        assignMonsterToParty(idx);
+      }
+      closeMonsterModal();
+    };
+  }
 
-    ${skill ? `<div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:#f3e8ff;border:1px solid #d8b4fe;font-size:11px;color:#581c87;">
-      <b>⚡ 固有スキル：${skill.name}</b><br><span style="color:#6b21a8;">${skill.desc}</span>
-    </div>` : ''}
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px;">
-      <button onclick="assignMonsterToParty(${idx})" style="padding:9px;border-radius:9px;border:none;background:${inParty ? '#94a3b8' : '#0284c7'};color:#fff;font-size:11.5px;font-weight:bold;cursor:pointer;">${inParty ? '⚔️ 編成中' : '⚔️ パーティ編成'}</button>
-      <button onclick="assignMonsterToTraining(${idx})" style="padding:9px;border-radius:9px;border:none;background:${inTrain ? '#94a3b8' : '#2e7d32'};color:#fff;font-size:11.5px;font-weight:bold;cursor:pointer;">${inTrain ? '🏋️ 訓練中' : '🏋️ 訓練場へ配置'}</button>
-      <button onclick="toggleMonsterLock(${idx})" style="padding:9px;border-radius:9px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;font-size:11.5px;font-weight:bold;cursor:pointer;">${m.locked ? '🔓 ロック解除' : '🔒 保護ロック'}</button>
-      <button onclick="releaseSingleMonster(${idx})" style="padding:9px;border-radius:9px;border:1px solid #f59e0b;background:#fffbeb;color:#b45309;font-size:11.5px;font-weight:bold;cursor:pointer;">🍃 野に還す(素材)</button>
-    </div>
-    <button onclick="closeMonsterModal()" style="margin-top:10px;width:100%;padding:9px;border-radius:9px;border:none;background:#475569;color:#fff;font-size:12px;font-weight:bold;cursor:pointer;">閉じる</button>
-  `;
   modal.style.display = 'flex';
 }
 window.openMonsterModal = openMonsterModal;
 
 function closeMonsterModal() {
-  const modal = document.getElementById('monster-modal');
+  const modal = document.getElementById('mon-modal') || document.getElementById('monster-modal');
   if (modal) modal.style.display = 'none';
 }
 window.closeMonsterModal = closeMonsterModal;
@@ -371,6 +409,27 @@ function assignMonsterToTraining(idx) {
   renderTraining();
   renderCaptured();
   if (typeof triggerAutoSave === 'function') triggerAutoSave(false);
+}
+
+function assignTrainingFromModal() {
+  if (selectedMonsterIdx !== null && selectedMonsterIdx >= 0) {
+    assignMonsterToTraining(selectedMonsterIdx);
+  }
+}
+
+function assignStaffFromModal() {
+  if (selectedMonsterIdx !== null && selectedMonsterIdx >= 0) {
+    if (typeof openStaffSelectModal === 'function') {
+      closeMonsterModal();
+      openStaffSelectModal(0);
+    }
+  }
+}
+
+function togglePartyFromModal() {
+  if (selectedMonsterIdx !== null && selectedMonsterIdx >= 0) {
+    assignMonsterToParty(selectedMonsterIdx);
+  }
 }
 
 function toggleMonsterLock(idx) {

@@ -8,13 +8,13 @@ function getLocalSaveKey() {
 
 function buildSavePayload() {
   return {
-    v: 67,
+    v: 68,
     savedAt: Date.now(),
     userName: playerName || 'ハンター',
     gold: Number(gold) || 0,
     gem: Number(gem) || 0,
     stamina: Number(stamina) || 0,
-    maxStamina: Number(maxStamina) || 50,
+    maxStamina: Number(maxStamina) || 30,
     staminaUpdatedAt: Number(staminaUpdatedAt) || Date.now(),
     stage: Number(state?.stage) || 1,
     floor: Number(state?.floor) || 1,
@@ -24,12 +24,11 @@ function buildSavePayload() {
     captured: Array.isArray(captured) ? captured : [],
     maxCaptured: Number(maxCaptured) || 50,
     party: Array.isArray(party) ? party : [null, null, null],
-    trainingSlots: Array.isArray(trainingSlots) ? trainingSlots : [null, null, null, null],
-    trainSlotCap: Number(typeof trainSlotCap !== 'undefined' ? trainSlotCap : 3),
+    trainingSlots: Array.isArray(trainingSlots) ? trainingSlots : [null, null, null],
+    maxTrainingSlots: Number(maxTrainingSlots) || 3,
     cafeLv: Number(cafeLv) || 1,
     cafeUpgradeCost: Number(typeof cafeUpgradeCost !== 'undefined' ? cafeUpgradeCost : 80),
     staff: Array.isArray(staff) ? staff : [null, null, null],
-    gardenItems: Array.isArray(gardenItems) ? gardenItems : [],
     materials: (typeof materials === 'object' && materials) ? materials : {},
     unlockedRecipes: Array.isArray(unlockedRecipes) ? unlockedRecipes : [],
     recipeLevels: (typeof recipeLevels === 'object' && recipeLevels) ? recipeLevels : {},
@@ -40,14 +39,15 @@ function buildSavePayload() {
     autoActive: Boolean(autoActive),
     speed2xUnlocked: Boolean(speed2xUnlocked),
     speed2xActive: Boolean(speed2xActive),
+    staminaFastUnlocked: Boolean(staminaFastUnlocked),
     waveStopMode: Boolean(waveStopMode),
-    aiSpecies: Array.isArray(aiSpecies) ? aiSpecies : [],
     speciesSkins: (typeof speciesSkins === 'object' && speciesSkins) ? speciesSkins : {},
     aiBackgrounds: Array.isArray(aiBackgrounds) ? aiBackgrounds : [],
     aiStamps: Array.isArray(aiStamps) ? aiStamps : [],
     iconConfig: iconConfig || { species: 'デフォルト', bgIdx: -1, scale: 1.0, x: 0, y: 0, rotate: 0 }
   };
 }
+
 function saveToLocalOnly(payload) {
   try {
     const data = payload || buildSavePayload();
@@ -56,7 +56,7 @@ function saveToLocalOnly(payload) {
 }
 
 function setSaveBadgeStatus(text, isOk = true) {
-  const el = document.getElementById('save-status');
+  const el = document.getElementById('save-indicator') || document.getElementById('save-status');
   if (!el) return;
   el.textContent = text;
   el.style.background = isOk ? '#e0f2f1' : '#fff3e0';
@@ -126,12 +126,11 @@ function applySaveData(d) {
   if (typeof d.maxCaptured === 'number') maxCaptured = d.maxCaptured;
   if (Array.isArray(d.party)) party = d.party;
   if (Array.isArray(d.trainingSlots)) trainingSlots = d.trainingSlots;
-  if (typeof d.trainSlotCap === 'number' && typeof trainSlotCap !== 'undefined') trainSlotCap = d.trainSlotCap;
+  if (typeof d.maxTrainingSlots === 'number') maxTrainingSlots = d.maxTrainingSlots;
 
   if (typeof d.cafeLv === 'number') cafeLv = d.cafeLv;
   if (typeof d.cafeUpgradeCost === 'number' && typeof cafeUpgradeCost !== 'undefined') cafeUpgradeCost = d.cafeUpgradeCost;
   if (Array.isArray(d.staff)) staff = d.staff;
-  if (Array.isArray(d.gardenItems)) gardenItems = d.gardenItems;
 
   materials = (d.materials && typeof d.materials === 'object') ? d.materials : {};
   unlockedRecipes = Array.isArray(d.unlockedRecipes) ? d.unlockedRecipes : [];
@@ -145,9 +144,9 @@ function applySaveData(d) {
   if (typeof d.autoActive === 'boolean') autoActive = d.autoActive;
   if (typeof d.speed2xUnlocked === 'boolean') speed2xUnlocked = d.speed2xUnlocked;
   if (typeof d.speed2xActive === 'boolean') speed2xActive = d.speed2xActive;
+  if (typeof d.staminaFastUnlocked === 'boolean') staminaFastUnlocked = d.staminaFastUnlocked;
   if (typeof d.waveStopMode === 'boolean') waveStopMode = d.waveStopMode;
 
-  if (Array.isArray(d.aiSpecies)) aiSpecies = d.aiSpecies;
   if (d.speciesSkins && typeof d.speciesSkins === 'object') speciesSkins = d.speciesSkins;
   if (Array.isArray(d.aiBackgrounds)) aiBackgrounds = d.aiBackgrounds;
   if (Array.isArray(d.aiStamps)) aiStamps = d.aiStamps;
@@ -197,6 +196,34 @@ async function initCloudLoad() {
   }
 }
 
+async function loadFromCloudById() {
+  const inp = document.getElementById('import-id-input');
+  if (!inp) return;
+  const targetId = inp.value.trim();
+  if (!targetId) return alert('引き継ぎIDを入力してください');
+  try {
+    const res = await fetch('/api/save?user_id=' + encodeURIComponent(targetId));
+    if (!res.ok) throw new Error();
+    const row = await res.json();
+    if (!row || !row.save_json) return alert('指定されたIDのセーブデータが見つかりませんでした');
+    userId = targetId;
+    localStorage.setItem('treasure_uid', userId);
+    const cloudData = typeof row.save_json === 'string' ? JSON.parse(row.save_json) : row.save_json;
+    applySaveData(cloudData);
+    const uidEl = document.getElementById('my-user-id');
+    if (uidEl) uidEl.textContent = userId;
+    showToast('セーブデータを正常に復元しました！');
+  } catch (e) {
+    alert('データ復元エラー: ' + e.message);
+  }
+}
+
 window.addEventListener('beforeunload', () => {
   saveToLocalOnly();
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  const uidEl = document.getElementById('my-user-id');
+  if (uidEl) uidEl.textContent = userId;
+  initCloudLoad();
 });
