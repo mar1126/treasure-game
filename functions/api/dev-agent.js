@@ -1,4 +1,4 @@
-// ゲーム内AI開発コンソール API（全リポジトリ完全読み込み・賢さ＆速度両立版）
+// ゲーム内AI開発コンソール API（全26ファイル完全読み込み＋差分パッチ高速合体版）
 const ADMIN_USER_IDS = ['H-ORM8PM4M'];
 
 export async function onRequestPost(context) {
@@ -119,10 +119,12 @@ export async function onRequestPost(context) {
         );
       } else {
         promptLines.push(
-          '【現在のモード：一括コード修正生成モード】',
-          '- 指示されていない既存のUI、CSS、計算式、関数名、変数名を勝手に変更・削除しないこと。',
-          '- index.html を編集する際は <script src="/dev-console.js..."></script> を絶対に消さないこと。',
-          '- 「// 省略」「// 既存コードと同じ」などの省略は絶対にせず、修正するファイルは先頭から末尾まで完全なコードを出力すること。',
+          '【現在のモード：高速差分パッチ生成モード】',
+          '- ファイル全文は出力せず、変更する箇所だけを以下の差分パッチ形式で出力してください。',
+          '- 既存のUI、CSS、計算式、関数名、変数名を勝手に変更・削除しないこと。',
+          '- <<<SEARCH>>> には元ファイルに存在するコードと一字一句完全に一致する箇所（前後数行を含む）を記載すること。',
+          '- 1ファイル内に複数箇所の変更がある場合は <<<PATCH>>> ... <<<END_PATCH>>> を複数並べること。',
+          '- 新規ファイル作成時のみ <<<NEW_FILE>>> の中に全文を書くこと。',
           '- JSONは使わず、必ず以下の専用ブロック形式のみで出力すること（マークダウンのコードブロックは付けない）：',
           '',
           '<<<SUMMARY>>>',
@@ -130,7 +132,12 @@ export async function onRequestPost(context) {
           '<<<END_SUMMARY>>>',
           '<<<FILE:' + mainRepo + ':ファイルパス>>>',
           '<<<REASON>>>このファイルの変更理由<<<END_REASON>>>',
-          '修正後の完全なコード（先頭から末尾まで省略なし）',
+          '<<<PATCH>>>',
+          '<<<SEARCH>>>',
+          '元ファイルの該当コード（完全一致）',
+          '<<<REPLACE>>>',
+          '修正後のコード',
+          '<<<END_PATCH>>>',
           '<<<END_FILE>>>'
         );
       }
@@ -173,7 +180,7 @@ export async function onRequestPost(context) {
             body: JSON.stringify({
               contents: [{ parts }],
               generationConfig: {
-                maxOutputTokens: 65536,
+                maxOutputTokens: 32768,
                 thinkingConfig: { thinkingBudget: 4096 }
               }
             })
@@ -231,11 +238,41 @@ export async function onRequestPost(context) {
           reason = rMatch.at(1).trim();
           bodyText = bodyText.replace(rMatch.at(0), '');
         }
-        const cleanCode = bodyText
-          .replace(/^\r?\n/, '')
-          .replace(/\r?\n$/, '');
-        if (fPath && cleanCode) {
-          resultFiles.push({ repo: fRepo, path: fPath, reason, code: cleanCode });
+
+        const origObj = validFiles.find(vf => vf.repo === fRepo && vf.path === fPath);
+        const newFileMatch = bodyText.match(/<<<NEW_FILE>>>([\s\S]*?)(?:<<<END_NEW_FILE>>>|$)/);
+
+        if (newFileMatch) {
+          const cleanNew = newFileMatch.at(1).replace(/^\r?\n/, '').replace(/\r?\n$/, '');
+          if (cleanNew) resultFiles.push({ repo: fRepo, path: fPath, reason, code: cleanNew });
+          continue;
+        }
+
+        if (origObj) {
+          let mergedCode = origObj.content;
+          const patchRegex = /<<<PATCH>>>([\s\S]*?)<<<END_PATCH>>>/g;
+          let pm;
+          let appliedCount = 0;
+          while ((pm = patchRegex.exec(bodyText)) !== null) {
+            const pBlock = String(pm.at(1) || '');
+            const srMatch = pBlock.match(/<<<SEARCH>>>\r?\n?([\s\S]*?)\r?\n?<<<REPLACE>>>\r?\n?([\s\S]*)$/);
+            if (srMatch) {
+              const searchTxt = srMatch.at(1);
+              const replaceTxt = srMatch.at(2);
+              if (searchTxt && mergedCode.includes(searchTxt)) {
+                mergedCode = mergedCode.replace(searchTxt, replaceTxt);
+                appliedCount++;
+              }
+            }
+          }
+          if (appliedCount > 0) {
+            resultFiles.push({ repo: fRepo, path: fPath, reason, code: mergedCode });
+          } else {
+            const fallbackCode = bodyText.replace(/^\r?\n/, '').replace(/\r?\n$/, '');
+            if (fallbackCode && !fallbackCode.includes('<<<PATCH>>>')) {
+              resultFiles.push({ repo: fRepo, path: fPath, reason, code: fallbackCode });
+            }
+          }
         }
       }
 
