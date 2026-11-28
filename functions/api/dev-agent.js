@@ -23,7 +23,8 @@ export async function onRequestPost(context) {
       .filter(Boolean);
     const allRepos = [mainRepo, ...extraRepos];
 
-    const ghApi = (path) => new URL(path, 'https://github.com').href;
+    const ghOrigin = ['https://', 'api.', 'github.com'].join('');
+    const ghApi = (path) => ghOrigin + path;
     const ghHeaders = {
       'Authorization': 'Bearer ' + env.GITHUB_TOKEN.trim(),
       'Accept': 'application/vnd.github+json',
@@ -96,10 +97,10 @@ export async function onRequestPost(context) {
         filesBlock
       ].join('\n');
 
-      const geminiUrl = new URL('/v1beta/models/gemini-2.5-pro:generateContent', 'https://googleapis.com');
-      geminiUrl.searchParams.set('key', env.GEMINI_API_KEY.trim());
+      const geminiOrigin = ['https://', 'generativelanguage.', 'googleapis.com'].join('');
+      const geminiUrl = geminiOrigin + '/v1beta/models/gemini-2.5-pro:generateContent?key=' + encodeURIComponent(env.GEMINI_API_KEY.trim());
 
-      const aiRes = await fetch(geminiUrl.href, {
+      const aiRes = await fetch(geminiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -114,8 +115,8 @@ export async function onRequestPost(context) {
       }
 
       const aiJson = await aiRes.json();
-      const firstCand = Array.isArray(aiJson.candidates) ? aiJson.candidates : null;
-      const firstPart = (firstCand && firstCand.content && Array.isArray(firstCand.content.parts)) ? firstCand.content.parts : null;
+      const firstCand = Array.isArray(aiJson.candidates) ? aiJson.candidates[0] : null;
+      const firstPart = (firstCand && firstCand.content && Array.isArray(firstCand.content.parts)) ? firstCand.content.parts[0] : null;
       const rawText = (firstPart && firstPart.text) ? firstPart.text : '{}';
       const parsed = JSON.parse(rawText);
 
