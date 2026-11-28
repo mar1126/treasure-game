@@ -98,7 +98,7 @@ export async function onRequestPost(context) {
       ].join('\n');
 
       const geminiOrigin = ['https://', 'generativelanguage.', 'googleapis.com'].join('');
-      const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+      const models = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview'];
       let aiJson = null;
       let lastErr = '';
 
