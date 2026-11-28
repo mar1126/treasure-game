@@ -535,26 +535,38 @@ function removeWhiteBackground(dataUrl) {
     const img = new Image();
     img.onload = () => {
       try {
-        const size = 256;
+        const size = 512;
         const canvas = document.createElement('canvas');
         canvas.width = size;
         canvas.height = size;
         const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, size, size);
+
         const imgData = ctx.getImageData(0, 0, size, size);
         const d = imgData.data;
-        const visited = new Uint8Array(size * size);
+        const len = size * size;
+        const visited = new Uint8Array(len);
         const queue = [];
-        const isNearWhite = (idx) => d[idx * 4] > 232 && d[idx * 4 + 1] > 232 && d[idx * 4 + 2] > 232;
 
-        for (let x = 0; x < size; x++) queue.push(x, (size - 1) * size + x);
-        for (let y = 0; y < size; y++) queue.push(y * size, y * size + (size - 1));
+        const isBackgroundWhite = (idx) => {
+          const r = d[idx * 4], g = d[idx * 4 + 1], b = d[idx * 4 + 2];
+          return (r > 215 && g > 215 && b > 215) && (Math.max(r, g, b) - Math.min(r, g, b) < 25);
+        };
+
+        for (let x = 0; x < size; x++) {
+          queue.push(x, (size - 1) * size + x);
+        }
+        for (let y = 0; y < size; y++) {
+          queue.push(y * size, y * size + (size - 1));
+        }
 
         while (queue.length > 0) {
           const p = queue.pop();
           if (visited[p]) continue;
           visited[p] = 1;
-          if (!isNearWhite(p)) continue;
+          if (!isBackgroundWhite(p)) continue;
           d[p * 4 + 3] = 0;
           const x = p % size, y = Math.floor(p / size);
           if (x > 0) queue.push(p - 1);
@@ -562,6 +574,34 @@ function removeWhiteBackground(dataUrl) {
           if (y > 0) queue.push(p - size);
           if (y < size - 1) queue.push(p + size);
         }
+
+        for (let i = 0; i < len; i++) {
+          const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], a = d[i * 4 + 3];
+          if (a === 0) continue;
+
+          if (r > 210 && g > 210 && b > 210 && Math.max(r, g, b) - Math.min(r, g, b) < 30) {
+            let transparentNeighbors = 0;
+            const x = i % size, y = Math.floor(i / size);
+            for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) continue;
+                const nx = x + dx, ny = y + dy;
+                if (nx >= 0 && nx < size && ny >= 0 && ny < size) {
+                  if (d[(ny * size + nx) * 4 + 3] === 0) transparentNeighbors++;
+                }
+              }
+            }
+            if (transparentNeighbors >= 2 || visited[i]) {
+              d[i * 4 + 3] = 0;
+            } else {
+              const whiteness = (r + g + b) / 3;
+              if (whiteness > 230) {
+                d[i * 4 + 3] = Math.max(0, d[i * 4 + 3] - (whiteness - 220) * 2);
+              }
+            }
+          }
+        }
+
         ctx.putImageData(imgData, 0, 0);
         resolve(canvas.toDataURL('image/png'));
       } catch (e) { resolve(dataUrl); }
@@ -570,6 +610,7 @@ function removeWhiteBackground(dataUrl) {
     img.src = dataUrl;
   });
 }
+
 function composeStampWithCaption(cleanImgUrl, captionText) {
   return new Promise(resolve => {
     const img = new Image();
