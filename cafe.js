@@ -91,9 +91,19 @@ function closeStaffSelectModal() {
 }
 
 function assignStaffSlot(slotIdx, capturedIdx) {
+  if (capturedIdx !== null && capturedIdx !== undefined) {
+    const m = (captured || [])[capturedIdx];
+    if (m) {
+      const inParty = (party || []).some(v => v === capturedIdx || v === m.id);
+      const inTrain = (trainingSlots || []).some(v => v === capturedIdx || v === m.id);
+      if (inParty) return alert('パーティに編成されているモンスターは酒場に配置できません');
+      if (inTrain) return alert('訓練場に配置されているモンスターは酒場に配置できません');
+    }
+  }
   if (!Array.isArray(staff)) staff = [null, null, null];
   staff[slotIdx] = capturedIdx;
   closeStaffSelectModal();
+
   renderCafe();
   if (typeof renderCaptured === 'function') renderCaptured();
   if (typeof updateUI === 'function') updateUI();

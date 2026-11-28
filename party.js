@@ -384,7 +384,11 @@ function assignMonsterToParty(idx) {
   if (Array.isArray(trainingSlots) && trainingSlots.some(v => v === idx || v === m.id)) {
     return alert('訓練場に配置されているモンスターはパーティに編成できません');
   }
+  if (Array.isArray(staff) && staff.some(v => v === idx || v === m.id)) {
+    return alert('酒場に配置されているモンスターはパーティに編成できません');
+  }
   const emptySlot = party.findIndex(v => v === null || v === undefined);
+
 
   if (emptySlot === -1) return alert('パーティ枠（3体）がいっぱいです');
   party[emptySlot] = idx;
@@ -404,7 +408,11 @@ function assignMonsterToTraining(idx) {
   if (Array.isArray(party) && party.some(v => v === idx || v === m.id)) {
     return alert('パーティに編成されているモンスターは訓練場に配置できません');
   }
+  if (Array.isArray(staff) && staff.some(v => v === idx || v === m.id)) {
+    return alert('酒場に配置されているモンスターは訓練場に配置できません');
+  }
   let emptySlot = -1;
+
 
   for (let i = 0; i < maxSlots; i++) {
     if (trainingSlots[i] === null || trainingSlots[i] === undefined) { emptySlot = i; break; }

@@ -391,14 +391,26 @@ function handleWaveCleared() {
   });
 
   const trainExp = Math.max(1, Math.floor(expGain * 0.1));
+  const expGrantedIds = new Set(partyIds);
   (trainingSlots || []).forEach(val => {
     if (val !== null && val !== undefined) {
       const m = (captured || [])[val] || (captured || []).find(x => x && x.id === val);
-      if (m && !partyIds.has(m.id) && typeof grantExpToMonster === 'function') {
+      if (m && !expGrantedIds.has(m.id) && typeof grantExpToMonster === 'function') {
+        expGrantedIds.add(m.id);
         grantExpToMonster(m, trainExp);
       }
     }
   });
+  (staff || []).forEach(val => {
+    if (val !== null && val !== undefined) {
+      const m = (captured || [])[val] || (captured || []).find(x => x && x.id === val);
+      if (m && !expGrantedIds.has(m.id) && typeof grantExpToMonster === 'function') {
+        expGrantedIds.add(m.id);
+        grantExpToMonster(m, trainExp);
+      }
+    }
+  });
+
 
   (state.enemies || []).forEach(e => {
     if (e && typeof tryAutoRecruit === 'function') {
