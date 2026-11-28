@@ -72,44 +72,39 @@ async function understandJapanesePromptWithAI(ai, type, species, rawPrompt, webC
   try {
     const presetVisual = MONSTER_VISUAL_DICTS[species] || "";
     const sys =
-      "You are an expert Japanese-to-English visual prompt translator for high quality JRPG 2D anime illustration, beautiful character design, clean outlines, vibrant colors. " +
-      "Understand Japanese slang, anime/manga tropes, fashion, and monster motifs accurately using the provided Japanese web context. " +
-      "Output ONLY a comma-separated list of concrete English visual tags (max 65 words, no sentences, no explanations). " +
+      "You are an expert Japanese-to-English visual prompt translator for high quality JRPG 2D anime illustration. " +
+      "CRITICAL: You must faithfully and prominently translate and incorporate the user's specific Japanese instructions into concrete English visual tags. Do not ignore user details. " +
+      "Output ONLY a comma-separated list of concrete English visual tags (max 75 words, no sentences). " +
       "Mandatory Rules: " +
-      "1. Style: Always enforce attractive, friendly JRPG 2D anime illustration style, clean bold outlines, vibrant colors, masterpiece aesthetics. " +
-      "2. Negative/Forbidden: Strictly AVOID dinosaurs, ugly reptiles, grotesque, distorted anatomy, creepy monsters, low quality 3D, photorealistic, deformed proportions. For humanoid or fantasy species, never make them look like clumsy dinosaurs or misshapen lizards. " +
-      "3. Species Consistency: Ensure humanoid monsters retain proper humanoid proportions and cool/cute JRPG anime character aesthetics. " +
-      (presetVisual ? `4. Preset Visual Base for '${species}': ${presetVisual}\n` : "");
+      "1. Style: JRPG 2D anime illustration, clean bold outlines, vibrant colors. " +
+      "2. User Prompt Priority: The user's specific instructions ('Japanese User Prompt') must take highest priority and be fully detailed in the tags. " +
+      (presetVisual ? `3. Species Base for '${species}': ${presetVisual}\n` : "");
 
     const userMsg =
       `Task Type: ${type}\n` +
-      `Monster Species: ${species} (Humanoid species: ${isHumanoidSpecies})\n` +
-      `Preset Visual Tag: ${presetVisual}\n` +
-      `Japanese User Prompt: ${rawPrompt}\n` +
-      (webContext ? `Japanese Reference Info: ${webContext}` : "");
+      `Monster Species: ${species}\n` +
+      `Japanese User Prompt (MUST INCORPORATE): ${rawPrompt}\n` +
+      (webContext ? `Reference Info: ${webContext}` : "");
 
     const res = await ai.run("@cf/qwen/qwen2.5-7b-instruct", {
       messages: [
         { role: "system", content: sys },
         { role: "user", content: userMsg }
       ],
-      max_tokens: 140,
-      temperature: 0.3
+      max_tokens: 160,
+      temperature: 0.2
     });
 
     const out = (res && typeof res.response === "string") ? res.response.trim() : "";
-    if (out && out.length > 4) {
-      return out.replace(/^["']|["']$/g, "");
+    if (out && out.length > 3) {
+      return `${rawPrompt}, ${out.replace(/^["']|["']$/g, "")}`;
     }
   } catch (e) {}
 
-  let prefix = "";
-  if (type === "monster" && !isHumanize && !isHumanoidSpecies) {
-    prefix = "non-human fantasy RPG creature, NO dinosaurs, NO ugly reptiles, ";
-  }
   const dictFallback = MONSTER_VISUAL_DICTS[species] || `${species}, JRPG fantasy art style`;
-  return `${prefix}${dictFallback}, ${rawPrompt}`;
+  return `${rawPrompt}, ${dictFallback}`;
 }
+
 
 
 async function extractDetailedFaceAndOutfit(ai, imgBytes) {
@@ -221,10 +216,11 @@ export async function onRequestPost({ request, env }) {
 
     let fullPrompt = "";
     if (type === "monster") {
-      fullPrompt = `${understoodTags}, centered full body game sprite, ${jpStyle}`;
+      fullPrompt = `masterpiece, best quality, ${understoodTags}, centered full body game sprite, ${jpStyle}`;
     } else if (type === "bg") {
-      fullPrompt = `${understoodTags}, Japanese anime fantasy RPG scenery background art, vibrant lighting, detailed digital painting, scenic view, no characters, no text`;
+      fullPrompt = `masterpiece, best quality, ${understoodTags}, Japanese anime fantasy RPG scenery background art, vibrant lighting, detailed digital painting, scenic view, no characters, no text`;
     }
+
 
     const result = await ai.run("@cf/black-forest-labs/flux-1-schnell", {
       prompt: fullPrompt,

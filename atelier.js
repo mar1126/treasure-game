@@ -550,9 +550,21 @@ function removeWhiteBackground(dataUrl) {
         const visited = new Uint8Array(len);
         const queue = [];
 
-        const isBackgroundWhite = (idx) => {
-          const r = d[idx * 4], g = d[idx * 4 + 1], b = d[idx * 4 + 2];
-          return (r > 195 && g > 195 && b > 195) && (Math.max(r, g, b) - Math.min(r, g, b) < 40);
+        const sampleCorners = [
+          0, size - 1,
+          (size - 1) * size,
+          (size - 1) * size + size - 1
+        ];
+        let bgR = 0, bgG = 0, bgB = 0;
+        sampleCorners.forEach(idx => {
+          bgR += d[idx * 4]; bgG += d[idx * 4 + 1]; bgB += d[idx * 4 + 2];
+        });
+        bgR = Math.round(bgR / 4);
+        bgG = Math.round(bgG / 4);
+        bgB = Math.round(bgB / 4);
+
+        const isNearBg = (r, g, b) => {
+          return Math.abs(r - bgR) < 40 && Math.abs(g - bgG) < 40 && Math.abs(b - bgB) < 40 && (r > 175 && g > 175 && b > 175);
         };
 
         for (let x = 0; x < size; x++) {
@@ -566,7 +578,8 @@ function removeWhiteBackground(dataUrl) {
           const p = queue.pop();
           if (visited[p]) continue;
           visited[p] = 1;
-          if (!isBackgroundWhite(p)) continue;
+          const r = d[p * 4], g = d[p * 4 + 1], b = d[p * 4 + 2];
+          if (!isNearBg(r, g, b)) continue;
           d[p * 4 + 3] = 0;
           const x = p % size, y = Math.floor(p / size);
           if (x > 0) queue.push(p - 1);
@@ -576,24 +589,22 @@ function removeWhiteBackground(dataUrl) {
         }
 
         for (let i = 0; i < len; i++) {
-          const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], a = d[i * 4 + 3];
-          if (a === 0) continue;
-
-          if (r > 185 && g > 185 && b > 185 && Math.max(r, g, b) - Math.min(r, g, b) < 45) {
-            let transparentNeighbors = 0;
+          if (d[i * 4 + 3] === 0) continue;
+          const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
+          if (r > 195 && g > 195 && b > 195 && Math.max(r, g, b) - Math.min(r, g, b) < 35) {
+            let transCount = 0;
             const x = i % size, y = Math.floor(i / size);
-            for (let dy = -1; dy <= 1; dy++) {
-              for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -2; dy <= 2; dy++) {
+              for (let dx = -2; dx <= 2; dx++) {
                 if (dx === 0 && dy === 0) continue;
                 const nx = x + dx, ny = y + dy;
                 if (nx >= 0 && nx < size && ny >= 0 && ny < size) {
-                  if (d[(ny * size + nx) * 4 + 3] === 0) transparentNeighbors++;
+                  if (d[(ny * size + nx) * 4 + 3] === 0) transCount++;
                 }
               }
             }
-            if (transparentNeighbors >= 1) {
-              const whiteness = (r + g + b) / 3;
-              d[i * 4 + 3] = Math.max(0, a - Math.floor((255 - whiteness) * 1.8));
+            if (transCount >= 3) {
+              d[i * 4 + 3] = 0;
             }
           }
         }
@@ -606,6 +617,7 @@ function removeWhiteBackground(dataUrl) {
     img.src = dataUrl;
   });
 }
+
 
 
 function composeStampWithCaption(cleanImgUrl, captionText) {
